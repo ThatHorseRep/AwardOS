@@ -14,6 +14,7 @@ import {
   Lock,
   ChevronRight,
   ExternalLink,
+  User,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,13 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
 
   const sections = [
+    {
+      title: "User Profile & DP",
+      description: "Manage display name, avatar photo, and credentials",
+      icon: User,
+      color: "text-indigo-600 bg-indigo-50",
+      href: "/settings/profile",
+    },
     {
       title: "General & Branding",
       description: "Workspace details, default themes and white-labeling",

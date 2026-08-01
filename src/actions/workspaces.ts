@@ -12,10 +12,28 @@ export async function getCurrentUser() {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (user) {
+      let avatarUrl = user.user_metadata?.avatar_url || null;
+      let displayName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "User";
+
+      try {
+        const records = await db
+          .select({ avatarUrl: users.avatarUrl, displayName: users.displayName })
+          .from(users)
+          .where(eq(users.id, user.id))
+          .limit(1);
+        if (records.length > 0) {
+          if (records[0].avatarUrl) avatarUrl = records[0].avatarUrl;
+          if (records[0].displayName) displayName = records[0].displayName;
+        }
+      } catch (err) {
+        // Fallback to metadata
+      }
+
       return {
         id: user.id,
         email: user.email || "",
-        displayName: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "User",
+        displayName,
+        avatarUrl,
       };
     }
   } catch (err) {
@@ -32,6 +50,7 @@ export async function getCurrentUser() {
         id: "00000000-0000-0000-0000-000000000000",
         email: "dev@awardos.local",
         displayName: "Development User",
+        avatarUrl: null,
       };
     }
   } catch (err) {

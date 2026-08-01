@@ -1,15 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { Menu, Bell, X, LayoutDashboard, Calendar, Inbox, Vote, Users, Settings, LogOut } from 'lucide-react'
+import { Menu, Bell, X, LayoutDashboard, Calendar, Inbox, Vote, Users, Settings, LogOut, User } from 'lucide-react'
 import { signOutAction } from '@/actions/auth'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { Avatar } from '@/components/ui/avatar'
 
 interface HeaderProps {
   user: {
     email: string
     displayName: string
+    avatarUrl?: string | null
   }
 }
 
@@ -17,10 +19,6 @@ export default function Header({ user }: HeaderProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const pathname = usePathname()
-
-  const getInitials = (name: string) => {
-    return name.substring(0, 2).toUpperCase()
-  }
 
   const getGreeting = () => {
     const hour = new Date().getHours()
@@ -75,9 +73,9 @@ export default function Header({ user }: HeaderProps) {
         <div className="relative">
           <button 
             onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs ring-2 ring-zinc-800 shadow-md shadow-blue-600/20"
+            className="flex items-center justify-center rounded-full hover:opacity-90 transition-opacity"
           >
-            {getInitials(user.displayName)}
+            <Avatar src={user.avatarUrl} name={user.displayName} size="md" className="ring-2 ring-blue-500/40" />
           </button>
 
           {dropdownOpen && (
@@ -87,17 +85,29 @@ export default function Header({ user }: HeaderProps) {
                 onClick={() => setDropdownOpen(false)}
               />
               <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl overflow-hidden z-50 animate-in fade-in duration-150">
-                <div className="px-4 py-3 border-b border-zinc-800">
-                  <p className="text-xs font-bold text-white truncate">{user.displayName}</p>
-                  <p className="text-[11px] text-zinc-400 truncate mt-0.5">{user.email}</p>
+                <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-3">
+                  <Avatar src={user.avatarUrl} name={user.displayName} size="sm" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-white truncate">{user.displayName}</p>
+                    <p className="text-[10px] text-zinc-400 truncate">{user.email}</p>
+                  </div>
                 </div>
                 <div className="py-1">
                   <Link 
+                    href="/settings/profile"
+                    onClick={() => setDropdownOpen(false)}
+                    className="w-full px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors flex items-center gap-2"
+                  >
+                    <User className="w-3.5 h-3.5 text-blue-400" />
+                    <span>User Profile & DP</span>
+                  </Link>
+                  <Link 
                     href="/settings"
                     onClick={() => setDropdownOpen(false)}
-                    className="w-full px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors block"
+                    className="w-full px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors flex items-center gap-2"
                   >
-                    Workspace Settings
+                    <Settings className="w-3.5 h-3.5 text-zinc-400" />
+                    <span>Workspace Settings</span>
                   </Link>
                 </div>
                 <div className="border-t border-zinc-800 py-1">
