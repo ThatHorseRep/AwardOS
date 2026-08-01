@@ -54,7 +54,6 @@ export default function NewEventWizardPage() {
   const [verificationLevel, setVerificationLevel] = useState("STANDARD");
   const [audienceType, setAudienceType] = useState("PUBLIC");
 
-  // Auto-generate slug from title
   const handleTitleChange = (val: string) => {
     setTitle(val);
     const generatedSlug = val
@@ -122,18 +121,18 @@ export default function NewEventWizardPage() {
   ];
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="max-w-4xl mx-auto space-y-6 font-sans select-none pb-16">
       {/* Header Bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link href="/dashboard/events">
-            <Button variant="ghost" size="icon">
+          <Link href="/events">
+            <Button variant="ghost" size="icon" className="text-slate-700 hover:bg-slate-200">
               <ArrowLeft className="w-4 h-4" />
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">Create New Recognition Event</h1>
-            <p className="text-slate-400 text-xs mt-0.5">
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Create New Recognition Event</h1>
+            <p className="text-slate-600 text-xs mt-0.5 font-medium">
               Set up your award event, categories, and voting pipeline step-by-step.
             </p>
           </div>
@@ -153,28 +152,28 @@ export default function NewEventWizardPage() {
               onClick={() => step.num < currentStep && setCurrentStep(step.num)}
               className={`p-3 rounded-2xl border flex items-center gap-3 text-left transition-all ${
                 isCurrent
-                  ? "bg-indigo-600/15 border-indigo-500/50 text-indigo-300 shadow-md shadow-indigo-600/10"
+                  ? "bg-blue-50 border-blue-400 text-blue-900 shadow-sm"
                   : isDone
-                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 cursor-pointer"
-                  : "bg-slate-900/40 border-slate-800 text-slate-500 cursor-not-allowed"
+                  ? "bg-emerald-50 border-emerald-300 text-emerald-800 cursor-pointer font-bold"
+                  : "bg-white border-slate-200 text-slate-500 cursor-not-allowed"
               }`}
             >
               <div
-                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 font-bold ${
                   isCurrent
-                    ? "bg-indigo-600 text-white"
+                    ? "bg-blue-600 text-white"
                     : isDone
-                    ? "bg-emerald-500 text-slate-950 font-bold"
-                    : "bg-slate-800 text-slate-500"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-slate-100 text-slate-500"
                 }`}
               >
                 {isDone ? <Check className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
               </div>
               <div className="hidden sm:flex flex-col">
-                <span className="text-[10px] uppercase tracking-wider font-semibold opacity-70">
+                <span className="text-[10px] uppercase tracking-wider font-bold opacity-70">
                   Step 0{step.num}
                 </span>
-                <span className="text-xs font-semibold truncate">{step.label}</span>
+                <span className="text-xs font-bold truncate">{step.label}</span>
               </div>
             </button>
           );
@@ -182,34 +181,34 @@ export default function NewEventWizardPage() {
       </div>
 
       {/* Step Content Cards */}
-      <Card className="border-indigo-500/20">
+      <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
         {/* Step 1: Basics & Info */}
         {currentStep === 1 && (
           <div className="space-y-6">
-            <CardHeader>
-              <CardTitle>Event Details & Visibility</CardTitle>
-              <CardDescription>
+            <CardHeader className="border-b border-slate-100 pb-4">
+              <CardTitle className="text-base font-bold text-slate-900">Event Details & Visibility</CardTitle>
+              <CardDescription className="text-xs text-slate-600 font-medium">
                 Define the name, description, and accessibility settings for your award program.
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 pt-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-300">Event Title *</label>
+                <label className="text-xs font-semibold text-slate-700">Event Title *</label>
                 <input
                   type="text"
                   required
                   value={title}
                   onChange={(e) => handleTitleChange(e.target.value)}
                   placeholder="e.g. Campus Excellence & Leadership Awards 2026"
-                  className="w-full bg-slate-900/80 text-slate-200 text-sm rounded-xl px-4 py-2.5 border border-slate-800 focus:outline-none focus:border-indigo-500/60"
+                  className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-4 py-2.5 border border-slate-200 focus:outline-none focus:border-blue-500 font-medium"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-300">Public URL Slug</label>
+                <label className="text-xs font-semibold text-slate-700">Public URL Slug</label>
                 <div className="flex items-center">
-                  <span className="bg-slate-800/80 text-slate-400 text-xs px-3 py-2.5 rounded-l-xl border border-r-0 border-slate-800 font-mono">
+                  <span className="bg-slate-100 text-slate-600 text-xs px-3 py-2.5 rounded-l-2xl border border-r-0 border-slate-200 font-mono font-medium">
                     awardos.io/e/
                   </span>
                   <input
@@ -217,24 +216,24 @@ export default function NewEventWizardPage() {
                     value={slug}
                     onChange={(e) => setSlug(e.target.value)}
                     placeholder="campus-excellence-2026"
-                    className="w-full bg-slate-900/80 text-slate-200 text-xs font-mono rounded-r-xl px-3 py-2.5 border border-slate-800 focus:outline-none focus:border-indigo-500/60"
+                    className="w-full bg-slate-50 text-slate-900 text-xs font-mono rounded-r-2xl px-3 py-2.5 border border-slate-200 focus:outline-none focus:border-blue-500 font-medium"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-300">Description / Overview</label>
+                <label className="text-xs font-semibold text-slate-700">Description / Overview</label>
                 <textarea
                   rows={3}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Describe the purpose, scope, and significance of this award program..."
-                  className="w-full bg-slate-900/80 text-slate-200 text-xs rounded-xl p-3 border border-slate-800 focus:outline-none focus:border-indigo-500/60"
+                  className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl p-3 border border-slate-200 focus:outline-none focus:border-blue-500 font-medium"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-300">Visibility Setting</label>
+                <label className="text-xs font-semibold text-slate-700">Visibility Setting</label>
                 <div className="grid grid-cols-3 gap-3">
                   {[
                     { id: "PUBLIC", label: "Public", desc: "Listed on public directory", icon: Globe },
@@ -247,15 +246,15 @@ export default function NewEventWizardPage() {
                         key={item.id}
                         type="button"
                         onClick={() => setVisibility(item.id)}
-                        className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all ${
+                        className={`p-3 rounded-2xl border text-left flex flex-col gap-1 transition-all ${
                           visibility === item.id
-                            ? "bg-indigo-600/15 border-indigo-500/50 text-white"
-                            : "bg-slate-900/40 border-slate-800 text-slate-400 hover:border-slate-700"
+                            ? "bg-blue-50 border-blue-400 text-slate-900 font-bold"
+                            : "bg-white border-slate-200 text-slate-600 hover:border-slate-300 font-medium"
                         }`}
                       >
-                        <ItemIcon className="w-4 h-4 text-indigo-400 mb-1" />
-                        <span className="text-xs font-semibold">{item.label}</span>
-                        <span className="text-[10px] text-slate-500 leading-tight">{item.desc}</span>
+                        <ItemIcon className="w-4 h-4 text-blue-600 mb-1" />
+                        <span className="text-xs font-bold">{item.label}</span>
+                        <span className="text-[10px] text-slate-500 leading-tight font-medium">{item.desc}</span>
                       </button>
                     );
                   })}
@@ -268,66 +267,66 @@ export default function NewEventWizardPage() {
         {/* Step 2: Timeline Milestones */}
         {currentStep === 2 && (
           <div className="space-y-6">
-            <CardHeader>
-              <CardTitle>Schedule & Stage Timeline</CardTitle>
-              <CardDescription>
+            <CardHeader className="border-b border-slate-100 pb-4">
+              <CardTitle className="text-base font-bold text-slate-900">Schedule & Stage Timeline</CardTitle>
+              <CardDescription className="text-xs text-slate-600 font-medium">
                 Set the opening and closing dates for nominations and voter balloting.
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="space-y-6">
-              <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs flex items-center gap-3">
-                <Clock className="w-5 h-5 text-purple-400 shrink-0" />
+            <CardContent className="space-y-6 pt-4">
+              <div className="p-4 rounded-2xl bg-purple-50 border border-purple-200 text-purple-950 text-xs flex items-center gap-3 font-medium">
+                <Clock className="w-5 h-5 text-purple-600 shrink-0" />
                 <span>
                   AwardOS will automatically transition event stages when schedules are reached. You can also manually trigger stage progression anytime.
                 </span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800 space-y-3">
-                  <h4 className="text-xs font-semibold text-indigo-400 uppercase tracking-wider flex items-center gap-2">
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                  <h4 className="text-xs font-bold text-blue-600 uppercase tracking-wider flex items-center gap-2">
                     <Sparkles className="w-3.5 h-3.5" /> Nomination Phase
                   </h4>
                   <div className="space-y-1">
-                    <label className="text-[11px] text-slate-400">Nominations Open</label>
+                    <label className="text-[11px] text-slate-600 font-medium">Nominations Open</label>
                     <input
                       type="datetime-local"
                       value={nominationStart}
                       onChange={(e) => setNominationStart(e.target.value)}
-                      className="w-full bg-slate-800 text-slate-200 text-xs rounded-xl p-2.5 border border-slate-700 focus:outline-none"
+                      className="w-full bg-white text-slate-900 text-xs rounded-xl p-2.5 border border-slate-200 focus:outline-none font-medium"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[11px] text-slate-400">Nominations Close</label>
+                    <label className="text-[11px] text-slate-600 font-medium">Nominations Close</label>
                     <input
                       type="datetime-local"
                       value={nominationEnd}
                       onChange={(e) => setNominationEnd(e.target.value)}
-                      className="w-full bg-slate-800 text-slate-200 text-xs rounded-xl p-2.5 border border-slate-700 focus:outline-none"
+                      className="w-full bg-white text-slate-900 text-xs rounded-xl p-2.5 border border-slate-200 focus:outline-none font-medium"
                     />
                   </div>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800 space-y-3">
-                  <h4 className="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                  <h4 className="text-xs font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-2">
                     <Check className="w-3.5 h-3.5" /> Voting Phase
                   </h4>
                   <div className="space-y-1">
-                    <label className="text-[11px] text-slate-400">Voting Opens</label>
+                    <label className="text-[11px] text-slate-600 font-medium">Voting Opens</label>
                     <input
                       type="datetime-local"
                       value={votingStart}
                       onChange={(e) => setVotingStart(e.target.value)}
-                      className="w-full bg-slate-800 text-slate-200 text-xs rounded-xl p-2.5 border border-slate-700 focus:outline-none"
+                      className="w-full bg-white text-slate-900 text-xs rounded-xl p-2.5 border border-slate-200 focus:outline-none font-medium"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[11px] text-slate-400">Voting Closes</label>
+                    <label className="text-[11px] text-slate-600 font-medium">Voting Closes</label>
                     <input
                       type="datetime-local"
                       value={votingEnd}
                       onChange={(e) => setVotingEnd(e.target.value)}
-                      className="w-full bg-slate-800 text-slate-200 text-xs rounded-xl p-2.5 border border-slate-700 focus:outline-none"
+                      className="w-full bg-white text-slate-900 text-xs rounded-xl p-2.5 border border-slate-200 focus:outline-none font-medium"
                     />
                   </div>
                 </div>
@@ -339,36 +338,36 @@ export default function NewEventWizardPage() {
         {/* Step 3: Categories Setup */}
         {currentStep === 3 && (
           <div className="space-y-6">
-            <CardHeader>
-              <CardTitle>Award Categories</CardTitle>
-              <CardDescription>
+            <CardHeader className="border-b border-slate-100 pb-4">
+              <CardTitle className="text-base font-bold text-slate-900">Award Categories</CardTitle>
+              <CardDescription className="text-xs text-slate-600 font-medium">
                 Add categories for your award event. You can also reorder and edit categories anytime.
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-6 pt-4">
               {/* Category List */}
               <div className="space-y-3">
                 {categories.map((cat, idx) => (
                   <div
                     key={cat.id}
-                    className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between gap-3"
+                    className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="w-6 h-6 rounded-lg bg-indigo-500/10 text-indigo-400 text-xs font-bold flex items-center justify-center border border-indigo-500/20">
+                      <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center">
                         {idx + 1}
                       </span>
                       <div>
-                        <h5 className="text-xs font-semibold text-white">{cat.name}</h5>
+                        <h5 className="text-xs font-bold text-slate-900">{cat.name}</h5>
                         {cat.description && (
-                          <p className="text-[11px] text-slate-400">{cat.description}</p>
+                          <p className="text-[11px] text-slate-600 font-medium">{cat.description}</p>
                         )}
                       </div>
                     </div>
 
                     <button
                       onClick={() => handleRemoveCategory(cat.id)}
-                      className="p-1.5 text-slate-500 hover:text-red-400 rounded-lg hover:bg-slate-800 transition-colors"
+                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -377,22 +376,22 @@ export default function NewEventWizardPage() {
               </div>
 
               {/* Add New Category Box */}
-              <div className="p-4 rounded-2xl bg-slate-900/40 border border-dashed border-slate-800 space-y-3">
-                <h5 className="text-xs font-semibold text-slate-300">Add New Category</h5>
+              <div className="p-4 rounded-2xl bg-white border border-dashed border-slate-300 space-y-3">
+                <h5 className="text-xs font-bold text-slate-900">Add New Category</h5>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <input
                     type="text"
                     placeholder="Category Name (e.g. Student Leader of the Year)"
                     value={newCatName}
                     onChange={(e) => setNewCatName(e.target.value)}
-                    className="bg-slate-800 text-slate-200 text-xs rounded-xl p-2.5 border border-slate-700 focus:outline-none"
+                    className="bg-slate-50 text-slate-900 text-xs rounded-xl p-2.5 border border-slate-200 focus:outline-none font-medium"
                   />
                   <input
                     type="text"
                     placeholder="Short Description or Criteria"
                     value={newCatDesc}
                     onChange={(e) => setNewCatDesc(e.target.value)}
-                    className="bg-slate-800 text-slate-200 text-xs rounded-xl p-2.5 border border-slate-700 focus:outline-none"
+                    className="bg-slate-50 text-slate-900 text-xs rounded-xl p-2.5 border border-slate-200 focus:outline-none font-medium"
                   />
                 </div>
                 <Button
@@ -400,9 +399,9 @@ export default function NewEventWizardPage() {
                   variant="secondary"
                   size="sm"
                   onClick={handleAddCategory}
-                  className="w-full sm:w-auto"
+                  className="w-full sm:w-auto rounded-full bg-slate-100 text-slate-700 font-bold"
                 >
-                  <Plus className="w-3.5 h-3.5" />
+                  <Plus className="w-3.5 h-3.5 mr-1" />
                   <span>Add Category</span>
                 </Button>
               </div>
@@ -413,31 +412,31 @@ export default function NewEventWizardPage() {
         {/* Step 4: Trust & Verification Rules */}
         {currentStep === 4 && (
           <div className="space-y-6">
-            <CardHeader>
-              <CardTitle>Security, Verification & Audience</CardTitle>
-              <CardDescription>
+            <CardHeader className="border-b border-slate-100 pb-4">
+              <CardTitle className="text-base font-bold text-slate-900">Security, Verification & Audience</CardTitle>
+              <CardDescription className="text-xs text-slate-600 font-medium">
                 Configure anti-bot protection, vote verification methods, and audience access controls.
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-6 pt-4">
               <div className="space-y-2">
-                <label className="text-xs font-medium text-slate-300">Vote Verification Level</label>
+                <label className="text-xs font-semibold text-slate-700">Vote Verification Level</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <button
                     type="button"
                     onClick={() => setVerificationLevel("STANDARD")}
                     className={`p-4 rounded-2xl border text-left space-y-1 transition-all ${
                       verificationLevel === "STANDARD"
-                        ? "bg-indigo-600/15 border-indigo-500/50 text-white"
-                        : "bg-slate-900/40 border-slate-800 text-slate-400"
+                        ? "bg-blue-50 border-blue-400 text-slate-900 font-bold"
+                        : "bg-white border-slate-200 text-slate-600 font-medium hover:border-slate-300"
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-100">Standard Protection</span>
+                      <span className="text-xs font-bold text-slate-900">Standard Protection</span>
                       <Badge variant="success" size="sm">Default</Badge>
                     </div>
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                    <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
                       Cookie tracking, localStorage device fingerprints, and IP rate limits. Ideal for open public awards.
                     </p>
                   </button>
@@ -447,27 +446,27 @@ export default function NewEventWizardPage() {
                     onClick={() => setVerificationLevel("ADVANCED")}
                     className={`p-4 rounded-2xl border text-left space-y-1 transition-all ${
                       verificationLevel === "ADVANCED"
-                        ? "bg-indigo-600/15 border-indigo-500/50 text-white"
-                        : "bg-slate-900/40 border-slate-800 text-slate-400"
+                        ? "bg-blue-50 border-blue-400 text-slate-900 font-bold"
+                        : "bg-white border-slate-200 text-slate-600 font-medium hover:border-slate-300"
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-purple-300">Advanced OTP Verification</span>
+                      <span className="text-xs font-bold text-purple-700">Advanced OTP Verification</span>
                       <Badge variant="purple" size="sm">Strict</Badge>
                     </div>
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                    <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
                       Requires voters to verify via 6-digit Email OTP or single-use invitation codes before submitting.
                     </p>
                   </button>
                 </div>
               </div>
 
-              <div className="space-y-2 pt-2 border-t border-slate-800/60">
-                <label className="text-xs font-medium text-slate-300">Target Audience</label>
+              <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                <label className="text-xs font-semibold text-slate-700">Target Audience</label>
                 <select
                   value={audienceType}
                   onChange={(e) => setAudienceType(e.target.value)}
-                  className="w-full bg-slate-900/80 text-slate-200 text-xs rounded-xl p-3 border border-slate-800 focus:outline-none"
+                  className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl p-3 border border-slate-200 focus:outline-none font-medium"
                 >
                   <option value="PUBLIC">Public — Anyone can participate</option>
                   <option value="STUDENTS">Students & Campus Community</option>
@@ -480,14 +479,15 @@ export default function NewEventWizardPage() {
         )}
 
         {/* Wizard Bottom Navigation Buttons */}
-        <CardFooter className="flex items-center justify-between pt-4 border-t border-slate-800/80">
+        <CardFooter className="flex items-center justify-between pt-4 border-t border-slate-100">
           <Button
             type="button"
             variant="outline"
             disabled={currentStep === 1}
             onClick={() => setCurrentStep(currentStep - 1)}
+            className="rounded-full bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4 mr-1.5" />
             <span>Back</span>
           </Button>
 
@@ -497,9 +497,10 @@ export default function NewEventWizardPage() {
               variant="primary"
               disabled={currentStep === 1 && !title.trim()}
               onClick={() => setCurrentStep(currentStep + 1)}
+              className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 shadow-md shadow-blue-600/20"
             >
               <span>Continue to Step 0{currentStep + 1}</span>
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-4 h-4 ml-1.5" />
             </Button>
           ) : (
             <Button
@@ -507,9 +508,9 @@ export default function NewEventWizardPage() {
               variant="primary"
               isLoading={isSubmitting}
               onClick={handleSubmitEvent}
-              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 border-emerald-400/30"
+              className="rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 shadow-md shadow-emerald-600/20"
             >
-              <Check className="w-4 h-4" />
+              <Check className="w-4 h-4 mr-1.5" />
               <span>Launch Event Program</span>
             </Button>
           )}

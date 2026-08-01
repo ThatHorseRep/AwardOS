@@ -130,15 +130,15 @@ export default function AICleanupReviewPage() {
   });
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 max-w-7xl mx-auto font-sans select-none pb-16">
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-purple-400 animate-pulse" />
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+            <Sparkles className="w-6 h-6 text-purple-600 animate-pulse" />
             <span>AI Nomination Cleanup Engine</span>
           </h1>
-          <p className="text-slate-400 text-xs mt-1">
+          <p className="text-slate-600 text-xs mt-1 font-medium">
             Automated blank removal, Title Case normalization, and LLM-assisted duplicate nominee resolution.
           </p>
         </div>
@@ -149,8 +149,9 @@ export default function AICleanupReviewPage() {
             size="sm"
             onClick={handleApproveAllHigh}
             disabled={!suggestions.some((s) => s.confidenceTier === "HIGH")}
+            className="rounded-full bg-white border-slate-200 text-slate-700 font-bold hover:bg-slate-50 shadow-sm"
           >
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 mr-1.5" />
             <span>Approve All High (≥85%)</span>
           </Button>
 
@@ -159,9 +160,9 @@ export default function AICleanupReviewPage() {
             size="sm"
             isLoading={isRunningCleanup}
             onClick={handleRunCleanup}
-            className="bg-gradient-to-r from-purple-600 to-indigo-600 shadow-lg shadow-purple-600/25"
+            className="rounded-full bg-purple-600 hover:bg-purple-500 text-white font-bold px-5 shadow-md shadow-purple-600/20"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className="w-4 h-4 mr-1.5" />
             <span>Run One-Click AI Scan</span>
           </Button>
         </div>
@@ -169,47 +170,47 @@ export default function AICleanupReviewPage() {
 
       {/* Metrics Summary Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
+        <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between text-xs text-slate-400">
+            <div className="flex items-center justify-between text-xs text-slate-500 font-bold uppercase tracking-wider">
               <span>Blanks & Junk Removed</span>
-              <Trash2 className="w-4 h-4 text-rose-400" />
+              <Trash2 className="w-4 h-4 text-rose-600" />
             </div>
-            <div className="text-3xl font-bold text-white mt-2">14</div>
+            <div className="text-3xl font-extrabold text-slate-900 mt-2">14</div>
             <span className="text-[10px] text-slate-500 font-medium">Auto-filtered by AI</span>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between text-xs text-slate-400">
+            <div className="flex items-center justify-between text-xs text-slate-500 font-bold uppercase tracking-wider">
               <span>Capitalization Normalized</span>
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             </div>
-            <div className="text-3xl font-bold text-white mt-2">142</div>
+            <div className="text-3xl font-extrabold text-slate-900 mt-2">142</div>
             <span className="text-[10px] text-slate-500 font-medium">Title Case & Mc/O&apos; formatted</span>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between text-xs text-slate-400">
+            <div className="flex items-center justify-between text-xs text-slate-500 font-bold uppercase tracking-wider">
               <span>Duplicate Flagged</span>
-              <Users className="w-4 h-4 text-purple-400" />
+              <Users className="w-4 h-4 text-purple-600" />
             </div>
-            <div className="text-3xl font-bold text-white mt-2">{suggestions.length}</div>
-            <span className="text-[10px] text-purple-400 font-medium">Pending organizer review</span>
+            <div className="text-3xl font-extrabold text-slate-900 mt-2">{suggestions.length}</div>
+            <span className="text-[10px] text-purple-600 font-bold">Pending organizer review</span>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between text-xs text-slate-400">
+            <div className="flex items-center justify-between text-xs text-slate-500 font-bold uppercase tracking-wider">
               <span>AI Confidence Avg</span>
-              <ShieldCheck className="w-4 h-4 text-indigo-400" />
+              <ShieldCheck className="w-4 h-4 text-blue-600" />
             </div>
-            <div className="text-3xl font-bold text-white mt-2">91.5%</div>
-            <span className="text-[10px] text-emerald-400 font-medium">High Accuracy Tier</span>
+            <div className="text-3xl font-extrabold text-slate-900 mt-2">91.5%</div>
+            <span className="text-[10px] text-emerald-600 font-bold">High Accuracy Tier</span>
           </CardContent>
         </Card>
       </div>
@@ -218,25 +219,25 @@ export default function AICleanupReviewPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Cols: Side-by-Side Merge Cards */}
         <div className="lg:col-span-2 space-y-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+          <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-slate-100">
               <div>
-                <CardTitle className="text-base">Pending Duplicate Suggestions</CardTitle>
-                <CardDescription>
+                <CardTitle className="text-base font-bold text-slate-900">Pending Duplicate Suggestions</CardTitle>
+                <CardDescription className="text-xs text-slate-600 font-medium">
                   Review AI-flagged duplicate candidates before generating final voter ballots.
                 </CardDescription>
               </div>
 
               {/* Filter Pills */}
-              <div className="flex items-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-800">
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-full border border-slate-200">
                 {(["all", "high", "medium"] as const).map((filter) => (
                   <button
                     key={filter}
                     onClick={() => setActiveFilter(filter)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold uppercase transition-all ${
+                    className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-all ${
                       activeFilter === filter
                         ? "bg-purple-600 text-white shadow-sm"
-                        : "text-slate-400 hover:text-white"
+                        : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
                     {filter}
@@ -245,12 +246,12 @@ export default function AICleanupReviewPage() {
               </div>
             </CardHeader>
 
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 pt-4">
               {filteredSuggestions.length === 0 ? (
-                <div className="py-12 text-center space-y-3">
-                  <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto opacity-80" />
-                  <h4 className="text-sm font-semibold text-slate-200">All Duplicates Resolved!</h4>
-                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                <div className="py-12 text-center space-y-3 font-medium">
+                  <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto opacity-80" />
+                  <h4 className="text-sm font-bold text-slate-900">All Duplicates Resolved!</h4>
+                  <p className="text-xs text-slate-600 max-w-sm mx-auto">
                     Your nomination list is clean, normalized, and ready for ballot generation.
                   </p>
                 </div>
@@ -258,7 +259,7 @@ export default function AICleanupReviewPage() {
                 filteredSuggestions.map((item) => (
                   <div
                     key={item.id}
-                    className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4 hover:border-purple-500/30 transition-all"
+                    className="p-5 rounded-3xl bg-slate-50 border border-slate-200/80 space-y-4 hover:border-purple-300 transition-all"
                   >
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <Badge variant="purple" size="sm">
@@ -274,39 +275,40 @@ export default function AICleanupReviewPage() {
 
                     {/* Side-by-Side Candidate Display */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-                      <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/60 space-y-1">
-                        <span className="text-[10px] uppercase font-bold text-indigo-400 block tracking-wider">
+                      <div className="p-3.5 rounded-2xl bg-white border border-slate-200 space-y-1 shadow-sm">
+                        <span className="text-[10px] uppercase font-extrabold text-blue-600 block tracking-wider">
                           Primary Nominee Candidate A
                         </span>
-                        <h4 className="text-sm font-bold text-white">{item.primaryNominee}</h4>
-                        <span className="text-[11px] text-slate-400 block">
+                        <h4 className="text-sm font-bold text-slate-900">{item.primaryNominee}</h4>
+                        <span className="text-[11px] text-slate-500 font-medium block">
                           {item.primaryCount} nomination votes
                         </span>
                       </div>
 
-                      <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/60 space-y-1 relative">
-                        <span className="text-[10px] uppercase font-bold text-purple-400 block tracking-wider">
+                      <div className="p-3.5 rounded-2xl bg-white border border-slate-200 space-y-1 shadow-sm">
+                        <span className="text-[10px] uppercase font-extrabold text-purple-600 block tracking-wider">
                           Duplicate Candidate B
                         </span>
-                        <h4 className="text-sm font-bold text-white">{item.duplicateNominee}</h4>
-                        <span className="text-[11px] text-slate-400 block">
+                        <h4 className="text-sm font-bold text-slate-900">{item.duplicateNominee}</h4>
+                        <span className="text-[11px] text-slate-500 font-medium block">
                           {item.duplicateCount} nomination votes
                         </span>
                       </div>
                     </div>
 
-                    <p className="text-xs text-slate-400 italic bg-slate-950/40 p-2.5 rounded-xl border border-slate-800/60">
+                    <p className="text-xs text-slate-600 italic bg-white p-3 rounded-2xl border border-slate-200 font-medium">
                       &quot;{item.reasoning}&quot;
                     </p>
 
                     {/* Action Bar */}
-                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-800/60">
+                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-200/60">
                       <Button
                         variant="secondary"
                         size="sm"
                         onClick={() => handleReject(item.id)}
+                        className="rounded-full bg-white border-slate-200 text-slate-700 hover:bg-slate-100 font-bold"
                       >
-                        <X className="w-3.5 h-3.5 text-slate-400" />
+                        <X className="w-3.5 h-3.5 mr-1" />
                         <span>Keep Separate</span>
                       </Button>
 
@@ -314,9 +316,9 @@ export default function AICleanupReviewPage() {
                         variant="primary"
                         size="sm"
                         onClick={() => handleApprove(item.id)}
-                        className="bg-purple-600 hover:bg-purple-500 border-purple-400/30"
+                        className="rounded-full bg-purple-600 hover:bg-purple-500 text-white font-bold px-4 shadow-sm"
                       >
-                        <Check className="w-3.5 h-3.5" />
+                        <Check className="w-3.5 h-3.5 mr-1" />
                         <span>Approve Merge ({item.primaryCount + item.duplicateCount} Total)</span>
                       </Button>
                     </div>
@@ -329,29 +331,29 @@ export default function AICleanupReviewPage() {
 
         {/* Right Col: Real-time Audit Trail Log */}
         <div className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <History className="w-4 h-4 text-slate-400" />
+          <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
+            <CardHeader className="pb-3 border-b border-slate-100">
+              <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <History className="w-4 h-4 text-slate-600" />
                 <span>AI Cleanup Audit Log</span>
               </CardTitle>
-              <CardDescription>Real-time log of AI automated actions and organizer overrides.</CardDescription>
+              <CardDescription className="text-xs text-slate-600 font-medium">Real-time log of AI automated actions and organizer overrides.</CardDescription>
             </CardHeader>
 
-            <CardContent>
+            <CardContent className="pt-4">
               <div className="space-y-3">
                 {auditLogs.map((log) => (
                   <div
                     key={log.id}
-                    className="p-3 rounded-xl bg-slate-900/40 border border-slate-800 space-y-1 text-xs"
+                    className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60 space-y-1 text-xs"
                   >
                     <div className="flex items-center justify-between">
                       <Badge variant={log.type === "AUTO" ? "purple" : "neutral"} size="sm">
                         {log.type}
                       </Badge>
-                      <span className="text-[10px] text-slate-500">{log.time}</span>
+                      <span className="text-[10px] text-slate-500 font-medium">{log.time}</span>
                     </div>
-                    <p className="text-slate-300 font-medium leading-relaxed">{log.action}</p>
+                    <p className="text-slate-900 font-bold leading-relaxed">{log.action}</p>
                   </div>
                 ))}
               </div>

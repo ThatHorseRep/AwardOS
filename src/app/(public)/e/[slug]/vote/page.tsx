@@ -202,16 +202,16 @@ export default function PublicBallotPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="animate-spin rounded-full h-8 w-8 text-indigo-500" />
+        <Loader2 className="animate-spin rounded-full h-8 w-8 text-blue-600" />
       </div>
     );
   }
 
   if (!event) {
     return (
-      <div className="text-center py-12 text-slate-300">
-        <h2 className="text-xl font-bold text-white">Event not found</h2>
-        <Link href="/" className="mt-4 inline-block text-indigo-400 hover:underline">
+      <div className="text-center py-12">
+        <h2 className="text-xl font-bold text-slate-900">Event not found</h2>
+        <Link href="/" className="mt-4 inline-block text-blue-600 hover:underline font-bold">
           Go Home
         </Link>
       </div>
@@ -221,12 +221,12 @@ export default function PublicBallotPage() {
   const totalSelected = Object.keys(selectedVotes).length;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 font-sans">
+    <div className="max-w-4xl mx-auto space-y-6 font-sans select-none pb-20">
       {/* Back Button & Title */}
       <div className="flex items-center justify-between">
         <Link href={`/e/${slug}`}>
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="w-4 h-4" />
+          <Button variant="ghost" size="sm" className="text-slate-700 hover:bg-slate-200">
+            <ArrowLeft className="w-4 h-4 mr-1.5" />
             <span>Back to Event</span>
           </Button>
         </Link>
@@ -238,20 +238,20 @@ export default function PublicBallotPage() {
 
       {/* Header Banner */}
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold text-white tracking-tight">Official Voter Ballot</h1>
-        <p className="text-slate-400 text-xs max-w-lg mx-auto leading-relaxed">
-          Select one candidate per category for <strong className="text-slate-200">{event.name}</strong>. Your vote is write-once and protected against duplicate submissions.
+        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Official Voter Ballot</h1>
+        <p className="text-slate-600 text-xs max-w-lg mx-auto leading-relaxed font-medium">
+          Select one candidate per category for <strong className="text-slate-900">{event.name}</strong>. Your vote is write-once and protected against duplicate submissions.
         </p>
       </div>
 
       {hasVoted && (
-        <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between gap-3 animate-in fade-in duration-300">
+        <div className="p-4 rounded-3xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center justify-between gap-3 animate-in fade-in duration-300 font-medium">
           <div className="flex items-center gap-2.5">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
             <span>You have already cast a ballot for this event. Ballots are write-once and immutable.</span>
           </div>
           <Link href={`/e/${slug}/vote/thank-you`}>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" className="bg-white border-emerald-300 text-emerald-700 hover:bg-emerald-100 font-bold">
               View Confirmation
             </Button>
           </Link>
@@ -259,24 +259,24 @@ export default function PublicBallotPage() {
       )}
 
       {error && (
-        <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs animate-in fade-in duration-300">
+        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold animate-in fade-in duration-300">
           {error}
         </div>
       )}
 
       {/* STEP 1: Email Input View */}
       {verificationStep === "EMAIL" && !hasVoted && (
-        <Card className="max-w-md mx-auto border-slate-800 bg-slate-950/20">
-          <CardHeader>
+        <Card className="max-w-md mx-auto border-slate-200/80 bg-white rounded-3xl shadow-sm">
+          <CardHeader className="border-b border-slate-100 pb-4">
             <div className="flex items-center gap-2">
-              <Mail className="w-5 h-5 text-indigo-400" />
-              <CardTitle className="text-base font-bold">Email Verification</CardTitle>
+              <Mail className="w-5 h-5 text-blue-600" />
+              <CardTitle className="text-base font-bold text-slate-900">Email Verification</CardTitle>
             </div>
-            <CardDescription className="text-xs">
+            <CardDescription className="text-xs text-slate-600 font-medium">
               Voter authentication is required. Enter your email to receive a 6-digit access code.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4">
             <form onSubmit={handleSendOtp} className="space-y-4">
               <input
                 type="email"
@@ -284,13 +284,13 @@ export default function PublicBallotPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="voter@college.edu"
-                className="w-full bg-slate-900 text-slate-200 text-xs rounded-xl px-4 py-2.5 border border-slate-800 focus:outline-none focus:border-indigo-500 font-mono"
+                className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-4 py-2.5 border border-slate-200 focus:outline-none focus:border-blue-500 font-mono font-medium"
               />
               <Button
                 type="submit"
                 variant="primary"
                 disabled={verifying}
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white"
+                className="w-full rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20"
               >
                 {verifying ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : null}
                 <span>Send Access Code</span>
@@ -302,17 +302,17 @@ export default function PublicBallotPage() {
 
       {/* STEP 2: OTP Verification Code View */}
       {verificationStep === "OTP" && !hasVoted && (
-        <Card className="max-w-md mx-auto border-slate-800 bg-slate-950/20">
-          <CardHeader>
+        <Card className="max-w-md mx-auto border-slate-200/80 bg-white rounded-3xl shadow-sm">
+          <CardHeader className="border-b border-slate-100 pb-4">
             <div className="flex items-center gap-2">
-              <KeyRound className="w-5 h-5 text-purple-400" />
-              <CardTitle className="text-base font-bold">Enter Verification Code</CardTitle>
+              <KeyRound className="w-5 h-5 text-purple-600" />
+              <CardTitle className="text-base font-bold text-slate-900">Enter Verification Code</CardTitle>
             </div>
-            <CardDescription className="text-xs">
-              We sent a 6-digit authentication OTP code to <strong className="text-slate-200">{email}</strong>.
+            <CardDescription className="text-xs text-slate-600 font-medium">
+              We sent a 6-digit authentication OTP code to <strong className="text-slate-900">{email}</strong>.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4">
             <form onSubmit={handleVerifyOtp} className="space-y-4">
               <input
                 type="text"
@@ -321,13 +321,13 @@ export default function PublicBallotPage() {
                 value={otpCode}
                 onChange={(e) => setOtpCode(e.target.value)}
                 placeholder="e.g. 123456"
-                className="w-full bg-slate-900 text-center text-slate-200 text-lg tracking-widest rounded-xl px-4 py-2.5 border border-slate-800 focus:outline-none focus:border-purple-500 font-mono font-bold"
+                className="w-full bg-slate-50 text-center text-slate-900 text-lg tracking-widest rounded-2xl px-4 py-2.5 border border-slate-200 focus:outline-none focus:border-purple-500 font-mono font-extrabold"
               />
               <Button
                 type="submit"
                 variant="primary"
                 disabled={verifying || otpCode.length < 6}
-                className="w-full bg-purple-600 hover:bg-purple-500 text-white"
+                className="w-full rounded-full bg-purple-600 hover:bg-purple-500 text-white font-bold shadow-md shadow-purple-600/20"
               >
                 {verifying ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : null}
                 <span>Verify & Access Ballot</span>
@@ -335,7 +335,7 @@ export default function PublicBallotPage() {
               <button
                 type="button"
                 onClick={() => setVerificationStep("EMAIL")}
-                className="w-full text-center text-[11px] text-slate-500 hover:text-slate-300 flex items-center justify-center gap-1 mt-2"
+                className="w-full text-center text-[11px] text-slate-500 hover:text-slate-900 flex items-center justify-center gap-1 mt-2 font-medium"
               >
                 <RotateCcw className="w-3 h-3" />
                 <span>Change Email Address</span>
@@ -347,17 +347,17 @@ export default function PublicBallotPage() {
 
       {/* STEP 3: Invitation Code Authentication View */}
       {verificationStep === "INVITATION_CODE" && !hasVoted && (
-        <Card className="max-w-md mx-auto border-slate-800 bg-slate-950/20">
-          <CardHeader>
+        <Card className="max-w-md mx-auto border-slate-200/80 bg-white rounded-3xl shadow-sm">
+          <CardHeader className="border-b border-slate-100 pb-4">
             <div className="flex items-center gap-2">
-              <Lock className="w-5 h-5 text-indigo-400" />
-              <CardTitle className="text-base font-bold">Invitation Code Required</CardTitle>
+              <Lock className="w-5 h-5 text-blue-600" />
+              <CardTitle className="text-base font-bold text-slate-900">Invitation Code Required</CardTitle>
             </div>
-            <CardDescription className="text-xs">
+            <CardDescription className="text-xs text-slate-600 font-medium">
               This event is private. Please enter your unique 8-character invitation credential.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4">
             <form onSubmit={handleVerifyInvitation} className="space-y-4">
               <input
                 type="text"
@@ -366,13 +366,13 @@ export default function PublicBallotPage() {
                 value={invitationCode}
                 onChange={(e) => setInvitationCode(e.target.value)}
                 placeholder="Enter Code (e.g. A8B9C7D6)"
-                className="w-full bg-slate-900 text-center text-slate-200 text-base tracking-widest rounded-xl px-4 py-2.5 border border-slate-800 focus:outline-none focus:border-indigo-500 font-mono font-bold uppercase"
+                className="w-full bg-slate-50 text-center text-slate-900 text-base tracking-widest rounded-2xl px-4 py-2.5 border border-slate-200 focus:outline-none focus:border-blue-500 font-mono font-extrabold uppercase"
               />
               <Button
                 type="submit"
                 variant="primary"
                 disabled={verifying || invitationCode.length < 8}
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white"
+                className="w-full rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20"
               >
                 {verifying ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : null}
                 <span>Authenticate & Access Ballot</span>
@@ -390,8 +390,8 @@ export default function PublicBallotPage() {
               const selectedNomineeId = selectedVotes[cat.id];
 
               return (
-                <Card key={cat.id} className="border-indigo-500/20">
-                  <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
+                <Card key={cat.id} className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
+                  <CardHeader className="pb-3 border-b border-slate-100 flex flex-row items-center justify-between space-y-0">
                     <div>
                       <div className="flex items-center gap-2">
                         <Badge variant="purple" size="sm">Category 0{idx + 1}</Badge>
@@ -401,8 +401,8 @@ export default function PublicBallotPage() {
                           </Badge>
                         )}
                       </div>
-                      <CardTitle className="text-base text-slate-100 mt-1">{cat.name}</CardTitle>
-                      {cat.description && <CardDescription className="text-xs text-slate-400 leading-relaxed mt-1">{cat.description}</CardDescription>}
+                      <CardTitle className="text-base text-slate-900 font-bold mt-1.5">{cat.name}</CardTitle>
+                      {cat.description && <CardDescription className="text-xs text-slate-600 font-medium leading-relaxed mt-1">{cat.description}</CardDescription>}
                     </div>
 
                     {selectedNomineeId && (
@@ -410,16 +410,16 @@ export default function PublicBallotPage() {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleSkipCategory(cat.id)}
-                        className="text-xs text-slate-400 hover:text-slate-200"
+                        className="text-xs text-slate-500 hover:text-slate-900 font-medium"
                       >
                         Clear Selection
                       </Button>
                     )}
                   </CardHeader>
 
-                  <CardContent className="space-y-3 pt-2">
+                  <CardContent className="space-y-3 pt-4">
                     {cat.nominees.length === 0 ? (
-                      <div className="text-slate-500 text-xs italic py-4">No nominee candidates configured in this category.</div>
+                      <div className="text-slate-500 text-xs italic py-4 font-medium">No nominee candidates configured in this category.</div>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         {cat.nominees.map((nom: any) => {
@@ -431,23 +431,23 @@ export default function PublicBallotPage() {
                               onClick={() => handleSelectNominee(cat.id, nom.id)}
                               className={`p-4 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between space-y-3 ${
                                 isSelected
-                                  ? "bg-indigo-600/20 border-indigo-500 text-white shadow-lg shadow-indigo-600/15"
-                                  : "bg-slate-900/40 border-slate-800/80 hover:border-slate-700 text-slate-300"
+                                  ? "bg-blue-50 border-blue-500 text-slate-900 shadow-md shadow-blue-500/10"
+                                  : "bg-white border-slate-200 hover:border-slate-300 text-slate-900"
                               }`}
                             >
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex items-center gap-2.5">
                                   <Avatar name={nom.name} size="sm" />
                                   <div>
-                                    <h4 className="text-xs font-bold text-white leading-tight">{nom.name}</h4>
+                                    <h4 className="text-xs font-bold text-slate-900 leading-tight">{nom.name}</h4>
                                   </div>
                                 </div>
 
                                 <div
                                   className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${
                                     isSelected
-                                      ? "bg-indigo-500 border-indigo-400 text-white"
-                                      : "border-slate-700 bg-slate-900"
+                                      ? "bg-blue-600 border-blue-600 text-white"
+                                      : "border-slate-300 bg-slate-100"
                                   }`}
                                 >
                                   {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
@@ -455,7 +455,7 @@ export default function PublicBallotPage() {
                               </div>
 
                               {nom.bio && (
-                                <p className="text-[11px] text-slate-400 leading-relaxed line-clamp-3">
+                                <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-3 font-medium">
                                   {nom.bio}
                                 </p>
                               )}
@@ -471,18 +471,18 @@ export default function PublicBallotPage() {
           </div>
 
           {/* Floating Bottom Action Bar */}
-          <div className="sticky bottom-6 p-4 rounded-2xl glass-panel border border-slate-700/80 shadow-2xl flex items-center justify-between gap-4 z-40">
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-3xl p-4 rounded-full bg-slate-900/95 text-white border border-slate-800 shadow-2xl backdrop-blur-xl flex items-center justify-between gap-4 z-40 animate-in slide-in-from-bottom duration-300">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center font-bold text-sm">
+              <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-md">
                 {totalSelected}/{event.categories.length}
               </div>
               <div>
-                <span className="text-xs font-semibold text-white block">
+                <span className="text-xs font-bold text-white block">
                   {totalSelected === 0
                     ? "No selections made yet"
                     : `${totalSelected} of ${event.categories.length} Categories Voted`}
                 </span>
-                <span className="text-[10px] text-slate-400">
+                <span className="text-[10px] text-slate-400 font-medium">
                   {totalSelected < event.categories.length ? "You can skip unselected categories" : "All categories selected!"}
                 </span>
               </div>
@@ -493,10 +493,10 @@ export default function PublicBallotPage() {
               size="lg"
               disabled={totalSelected === 0 || hasVoted}
               onClick={() => setShowReviewModal(true)}
-              className="shadow-xl shadow-indigo-600/25 bg-indigo-600 hover:bg-indigo-500 text-white"
+              className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 shadow-md shadow-blue-600/20"
             >
               <span>Review & Submit Ballot</span>
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-4 h-4 ml-1.5" />
             </Button>
           </div>
         </div>
@@ -504,20 +504,20 @@ export default function PublicBallotPage() {
 
       {/* Pre-submission Review Modal */}
       {showReviewModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-200 font-sans">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-6 shadow-2xl">
-            <div className="flex items-center justify-between">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200 font-sans">
+          <div className="w-full max-w-md bg-white border border-slate-200/80 rounded-3xl p-6 space-y-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-indigo-400" />
-                <h3 className="text-base font-bold text-white">Review Your Ballot</h3>
+                <ShieldCheck className="w-5 h-5 text-blue-600" />
+                <h3 className="text-base font-bold text-slate-900">Review Your Ballot</h3>
               </div>
-              <button onClick={() => setShowReviewModal(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setShowReviewModal(false)} className="text-slate-400 hover:text-slate-900 font-bold">
                 ✕
               </button>
             </div>
 
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Please confirm your vote selections for <strong className="text-slate-200">{event.name}</strong>. Once submitted, your ballot is permanent and cannot be changed.
+            <p className="text-xs text-slate-600 leading-relaxed font-medium">
+              Please confirm your vote selections for <strong className="text-slate-900">{event.name}</strong>. Once submitted, your ballot is permanent and cannot be changed.
             </p>
 
             <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
@@ -526,12 +526,12 @@ export default function PublicBallotPage() {
                 const nominee = cat.nominees.find((n: any) => n.id === nomineeId);
 
                 return (
-                  <div key={cat.id} className="p-2.5 rounded-xl bg-slate-800/60 flex items-center justify-between text-xs">
-                    <span className="text-slate-300 font-medium truncate max-w-[180px]">{cat.name}</span>
+                  <div key={cat.id} className="p-3 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-center justify-between text-xs">
+                    <span className="text-slate-700 font-bold truncate max-w-[180px]">{cat.name}</span>
                     {nominee ? (
-                      <span className="text-emerald-400 font-bold">{nominee.name}</span>
+                      <span className="text-emerald-700 font-extrabold">{nominee.name}</span>
                     ) : (
-                      <span className="text-slate-500 italic font-medium">Skipped</span>
+                      <span className="text-slate-400 italic font-medium">Skipped</span>
                     )}
                   </div>
                 );
@@ -539,7 +539,7 @@ export default function PublicBallotPage() {
             </div>
 
             <div className="flex items-center gap-3 pt-2">
-              <Button variant="outline" size="md" onClick={() => setShowReviewModal(false)} className="flex-1">
+              <Button variant="outline" size="md" onClick={() => setShowReviewModal(false)} className="flex-1 bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold rounded-full">
                 Go Back
               </Button>
               <Button
@@ -547,9 +547,9 @@ export default function PublicBallotPage() {
                 size="md"
                 isLoading={submitting}
                 onClick={handleCastBallot}
-                className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 border-emerald-400/30 text-white"
+                className="flex-1 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-md shadow-emerald-600/20"
               >
-                <Lock className="w-4 h-4" />
+                <Lock className="w-4 h-4 mr-1.5" />
                 <span>Confirm & Submit</span>
               </Button>
             </div>

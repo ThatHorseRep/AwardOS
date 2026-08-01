@@ -54,16 +54,16 @@ export default function PublicResultsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="animate-spin rounded-full h-8 w-8 text-indigo-500" />
+        <Loader2 className="animate-spin rounded-full h-8 w-8 text-blue-600" />
       </div>
     );
   }
 
   if (!results) {
     return (
-      <div className="text-center py-12 text-slate-300 font-sans">
-        <h2 className="text-xl font-bold text-white">Event not found</h2>
-        <Link href="/" className="mt-4 inline-block text-indigo-400 hover:underline">
+      <div className="text-center py-12 font-sans">
+        <h2 className="text-xl font-bold text-slate-900">Event not found</h2>
+        <Link href="/" className="mt-4 inline-block text-blue-600 hover:underline font-bold">
           Go Home
         </Link>
       </div>
@@ -76,19 +76,19 @@ export default function PublicResultsPage() {
   const hasSpecialAwards = results.specialAwards && results.specialAwards.length > 0;
 
   return (
-    <div className="space-y-8 max-w-4xl mx-auto font-sans pb-12">
+    <div className="space-y-6 max-w-4xl mx-auto font-sans select-none pb-16">
       <div className="flex items-center justify-between">
         <Link href={`/e/${slug}`}>
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="w-4 h-4 mr-2" />
+          <Button variant="ghost" size="sm" className="text-slate-700 hover:bg-slate-200">
+            <ArrowLeft className="w-4 h-4 mr-1.5" />
             <span>Back to Event</span>
           </Button>
         </Link>
         <div className="flex items-center gap-2">
           {!isHidden && <LiveResultsListener eventId={results.id} onVoteReceived={loadData} />}
           {!isHidden && (
-            <Button variant="outline" size="sm" onClick={handleShare} className="border-slate-800 text-slate-200">
-              <Share2 className="w-4 h-4 mr-2" />
+            <Button variant="outline" size="sm" onClick={handleShare} className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold shadow-sm">
+              <Share2 className="w-4 h-4 mr-1.5" />
               <span>Share Results</span>
             </Button>
           )}
@@ -96,17 +96,15 @@ export default function PublicResultsPage() {
       </div>
 
       {/* Winners Hero Banner */}
-      <div className="relative rounded-3xl overflow-hidden glass-card p-8 border border-amber-500/25 bg-gradient-to-r from-amber-950/40 via-purple-950/30 to-slate-900/80 text-center sm:text-left">
-        <div className="absolute right-0 top-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="relative z-10 space-y-3">
+      <div className="relative rounded-3xl overflow-hidden p-8 border border-amber-200 bg-gradient-to-r from-amber-500/10 via-amber-100/50 to-white text-center sm:text-left shadow-sm">
+        <div className="relative z-10 space-y-2">
           <Badge variant="gold" size="md">
             👑 Official Results Dashboard
           </Badge>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
             {results.name} Results
           </h1>
-          <p className="text-slate-300 text-xs sm:text-sm max-w-xl leading-relaxed">
+          <p className="text-slate-600 text-xs sm:text-sm max-w-xl leading-relaxed font-medium">
             Congratulations to all winners, finalists, and participants. Live vote counts and percentages are verified in real time.
           </p>
         </div>
@@ -114,19 +112,19 @@ export default function PublicResultsPage() {
 
       {/* Special Recognition & Discretionary Awards */}
       {!isHidden && hasSpecialAwards && (
-        <Card className="border-amber-500/30 bg-amber-950/15">
-          <CardHeader className="pb-3 border-b border-amber-500/20">
+        <Card className="border-amber-200 bg-amber-50/50 rounded-3xl shadow-sm">
+          <CardHeader className="pb-3 border-b border-amber-100">
             <div className="flex items-center gap-2">
-              <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
-              <CardTitle className="text-base text-white">Special Recognition & Discretionary Awards</CardTitle>
+              <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
+              <CardTitle className="text-base font-bold text-slate-900">Special Recognition & Discretionary Awards</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
             {results.specialAwards.map((sa: any) => (
-              <div key={sa.id} className="p-4 rounded-2xl bg-slate-900/60 border border-amber-500/20 space-y-2">
+              <div key={sa.id} className="p-4 rounded-2xl bg-white border border-amber-200 space-y-2 shadow-sm">
                 <Badge variant="gold" size="sm">{sa.name}</Badge>
-                <h3 className="text-base font-bold text-white">{sa.recipientName}</h3>
-                {sa.description && <p className="text-xs text-slate-300 leading-relaxed">{sa.description}</p>}
+                <h3 className="text-base font-bold text-slate-900">{sa.recipientName}</h3>
+                {sa.description && <p className="text-xs text-slate-600 leading-relaxed font-medium">{sa.description}</p>}
               </div>
             ))}
           </CardContent>
@@ -134,15 +132,15 @@ export default function PublicResultsPage() {
       )}
 
       {isHidden ? (
-        <Card className="border-slate-850 bg-slate-950/20 p-12 text-center text-slate-400 space-y-3">
+        <Card className="border-slate-200/80 bg-white rounded-3xl p-12 text-center text-slate-500 space-y-3 shadow-sm font-medium">
           <EyeOff className="w-8 h-8 text-amber-500 mx-auto animate-pulse" />
-          <h3 className="text-base font-bold text-white">Results are currently locked</h3>
-          <p className="text-xs text-slate-500 leading-relaxed max-w-md mx-auto">
+          <h3 className="text-base font-bold text-slate-900">Results are currently locked</h3>
+          <p className="text-xs text-slate-600 leading-relaxed max-w-md mx-auto">
             The event organizers have hidden live results during the tabulation audit phase. They will be shared here when officially published.
           </p>
         </Card>
       ) : results.categoriesResults.length === 0 ? (
-        <Card className="border-slate-850 bg-slate-950/20 p-12 text-center text-slate-400">
+        <Card className="border-slate-200/80 bg-white rounded-3xl p-12 text-center text-slate-500 text-xs shadow-sm font-medium">
           No categories or votes results data available for this event yet.
         </Card>
       ) : (
@@ -153,72 +151,72 @@ export default function PublicResultsPage() {
             const runnersUp = cat.winners.filter((w: any) => w.rank > 1 && w.status !== "DISQUALIFIED");
 
             return (
-              <Card key={cat.id} className="border-amber-500/25 overflow-hidden bg-slate-950/15">
-                <CardHeader className="bg-slate-900/30 pb-4 border-b border-slate-900/60">
+              <Card key={cat.id} className="border-slate-200/80 overflow-hidden bg-white rounded-3xl shadow-sm">
+                <CardHeader className="bg-slate-50 pb-4 border-b border-slate-100">
                   <div className="flex items-center gap-2">
-                    <Trophy className="w-4 h-4 text-amber-400" />
-                    <CardTitle className="text-base text-slate-100">{cat.categoryName}</CardTitle>
+                    <Trophy className="w-4 h-4 text-amber-500" />
+                    <CardTitle className="text-base font-bold text-slate-900">{cat.categoryName}</CardTitle>
                   </div>
                 </CardHeader>
 
                 <CardContent className="p-6 space-y-5">
                   {/* Winner Highlight Box */}
                   {winner ? (
-                    <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-purple-500/5 to-slate-900/40 border border-amber-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in duration-300">
+                    <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in duration-300">
                       <div className="flex items-center gap-3">
                         <Avatar
                           name={winner.name}
                           size="lg"
-                          className="border-2 border-amber-400/80 shadow-lg shadow-amber-500/10 shrink-0"
+                          className="border-2 border-amber-400/80 shadow-md shrink-0"
                         />
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="text-base font-bold text-white">{winner.name}</h3>
+                            <h3 className="text-base font-bold text-slate-900">{winner.name}</h3>
                             <Badge variant="gold" size="sm">👑 1st Place Winner</Badge>
                           </div>
-                          {winner.bio && <p className="text-xs text-slate-300 mt-1 max-w-lg leading-relaxed">{winner.bio}</p>}
+                          {winner.bio && <p className="text-xs text-slate-600 mt-1 max-w-lg leading-relaxed font-medium">{winner.bio}</p>}
                         </div>
                       </div>
 
                       <div className="text-right shrink-0">
                         {showPercentages && (
-                          <span className="text-xl font-bold text-amber-300 block">{winner.percent}</span>
+                          <span className="text-xl font-extrabold text-amber-600 block font-mono">{winner.percent}</span>
                         )}
                         {showVotes && (
-                          <span className="text-[10px] text-slate-400">{winner.votes} votes</span>
+                          <span className="text-[10px] text-slate-500 font-medium">{winner.votes} votes</span>
                         )}
                       </div>
                     </div>
                   ) : (
-                    <div className="text-slate-500 text-xs italic py-2">No active winner found for this category.</div>
+                    <div className="text-slate-500 text-xs italic py-2 font-medium">No active winner found for this category.</div>
                   )}
 
                   {/* Runners Up list */}
                   {runnersUp.length > 0 && (
-                    <div className="space-y-2.5 pt-2 border-t border-slate-900/40">
-                      <div className="text-[10px] text-slate-500 font-semibold uppercase block">Finalists & Runners Up</div>
+                    <div className="space-y-2.5 pt-2 border-t border-slate-100">
+                      <div className="text-[10px] text-slate-500 font-bold uppercase block">Finalists & Runners Up</div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {runnersUp.map((w: any) => (
                           <div
                             key={w.id}
-                            className="p-3 rounded-xl bg-slate-900/30 border border-slate-900/60 flex items-center justify-between gap-3 text-xs"
+                            className="p-3 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-center justify-between gap-3 text-xs"
                           >
                             <div className="flex items-center gap-2 min-w-0">
-                              <span className="w-5 h-5 rounded-md bg-slate-800 text-[10px] text-slate-400 flex items-center justify-center font-bold font-mono">
+                              <span className="w-5 h-5 rounded-lg bg-blue-100 text-[10px] text-blue-700 flex items-center justify-center font-bold font-mono">
                                 0{w.rank}
                               </span>
                               <div className="min-w-0">
-                                <span className="font-bold text-slate-200 block truncate">{w.name}</span>
-                                <span className="text-[10px] text-slate-500">{w.badgeStatus === "RUNNER_UP" ? "Runner Up" : "Finalist"}</span>
+                                <span className="font-bold text-slate-900 block truncate">{w.name}</span>
+                                <span className="text-[10px] text-slate-500 font-medium">{w.badgeStatus === "RUNNER_UP" ? "Runner Up" : "Finalist"}</span>
                               </div>
                             </div>
 
                             <div className="text-right shrink-0 font-mono">
                               {showPercentages && (
-                                <span className="text-xs font-bold text-indigo-400 block">{w.percent}</span>
+                                <span className="text-xs font-extrabold text-blue-600 block">{w.percent}</span>
                               )}
                               {showVotes && (
-                                <span className="text-[9px] text-slate-500">{w.votes} votes</span>
+                                <span className="text-[9px] text-slate-500 font-medium">{w.votes} votes</span>
                               )}
                             </div>
                           </div>
