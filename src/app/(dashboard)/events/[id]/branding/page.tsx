@@ -21,6 +21,7 @@ import {
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ImageUpload } from "@/components/ui/image-upload";
 import { getEventDetailsAction, updateEventBrandingAction } from "@/actions/events";
 
 export default function EventBrandingPage() {
@@ -209,10 +210,10 @@ export default function EventBrandingPage() {
                 <Palette className="w-4 h-4 text-indigo-400" />
                 <span>Color Palette & Brand Assets</span>
               </CardTitle>
-              <CardDescription className="text-xs">Fine-tune primary/accent color tokens and logo URLs</CardDescription>
+              <CardDescription className="text-xs font-medium">Fine-tune primary/accent color tokens and upload compressed brand image assets</CardDescription>
             </CardHeader>
 
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-slate-300">Primary Theme Color</label>
@@ -241,31 +242,33 @@ export default function EventBrandingPage() {
                 </div>
               </div>
 
-              {/* Asset URLs */}
-              <div className="space-y-3 pt-2">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                    <ImageIcon className="w-3.5 h-3.5 text-slate-400" /> Logo Asset URL
-                  </label>
-                  <input
-                    type="url"
-                    placeholder="https://example.com/logo.png"
+              {/* Upload Brand Assets */}
+              <div className="space-y-6 pt-2 border-t border-slate-800">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-200 block">Event Program Logo Photo</label>
+                  <ImageUpload
                     value={logoUrl}
-                    onChange={(e) => setLogoUrl(e.target.value)}
-                    className="w-full bg-slate-900 text-slate-200 text-xs rounded-xl px-3.5 py-2.5 border border-slate-800 focus:outline-none focus:border-purple-500 font-mono"
+                    onChange={(url) => setLogoUrl(url)}
+                    onRemove={() => setLogoUrl("")}
+                    label="Upload Event Logo Image"
+                    description="Upload your organization or event logo photo. Automatically compressed."
+                    maxWidth={400}
+                    maxHeight={400}
+                    aspectRatio="square"
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                    <ImageIcon className="w-3.5 h-3.5 text-slate-400" /> Custom Hero Banner Image URL
-                  </label>
-                  <input
-                    type="url"
-                    placeholder="https://example.com/banner.jpg"
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-200 block">Custom Hero Cover Banner Photo</label>
+                  <ImageUpload
                     value={bannerUrl}
-                    onChange={(e) => setBannerUrl(e.target.value)}
-                    className="w-full bg-slate-900 text-slate-200 text-xs rounded-xl px-3.5 py-2.5 border border-slate-800 focus:outline-none focus:border-purple-500 font-mono"
+                    onChange={(url) => setBannerUrl(url)}
+                    onRemove={() => setBannerUrl("")}
+                    label="Upload Event Hero Cover Banner"
+                    description="Upload a widescreen header banner photo for your event landing page."
+                    maxWidth={1200}
+                    maxHeight={600}
+                    aspectRatio="landscape"
                   />
                 </div>
               </div>
@@ -289,15 +292,19 @@ export default function EventBrandingPage() {
                 {/* Simulated Portal Banner */}
                 <div
                   style={{
-                    background: `linear-gradient(135deg, ${primaryColor}40, ${accentColor}30)`,
+                    background: bannerUrl ? `url(${bannerUrl}) center/cover no-repeat` : `linear-gradient(135deg, ${primaryColor}40, ${accentColor}30)`,
                     borderColor: `${primaryColor}60`,
                   }}
-                  className="p-4 rounded-xl border text-center space-y-1.5"
+                  className="p-4 rounded-xl border text-center space-y-1.5 min-h-[100px] flex flex-col justify-center relative overflow-hidden"
                 >
-                  <span className="text-[10px] font-bold text-white uppercase tracking-wider block">
-                    {eventData.name}
-                  </span>
-                  <p className="text-[11px] text-slate-300">Official Recognition Portal</p>
+                  {bannerUrl && <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[1px]" />}
+                  <div className="relative z-10">
+                    {logoUrl && <img src={logoUrl} alt="Logo" className="w-10 h-10 object-contain mx-auto mb-1 rounded-lg" />}
+                    <span className="text-[10px] font-bold text-white uppercase tracking-wider block">
+                      {eventData.name}
+                    </span>
+                    <p className="text-[11px] text-slate-300">Official Recognition Portal</p>
+                  </div>
                 </div>
 
                 <div className="space-y-2">

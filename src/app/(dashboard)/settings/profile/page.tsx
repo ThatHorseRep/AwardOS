@@ -16,12 +16,13 @@ import {
   Copy,
   BadgeCheck,
   Globe,
-  Info,
+  Upload,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
+import { ImageUpload } from "@/components/ui/image-upload";
 import { getUserProfileAction, updateUserProfileFormAction } from "@/actions/users";
 
 const PRESET_AVATARS = [
@@ -138,7 +139,7 @@ export default function UserProfileSettingsPage() {
         {/* Left Column: Avatar / DP Card */}
         <div className="space-y-6 md:col-span-1">
           <Card className="bg-white border-slate-200/80 rounded-3xl shadow-sm overflow-hidden text-center p-6 space-y-4">
-            <div className="relative inline-block mx-auto group">
+            <div className="relative inline-block mx-auto">
               <div className="p-1 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-500 to-purple-600 shadow-xl">
                 <Avatar
                   src={avatarUrl || null}
@@ -154,32 +155,49 @@ export default function UserProfileSettingsPage() {
               <p className="text-xs text-slate-500 font-mono truncate">{profile?.email}</p>
             </div>
 
-            <div className="pt-2 border-t border-slate-100 space-y-3 text-left">
-              <label className="text-[11px] font-bold text-slate-700 block">Avatar Presets</label>
-              <div className="grid grid-cols-3 gap-2">
-                {PRESET_AVATARS.map((url, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setAvatarUrl(url)}
-                    className={`relative rounded-xl overflow-hidden aspect-square border-2 transition-all hover:scale-105 ${
-                      avatarUrl === url ? "border-blue-600 ring-2 ring-blue-500/20" : "border-slate-200"
-                    }`}
-                  >
-                    <img src={url} alt={`Preset ${idx + 1}`} className="w-full h-full object-cover" />
-                  </button>
-                ))}
-              </div>
+            <div className="pt-3 border-t border-slate-100 space-y-3 text-left">
+              <label className="text-xs font-bold text-slate-800 block">
+                Upload Profile Picture
+              </label>
+              
+              <ImageUpload
+                value={avatarUrl}
+                onChange={(url) => setAvatarUrl(url)}
+                onRemove={() => setAvatarUrl("")}
+                label="Click or Drag Photo Here"
+                description="Select any image file from your device. Auto-compresses size."
+                maxWidth={500}
+                maxHeight={500}
+                aspectRatio="square"
+              />
 
-              {avatarUrl && (
-                <button
-                  type="button"
-                  onClick={() => setAvatarUrl("")}
-                  className="text-[11px] font-bold text-rose-600 hover:underline block text-center w-full pt-1"
-                >
-                  Clear Custom Photo (Use Initials)
-                </button>
-              )}
+              <div className="pt-2 border-t border-slate-100 space-y-2">
+                <label className="text-[11px] font-bold text-slate-700 block">Avatar Presets</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {PRESET_AVATARS.map((url, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setAvatarUrl(url)}
+                      className={`relative rounded-xl overflow-hidden aspect-square border-2 transition-all hover:scale-105 ${
+                        avatarUrl === url ? "border-blue-600 ring-2 ring-blue-500/20" : "border-slate-200"
+                      }`}
+                    >
+                      <img src={url} alt={`Preset ${idx + 1}`} className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+
+                {avatarUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setAvatarUrl("")}
+                    className="text-[11px] font-bold text-rose-600 hover:underline block text-center w-full pt-1"
+                  >
+                    Clear Photo (Use Initials)
+                  </button>
+                )}
+              </div>
             </div>
           </Card>
         </div>
@@ -210,22 +228,6 @@ export default function UserProfileSettingsPage() {
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="e.g. Nelson Nlewedum"
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-900 font-medium focus:outline-none focus:border-blue-500 transition-all"
-                />
-              </div>
-
-              {/* Avatar URL Input */}
-              <div className="space-y-1.5">
-                <label htmlFor="avatarUrl" className="text-xs font-bold text-slate-800 flex items-center justify-between">
-                  <span>Custom Profile Photo URL</span>
-                  <span className="text-[10px] text-slate-400 font-normal">Optional image link</span>
-                </label>
-                <input
-                  id="avatarUrl"
-                  type="url"
-                  value={avatarUrl}
-                  onChange={(e) => setAvatarUrl(e.target.value)}
-                  placeholder="https://example.com/avatar.jpg"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-900 font-mono font-medium focus:outline-none focus:border-blue-500 transition-all"
                 />
               </div>
 
