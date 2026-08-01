@@ -11,28 +11,18 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="h-screen max-h-screen w-full flex flex-col items-center justify-between bg-[#0a0a0f] relative overflow-hidden py-4 px-4 font-sans select-none">
-      {/* Background gradient effects */}
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/30 via-transparent to-purple-950/20 pointer-events-none" />
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-indigo-600/10 rounded-full blur-[100px] pointer-events-none" />
-      <div className="absolute bottom-0 right-0 w-[350px] h-[350px] bg-purple-600/10 rounded-full blur-[90px] pointer-events-none" />
-
-      {/* Grid pattern overlay */}
-      <div
-        className="absolute inset-0 opacity-[0.03] pointer-events-none"
-        style={{
-          backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
-          backgroundSize: "60px 60px",
-        }}
-      />
+    <div className="h-screen max-h-screen w-full flex flex-col items-center justify-between bg-[#f4f5f8] relative overflow-hidden py-5 px-4 font-sans select-none">
+      {/* Background soft ambient accents */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px] bg-blue-500/10 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute bottom-0 right-0 w-[300px] h-[300px] bg-indigo-500/10 rounded-full blur-[90px] pointer-events-none" />
 
       {/* Header Logo */}
-      <div className="relative z-10 text-center shrink-0 pt-1">
-        <div className="inline-flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-500/20">
+      <div className="relative z-10 text-center shrink-0 pt-2">
+        <div className="inline-flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-600/20">
             <svg
-              width="16"
-              height="16"
+              width="18"
+              height="18"
               viewBox="0 0 24 24"
               fill="none"
               stroke="white"
@@ -48,22 +38,22 @@ export default function AuthLayout({
               <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
             </svg>
           </div>
-          <span className="text-xl font-bold text-white tracking-tight">
+          <span className="text-2xl font-bold text-slate-900 tracking-tight">
             AwardOS
           </span>
         </div>
-        <p className="text-[11px] text-zinc-400 mt-0.5">
+        <p className="text-xs text-slate-500 mt-1 font-medium">
           The operating system for award events
         </p>
       </div>
 
-      {/* Card container */}
-      <div className="relative z-10 w-full max-w-sm mx-auto bg-zinc-900/70 backdrop-blur-xl border border-zinc-800/80 rounded-2xl p-5 sm:p-6 shadow-2xl shadow-black/40 my-auto shrink-0">
+      {/* Deep Obsidian Container Card */}
+      <div className="relative z-10 w-full max-w-sm mx-auto bg-zinc-950 border border-zinc-900 rounded-3xl p-6 sm:p-7 shadow-2xl my-auto shrink-0 text-white">
         {children}
       </div>
 
       {/* Footer */}
-      <p className="relative z-10 text-center text-[10px] text-zinc-500 shrink-0 pb-1">
+      <p className="relative z-10 text-center text-[11px] text-slate-500 shrink-0 pb-2">
         By continuing, you agree to AwardOS&apos;s Terms of Service and Privacy Policy.
       </p>
     </div>

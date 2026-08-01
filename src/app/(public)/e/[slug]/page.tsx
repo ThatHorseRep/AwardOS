@@ -140,24 +140,24 @@ export default function PublicEventPage() {
                 variant="primary"
                 size="lg"
                 disabled={!isVotingActive}
-                className="shadow-xl shadow-indigo-600/25 bg-indigo-600 hover:bg-indigo-500 text-white"
+                className="rounded-full px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-xl shadow-blue-600/30"
               >
-                <Vote className="w-5 h-5" />
+                <Vote className="w-5 h-5 mr-1" />
                 <span>{isVotingActive ? "Cast Your Vote" : "Voting Closed"}</span>
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
             </Link>
 
             <Link href={`/e/${event.slug}/nominate`}>
-              <Button variant="secondary" size="lg" disabled={!isNominationActive}>
-                <Users className="w-5 h-5" />
+              <Button variant="secondary" size="lg" disabled={!isNominationActive} className="rounded-full px-6 py-3 bg-zinc-900 border border-zinc-800 text-white hover:bg-zinc-800">
+                <Users className="w-5 h-5 mr-1" />
                 <span>{isNominationActive ? "Submit Nomination" : "Nominations Closed"}</span>
               </Button>
             </Link>
 
             {isResultsPublished && (
               <Link href={`/e/${event.slug}/results`}>
-                <Button variant="outline" size="lg" className="border-slate-800 text-slate-200 hover:bg-slate-900">
+                <Button variant="outline" size="lg" className="rounded-full px-6 py-3 border-slate-800 text-slate-200 hover:bg-slate-900">
                   <Trophy className="w-5 h-5 text-amber-400 mr-2" />
                   <span>View Results</span>
                 </Button>

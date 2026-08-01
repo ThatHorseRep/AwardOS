@@ -45,7 +45,7 @@ export default function AISettingsPage() {
   };
 
   return (
-    <div className="space-y-8 max-w-4xl">
+    <div className="space-y-6 max-w-4xl mx-auto font-sans pb-16 select-none">
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 mb-1">
@@ -53,8 +53,8 @@ export default function AISettingsPage() {
             <Sparkles className="w-3 h-3" /> AI Co-Pilot Engine
           </Badge>
         </div>
-        <h1 className="text-3xl font-extrabold text-white tracking-tight">AI Settings & Provider Config</h1>
-        <p className="text-zinc-400 text-sm mt-1">
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">AI Settings & Provider Config</h1>
+        <p className="text-slate-600 text-xs mt-1 font-medium">
           Configure default AI models, API provider preferences, and model parameters for nomination cleanup & assistant chat.
         </p>
       </div>
@@ -64,55 +64,53 @@ export default function AISettingsPage() {
         {providers.map((p) => {
           const isSelected = selectedProvider === p.id;
           return (
-            <Card
+            <div
               key={p.id}
               onClick={() => {
                 setSelectedProvider(p.id as any);
                 setModelName(p.models[0]);
               }}
-              className={`cursor-pointer transition-all duration-200 border relative ${
+              className={`cursor-pointer transition-all duration-200 border rounded-3xl p-5 space-y-3 ${
                 isSelected
-                  ? "bg-purple-950/20 border-purple-500/60 shadow-lg shadow-purple-950/50"
-                  : "bg-zinc-900/40 border-zinc-800 hover:border-zinc-700"
+                  ? "bg-blue-50 border-blue-400 shadow-sm"
+                  : "bg-white border-slate-200/80 hover:border-slate-300"
               }`}
             >
-              <CardContent className="p-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center">
-                    <Cpu className="w-5 h-5" />
-                  </div>
-                  {isSelected && <Check className="w-4 h-4 text-purple-400" />}
+              <div className="flex items-center justify-between">
+                <div className="w-9 h-9 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
+                  <Cpu className="w-5 h-5" />
                 </div>
+                {isSelected && <Check className="w-4 h-4 text-blue-600 font-bold" />}
+              </div>
 
-                <div>
-                  <h3 className="font-bold text-white text-sm">{p.name}</h3>
-                  <span className="text-[10px] text-purple-400 font-medium">{p.badge}</span>
-                </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">{p.name}</h3>
+                <span className="text-[10px] text-blue-600 font-bold">{p.badge}</span>
+              </div>
 
-                <p className="text-xs text-zinc-400 leading-relaxed">{p.desc}</p>
-              </CardContent>
-            </Card>
+              <p className="text-xs text-slate-600 leading-relaxed font-medium">{p.desc}</p>
+            </div>
           );
         })}
       </div>
 
       {/* Detailed Config Form */}
-      <Card className="bg-zinc-900/50 border-zinc-800">
-        <CardHeader>
-          <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
-            <Key className="w-4 h-4 text-purple-400" /> API Configuration & Model Selection
+      <Card className="bg-white border-slate-200/80 rounded-3xl shadow-sm">
+        <CardHeader className="border-b border-slate-100 pb-4">
+          <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+            <Key className="w-4 h-4 text-blue-600" /> API Configuration & Model Selection
           </CardTitle>
-          <CardDescription className="text-zinc-400 text-xs">
+          <CardDescription className="text-slate-600 text-xs font-medium">
             Manage provider credentials and target model selection for {providers.find((p) => p.id === selectedProvider)?.name}.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-zinc-300">Model Version</label>
+        <CardContent className="space-y-6 pt-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-700">Model Version</label>
             <select
               value={modelName}
               onChange={(e) => setModelName(e.target.value)}
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500"
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-medium"
             >
               {providers
                 .find((p) => p.id === selectedProvider)
@@ -124,10 +122,10 @@ export default function AISettingsPage() {
             </select>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-zinc-300">API Key Override (Optional)</label>
-              <span className="text-[10px] text-zinc-500">
+              <label className="text-xs font-semibold text-slate-700">API Key Override (Optional)</label>
+              <span className="text-[10px] text-slate-500 font-medium">
                 Fallback: process.env.{providers.find((p) => p.id === selectedProvider)?.envKey}
               </span>
             </div>
@@ -136,25 +134,25 @@ export default function AISettingsPage() {
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder="Leave empty to use server environment variable..."
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-purple-500"
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 font-mono font-medium"
             />
           </div>
 
-          <div className="p-4 rounded-xl bg-purple-950/20 border border-purple-500/20 flex items-start gap-3">
-            <ShieldCheck className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
+          <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 flex items-start gap-3">
+            <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
             <div className="text-xs space-y-1">
-              <span className="font-semibold text-purple-300">Enterprise Privacy Guarantee</span>
-              <p className="text-zinc-400 text-[11px] leading-relaxed">
+              <span className="font-bold text-blue-950">Enterprise Privacy Guarantee</span>
+              <p className="text-blue-900 text-[11px] leading-relaxed font-medium">
                 AwardOS processes voter data through strictly sanitized AI prompts. Nomination deduplication and merge suggestions never store voter personal identity data on third-party AI provider logs.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center justify-between pt-2">
-            <Button variant="ghost" size="sm" onClick={() => { setApiKey(""); setSaved(false); }} className="text-xs text-zinc-400 hover:text-white">
+          <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+            <Button variant="ghost" size="sm" onClick={() => { setApiKey(""); setSaved(false); }} className="text-xs text-slate-600 hover:text-slate-900 font-medium">
               Reset Defaults
             </Button>
-            <Button variant="primary" size="sm" onClick={handleSave} className="bg-purple-600 hover:bg-purple-500 text-xs">
+            <Button variant="primary" size="sm" onClick={handleSave} className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20 text-xs">
               {saved ? (
                 <>
                   <Check className="w-3.5 h-3.5 mr-1" /> Settings Saved!

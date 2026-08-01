@@ -70,27 +70,27 @@ export default function IntegrityPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 max-w-7xl mx-auto font-sans pb-16 select-none">
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-            <ShieldAlert className="w-6 h-6 text-rose-400" />
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+            <ShieldAlert className="w-6 h-6 text-rose-600" />
             <span>Anti-Fraud & Integrity Monitoring</span>
           </h1>
-          <p className="text-slate-400 text-xs mt-1">
+          <p className="text-slate-600 text-xs mt-1 font-medium">
             Real-time bot detection, IP rate cluster monitoring, and automated ballot security verification.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm">
-            <Download className="w-4 h-4" />
+          <Button variant="outline" size="sm" className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm">
+            <Download className="w-4 h-4 mr-1.5" />
             <span>Export Audit Log</span>
           </Button>
 
-          <Button variant="primary" size="sm" className="bg-rose-600 hover:bg-rose-500 border-rose-400/30">
-            <RefreshCw className="w-4 h-4" />
+          <Button variant="primary" size="sm" className="rounded-full bg-rose-600 hover:bg-rose-500 text-white font-bold shadow-md shadow-rose-600/20">
+            <RefreshCw className="w-4 h-4 mr-1.5" />
             <span>Run Security Audit Scan</span>
           </Button>
         </div>
@@ -98,60 +98,56 @@ export default function IntegrityPage() {
 
       {/* Metrics Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between text-xs text-slate-400">
-              <span>Overall Security Score</span>
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            </div>
-            <div className="text-3xl font-bold text-white mt-2">98.4%</div>
-            <span className="text-[10px] text-emerald-400 font-medium">Clean Voting Environment</span>
-          </CardContent>
-        </Card>
+        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Security Score</span>
+            <span className="text-3xl font-extrabold text-slate-900 mt-1 block">98.4%</span>
+          </div>
+          <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+        </div>
 
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between text-xs text-slate-400">
-              <span>Flagged Anomaly Ballots</span>
-              <AlertTriangle className="w-4 h-4 text-rose-400" />
-            </div>
-            <div className="text-3xl font-bold text-white mt-2">65</div>
-            <span className="text-[10px] text-rose-400 font-medium">Pending organizer action</span>
-          </CardContent>
-        </Card>
+        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Flagged Ballots</span>
+            <span className="text-3xl font-extrabold text-slate-900 mt-1 block">65</span>
+          </div>
+          <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+            <AlertTriangle className="w-5 h-5" />
+          </div>
+        </div>
 
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between text-xs text-slate-400">
-              <span>Banned IP Clusters</span>
-              <Ban className="w-4 h-4 text-amber-400" />
-            </div>
-            <div className="text-3xl font-bold text-white mt-2">12</div>
-            <span className="text-[10px] text-slate-500 font-medium">Active firewall blocks</span>
-          </CardContent>
-        </Card>
+        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Banned IP Clusters</span>
+            <span className="text-3xl font-extrabold text-slate-900 mt-1 block">12</span>
+          </div>
+          <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+            <Ban className="w-5 h-5" />
+          </div>
+        </div>
 
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between text-xs text-slate-400">
-              <span>Protection Mode</span>
-              <Lock className="w-4 h-4 text-indigo-400" />
-            </div>
-            <div className="text-3xl font-bold text-white mt-2">{securityLevel}</div>
-            <span className="text-[10px] text-indigo-400 font-medium">Device + IP + Cookie Fingerprint</span>
-          </CardContent>
-        </Card>
+        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Protection Mode</span>
+            <span className="text-xl font-extrabold text-slate-900 mt-1 block">{securityLevel}</span>
+          </div>
+          <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+            <Lock className="w-5 h-5" />
+          </div>
+        </div>
       </div>
 
       {/* Security Threat Table */}
-      <Card className="border-rose-500/20">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+      <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b border-slate-100 pb-4">
           <div>
-            <CardTitle className="text-base text-slate-100 flex items-center gap-2">
-              <Activity className="w-4 h-4 text-rose-400" />
+            <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Activity className="w-4 h-4 text-rose-600" />
               <span>Real-Time Anomaly Logs</span>
             </CardTitle>
-            <CardDescription>Suspicious traffic spikes and bot fingerprint detections</CardDescription>
+            <CardDescription className="text-xs text-slate-600 font-medium">Suspicious traffic spikes and bot fingerprint detections</CardDescription>
           </div>
 
           <Badge variant="danger" size="sm">
@@ -159,23 +155,23 @@ export default function IntegrityPage() {
           </Badge>
         </CardHeader>
 
-        <CardContent>
-          <div className="divide-y divide-slate-800/80">
+        <CardContent className="pt-4">
+          <div className="divide-y divide-slate-100">
             {threats.map((thr) => (
               <div
                 key={thr.id}
-                className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-900/40 transition-colors"
+                className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50/80 transition-colors rounded-2xl"
               >
                 <div className="space-y-1">
                   <div className="flex items-center gap-2.5">
-                    <span className="text-sm font-mono font-bold text-white">{thr.ip}</span>
+                    <span className="text-sm font-mono font-bold text-slate-900">{thr.ip}</span>
                     <Badge variant={thr.riskTier === "HIGH" ? "danger" : "warning"} size="sm">
                       Risk Score: {thr.riskScore} ({thr.riskTier})
                     </Badge>
-                    <span className="text-xs text-slate-400">• {thr.country}</span>
+                    <span className="text-xs text-slate-500 font-medium">• {thr.country}</span>
                   </div>
-                  <p className="text-xs text-rose-300 font-medium">{thr.anomaly}</p>
-                  <span className="text-[11px] text-slate-500">
+                  <p className="text-xs text-rose-600 font-bold">{thr.anomaly}</p>
+                  <span className="text-[11px] text-slate-500 font-medium">
                     {thr.ballotCount} ballots generated • {thr.timestamp}
                   </span>
                 </div>
@@ -185,9 +181,9 @@ export default function IntegrityPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => handleBanIP(thr.ip)}
-                    className="border-slate-700 hover:border-amber-500/50"
+                    className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold shadow-sm"
                   >
-                    <Ban className="w-3.5 h-3.5 text-amber-400" />
+                    <Ban className="w-3.5 h-3.5 mr-1 text-amber-600" />
                     <span>Ban IP</span>
                   </Button>
 
@@ -195,8 +191,9 @@ export default function IntegrityPage() {
                     variant="danger"
                     size="sm"
                     onClick={() => handlePurge(thr.id)}
+                    className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-3.5 h-3.5 mr-1" />
                     <span>Purge Ballots ({thr.ballotCount})</span>
                   </Button>
                 </div>

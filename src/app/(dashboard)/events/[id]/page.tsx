@@ -56,8 +56,8 @@ export default function EventDetailPage() {
   // Branding tab form states
   const [logoUrl, setLogoUrl] = useState("");
   const [bannerUrl, setBannerUrl] = useState("");
-  const [primaryColor, setPrimaryColor] = useState("#6366f1");
-  const [secondaryColor, setSecondaryColor] = useState("#4f46e5");
+  const [primaryColor, setPrimaryColor] = useState("#2563eb");
+  const [secondaryColor, setSecondaryColor] = useState("#1d4ed8");
   const [accentColor, setAccentColor] = useState("#f59e0b");
   const [updatingBranding, setUpdatingBranding] = useState(false);
   const [brandingSuccess, setBrandingSuccess] = useState(false);
@@ -82,8 +82,8 @@ export default function EventDetailPage() {
           // Load branding values
           setLogoUrl(data.branding?.logoUrl || "");
           setBannerUrl(data.branding?.bannerUrl || "");
-          setPrimaryColor(data.branding?.primaryColor || "#6366f1");
-          setSecondaryColor(data.branding?.secondaryColor || "#4f46e5");
+          setPrimaryColor(data.branding?.primaryColor || "#2563eb");
+          setSecondaryColor(data.branding?.secondaryColor || "#1d4ed8");
           setAccentColor(data.branding?.accentColor || "#f59e0b");
         }
       } catch (err) {
@@ -98,7 +98,7 @@ export default function EventDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+        <Loader2 className="animate-spin rounded-full h-8 w-8 text-blue-600" />
       </div>
     );
   }
@@ -106,9 +106,9 @@ export default function EventDetailPage() {
   if (!event) {
     return (
       <div className="text-center py-12">
-        <h2 className="text-xl font-bold text-white">Event not found</h2>
-        <p className="text-zinc-400 mt-2">The event you are looking for does not exist or has been deleted.</p>
-        <Link href="/dashboard/events" className="mt-4 inline-block text-indigo-400 hover:underline">
+        <h2 className="text-xl font-bold text-slate-900">Event not found</h2>
+        <p className="text-slate-600 mt-2 font-medium">The event you are looking for does not exist or has been deleted.</p>
+        <Link href="/events" className="mt-4 inline-block text-blue-600 hover:underline font-bold">
           Back to Events
         </Link>
       </div>
@@ -194,49 +194,49 @@ export default function EventDetailPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 max-w-7xl mx-auto font-sans pb-16 select-none">
       {/* Header Navigation */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
-          <Link href="/dashboard/events">
-            <Button variant="ghost" size="icon" className="mt-1">
+          <Link href="/events">
+            <Button variant="ghost" size="icon" className="mt-1 text-slate-700 hover:bg-slate-200">
               <ArrowLeft className="w-4 h-4" />
             </Button>
           </Link>
           <div className="space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl font-bold text-white tracking-tight">{event.name}</h1>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{event.name}</h1>
               <Badge variant={event.status === 'ACTIVE' ? 'success' : event.status === 'DRAFT' ? 'neutral' : 'purple'} size="sm">
                 {event.status}
               </Badge>
               <Badge variant="purple" size="sm">Stage: {currentStage.displayName}</Badge>
             </div>
-            <p className="text-xs text-slate-400 font-mono">
-              Public Link: <a href={`/e/${event.slug}`} target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline">awardos.io/e/{event.slug}</a>
+            <p className="text-xs text-slate-600 font-mono font-medium">
+              Public Link: <a href={`/e/${event.slug}`} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline font-bold">awardos.io/e/{event.slug}</a>
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <a href={`/e/${event.slug}`} target="_blank" rel="noreferrer">
-            <Button variant="outline" size="sm">
-              <ExternalLink className="w-4 h-4" />
+            <Button variant="outline" size="sm" className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm">
+              <ExternalLink className="w-4 h-4 mr-1.5" />
               <span>Public Page</span>
             </Button>
           </a>
-          <Button variant="outline" size="sm" onClick={() => setShowBulkImportModal(true)} className="border-purple-500/30 text-purple-300 hover:bg-purple-500/10">
-            <Upload className="w-4 h-4" />
+          <Button variant="outline" size="sm" onClick={() => setShowBulkImportModal(true)} className="bg-white border-purple-200 text-purple-700 hover:bg-purple-50 shadow-sm">
+            <Upload className="w-4 h-4 mr-1.5" />
             <span>Bulk Import</span>
           </Button>
           <Link href={`/events/${eventId}/ai-cleanup`}>
-            <Button variant="primary" size="sm" className="bg-gradient-to-r from-purple-600 to-indigo-600">
-              <Sparkles className="w-4 h-4" />
+            <Button variant="primary" size="sm" className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20">
+              <Sparkles className="w-4 h-4 mr-1.5" />
               <span>Run AI Cleanup</span>
             </Button>
           </Link>
           <Link href={`/events/${eventId}/integrity`}>
-            <Button variant="outline" size="sm" className="border-rose-500/30 text-rose-400 hover:bg-rose-500/10">
-              <ShieldAlert className="w-4 h-4" />
+            <Button variant="outline" size="sm" className="bg-white border-rose-200 text-rose-700 hover:bg-rose-50 shadow-sm">
+              <ShieldAlert className="w-4 h-4 mr-1.5" />
               <span>Voting Integrity</span>
             </Button>
           </Link>
@@ -244,7 +244,7 @@ export default function EventDetailPage() {
       </div>
 
       {/* Control Center Tab Bar */}
-      <div className="flex items-center gap-2 border-b border-slate-800/80 overflow-x-auto pb-1">
+      <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto pb-1">
         {[
           { id: "overview", label: "Overview", icon: Trophy },
           { id: "categories", label: `Categories (${event.categories.length})`, icon: Layers },
@@ -258,10 +258,10 @@ export default function EventDetailPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all select-none border-b-2 ${
+              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-t-2xl transition-all border-b-2 ${
                 isActive
-                  ? "text-indigo-400 border-indigo-500 bg-indigo-600/10"
-                  : "text-slate-400 border-transparent hover:text-slate-200 hover:bg-slate-800/40"
+                  ? "text-blue-600 border-blue-600 bg-blue-50"
+                  : "text-slate-600 border-transparent hover:text-slate-900 hover:bg-slate-100"
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -275,51 +275,51 @@ export default function EventDetailPage() {
       {activeTab === "overview" && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>Total Categories</span>
-                  <Layers className="w-4 h-4 text-indigo-400" />
-                </div>
-                <div className="text-3xl font-bold text-white mt-2">{event.categories.length}</div>
-              </CardContent>
-            </Card>
+            <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm flex items-center justify-between">
+              <div>
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Total Categories</span>
+                <span className="text-3xl font-extrabold text-slate-900 mt-1 block">{event.categories.length}</span>
+              </div>
+              <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                <Layers className="w-5 h-5" />
+              </div>
+            </div>
 
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>Total Nominations</span>
-                  <Users className="w-4 h-4 text-purple-400" />
-                </div>
-                <div className="text-3xl font-bold text-white mt-2">{event.nominationsCount}</div>
-              </CardContent>
-            </Card>
+            <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm flex items-center justify-between">
+              <div>
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Total Nominations</span>
+                <span className="text-3xl font-extrabold text-slate-900 mt-1 block">{event.nominationsCount}</span>
+              </div>
+              <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+                <Users className="w-5 h-5" />
+              </div>
+            </div>
 
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>Votes Cast</span>
-                  <Vote className="w-4 h-4 text-emerald-400" />
-                </div>
-                <div className="text-3xl font-bold text-white mt-2">{event.votesCount}</div>
-              </CardContent>
-            </Card>
+            <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm flex items-center justify-between">
+              <div>
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Votes Cast</span>
+                <span className="text-3xl font-extrabold text-slate-900 mt-1 block">{event.votesCount}</span>
+              </div>
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                <Vote className="w-5 h-5" />
+              </div>
+            </div>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Program Description & Schedule</CardTitle>
+          <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
+            <CardHeader className="border-b border-slate-100 pb-4">
+              <CardTitle className="text-base font-bold text-slate-900">Program Description & Schedule</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 text-xs text-slate-300">
-              <p className="leading-relaxed">{event.description}</p>
-              <div className="grid grid-cols-2 gap-4 p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+            <CardContent className="space-y-4 text-xs text-slate-700 pt-4 font-medium">
+              <p className="leading-relaxed text-sm">{event.description || "No description provided for this program."}</p>
+              <div className="grid grid-cols-2 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200/60">
                 <div>
-                  <span className="text-slate-500 block uppercase">Start Date</span>
-                  <span className="font-semibold text-slate-200">{startDate}</span>
+                  <span className="text-slate-500 block uppercase text-[10px] font-semibold">Start Date</span>
+                  <span className="font-bold text-slate-900">{startDate}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block uppercase">End Date</span>
-                  <span className="font-semibold text-slate-200">{endDate}</span>
+                  <span className="text-slate-500 block uppercase text-[10px] font-semibold">End Date</span>
+                  <span className="font-bold text-slate-900">{endDate}</span>
                 </div>
               </div>
             </CardContent>
@@ -327,15 +327,15 @@ export default function EventDetailPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Link href={`/events/${eventId}/results`}>
-              <Card className="hover:border-indigo-500/50 cursor-pointer transition-all h-full bg-slate-950/20">
+              <Card className="hover:border-blue-500/50 hover:shadow-md cursor-pointer transition-all h-full bg-white border-slate-200/80 rounded-3xl">
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-2">
-                    <Trophy className="w-4 h-4 text-amber-400" />
-                    <CardTitle className="text-sm font-bold text-white">Official Results Manager</CardTitle>
+                    <Trophy className="w-5 h-5 text-amber-500" />
+                    <CardTitle className="text-sm font-bold text-slate-900">Official Results Manager</CardTitle>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                  <p className="text-xs text-slate-600 leading-relaxed font-medium">
                     Audit vote tallies, manage candidate disqualifications, and publish winners leaderboard to the public portal.
                   </p>
                 </CardContent>
@@ -343,15 +343,15 @@ export default function EventDetailPage() {
             </Link>
 
             <Link href={`/events/${eventId}/analytics`}>
-              <Card className="hover:border-indigo-500/50 cursor-pointer transition-all h-full bg-slate-950/20">
+              <Card className="hover:border-blue-500/50 hover:shadow-md cursor-pointer transition-all h-full bg-white border-slate-200/80 rounded-3xl">
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-2">
-                    <Sliders className="w-4 h-4 text-indigo-400" />
-                    <CardTitle className="text-sm font-bold text-white">Real-Time Analytics Hub</CardTitle>
+                    <Sliders className="w-5 h-5 text-blue-600" />
+                    <CardTitle className="text-sm font-bold text-slate-900">Real-Time Analytics Hub</CardTitle>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                  <p className="text-xs text-slate-600 leading-relaxed font-medium">
                     Monitor voting velocity timeline charts, category turnout shares, and voter device telemetry.
                   </p>
                 </CardContent>
@@ -359,15 +359,15 @@ export default function EventDetailPage() {
             </Link>
 
             <Link href={`/events/${eventId}/exports`}>
-              <Card className="hover:border-indigo-500/50 cursor-pointer transition-all h-full bg-slate-950/20">
+              <Card className="hover:border-blue-500/50 hover:shadow-md cursor-pointer transition-all h-full bg-white border-slate-200/80 rounded-3xl">
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-2">
-                    <Upload className="w-4 h-4 text-emerald-400" />
-                    <CardTitle className="text-sm font-bold text-white">Data Export & Reports</CardTitle>
+                    <Upload className="w-5 h-5 text-emerald-600" />
+                    <CardTitle className="text-sm font-bold text-slate-900">Data Export & Reports</CardTitle>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                  <p className="text-xs text-slate-600 leading-relaxed font-medium">
                     Generate and download spreadsheet records (CSV) of votes, nominations, and voter credentials.
                   </p>
                 </CardContent>
@@ -375,15 +375,15 @@ export default function EventDetailPage() {
             </Link>
 
             <Link href={`/events/${eventId}/integrity`}>
-              <Card className="hover:border-indigo-500/50 cursor-pointer transition-all h-full bg-slate-950/20">
+              <Card className="hover:border-blue-500/50 hover:shadow-md cursor-pointer transition-all h-full bg-white border-slate-200/80 rounded-3xl">
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-2">
-                    <ShieldAlert className="w-4 h-4 text-rose-400" />
-                    <CardTitle className="text-sm font-bold text-white">Voting Integrity Panel</CardTitle>
+                    <ShieldAlert className="w-5 h-5 text-rose-600" />
+                    <CardTitle className="text-sm font-bold text-slate-900">Voting Integrity Panel</CardTitle>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                  <p className="text-xs text-slate-600 leading-relaxed font-medium">
                     Monitor network IP address clusters, duplicate browser footprints, and manage audit resolutions.
                   </p>
                 </CardContent>
@@ -395,48 +395,48 @@ export default function EventDetailPage() {
 
       {/* Tab 2: Categories */}
       {activeTab === "categories" && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+        <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 pb-4">
             <div>
-              <CardTitle>Award Categories</CardTitle>
-              <CardDescription>Manage the award categories for this event program.</CardDescription>
+              <CardTitle className="text-base font-bold text-slate-900">Award Categories</CardTitle>
+              <CardDescription className="text-xs text-slate-600 font-medium">Manage the award categories for this event program.</CardDescription>
             </div>
             <div className="flex items-center gap-3">
               <Link href={`/events/${eventId}/suggested-categories`}>
-                <Button variant="outline" size="sm" className="border-purple-500/25 text-purple-400 hover:bg-purple-500/10 gap-1.5 flex items-center">
+                <Button variant="outline" size="sm" className="bg-white border-purple-200 text-purple-700 hover:bg-purple-50 shadow-sm gap-1.5 flex items-center">
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>Suggested Inbox</span>
                 </Button>
               </Link>
-              <Button variant="primary" size="sm">
-                <Plus className="w-4 h-4" />
+              <Button variant="primary" size="sm" className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20">
+                <Plus className="w-4 h-4 mr-1" />
                 <span>Add Category</span>
               </Button>
             </div>
           </CardHeader>
 
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 pt-4">
             {event.categories.map((cat: any, idx: number) => (
               <div
                 key={cat.id}
-                className="p-4 rounded-xl bg-slate-900/40 border border-slate-800 flex items-center justify-between gap-4"
+                className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-center justify-between gap-4"
               >
                 <div className="flex items-center gap-3">
-                  <span className="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-400 text-xs font-bold flex items-center justify-center border border-indigo-500/20">
+                  <span className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 text-xs font-bold flex items-center justify-center border border-blue-200">
                     {idx + 1}
                   </span>
                   <div>
-                    <h4 className="text-sm font-semibold text-white">{cat.name}</h4>
-                    <p className="text-xs text-slate-400">{cat.description}</p>
+                    <h4 className="text-sm font-bold text-slate-900">{cat.name}</h4>
+                    <p className="text-xs text-slate-600 font-medium">{cat.description}</p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3">
                   <Badge variant="purple" size="sm">{cat.count} Nominees</Badge>
-                  <button className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800">
+                  <button className="p-2 text-slate-500 hover:text-slate-900 rounded-xl hover:bg-slate-200 transition-colors">
                     <Edit2 className="w-4 h-4" />
                   </button>
-                  <button className="p-2 text-slate-400 hover:text-red-400 rounded-lg hover:bg-slate-800">
+                  <button className="p-2 text-slate-500 hover:text-rose-600 rounded-xl hover:bg-rose-50 transition-colors">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -448,16 +448,16 @@ export default function EventDetailPage() {
 
       {/* Tab 3: Workflow Pipeline Control */}
       {activeTab === "workflow" && (
-        <Card className="border-slate-800 bg-slate-950/20">
-          <CardHeader>
-            <CardTitle className="text-base font-bold text-white flex items-center gap-2">
-              <Layers className="w-5 h-5 text-indigo-400" /> Event Lifecycle Pipeline Control
+        <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
+          <CardHeader className="border-b border-slate-100 pb-4">
+            <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Layers className="w-5 h-5 text-blue-600" /> Event Lifecycle Pipeline Control
             </CardTitle>
-            <CardDescription className="text-xs">
+            <CardDescription className="text-xs text-slate-600 font-medium">
               Manage stage transitions. Activating a stage automatically opens corresponding voter portals.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pt-4">
             {event.stages?.map((s: any, idx: number) => {
               const isActive = s.status === "ACTIVE";
               const isCompleted = s.status === "COMPLETED";
@@ -467,27 +467,27 @@ export default function EventDetailPage() {
                   key={s.id}
                   className={`p-4 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
                     isActive
-                      ? "bg-indigo-950/20 border-indigo-500/50 shadow-lg shadow-indigo-950/50"
+                      ? "bg-blue-50 border-blue-300 shadow-sm"
                       : isCompleted
-                      ? "bg-slate-900/40 border-slate-850 opacity-80"
-                      : "bg-slate-950/40 border-slate-850"
+                      ? "bg-slate-50 border-slate-200 opacity-90"
+                      : "bg-slate-50/60 border-slate-200/60"
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <div
                       className={`w-8 h-8 rounded-xl font-bold text-xs flex items-center justify-center ${
                         isActive
-                          ? "bg-indigo-600 text-white"
+                          ? "bg-blue-600 text-white"
                           : isCompleted
-                          ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                          : "bg-slate-800 text-slate-400"
+                          ? "bg-emerald-100 text-emerald-700 border border-emerald-300"
+                          : "bg-slate-200 text-slate-600"
                       }`}
                     >
                       {isCompleted ? "✓" : idx + 1}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-white text-sm">{s.displayName}</h4>
+                        <h4 className="font-bold text-slate-900 text-sm">{s.displayName}</h4>
                         <Badge
                           variant={isActive ? "success" : isCompleted ? "purple" : "neutral"}
                           size="sm"
@@ -495,7 +495,7 @@ export default function EventDetailPage() {
                           {s.status}
                         </Badge>
                       </div>
-                      <p className="text-xs text-slate-400 mt-0.5 font-mono">
+                      <p className="text-xs text-slate-500 mt-0.5 font-mono font-medium">
                         Type: {s.stageType}
                       </p>
                     </div>
@@ -510,7 +510,7 @@ export default function EventDetailPage() {
                           await updateWorkflowStageStatusAction(eventId, s.id, "ACTIVE");
                           window.location.reload();
                         }}
-                        className="bg-indigo-600 hover:bg-indigo-500 text-xs"
+                        className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-600/20"
                       >
                         Activate Stage
                       </Button>
@@ -523,7 +523,7 @@ export default function EventDetailPage() {
                           await updateWorkflowStageStatusAction(eventId, s.id, "COMPLETED");
                           window.location.reload();
                         }}
-                        className="text-xs"
+                        className="rounded-full bg-slate-200 text-slate-800 hover:bg-slate-300 font-bold text-xs"
                       >
                         Mark Completed
                       </Button>
@@ -538,12 +538,12 @@ export default function EventDetailPage() {
 
       {/* Tab 4: Branding */}
       {activeTab === "branding" && (
-        <Card className="border-slate-800 bg-slate-950/20">
-          <CardHeader>
+        <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
+          <CardHeader className="border-b border-slate-100 pb-4">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <CardTitle>Branding & Assets</CardTitle>
-                <CardDescription>
+                <CardTitle className="text-base font-bold text-slate-900">Branding & Assets</CardTitle>
+                <CardDescription className="text-xs text-slate-600 font-medium">
                   Configure logos, banner imagery, and primary theme palettes.
                 </CardDescription>
               </div>
@@ -555,36 +555,36 @@ export default function EventDetailPage() {
             </div>
           </CardHeader>
 
-          <CardContent className="space-y-6 max-w-2xl font-sans">
+          <CardContent className="space-y-6 max-w-2xl font-sans pt-4">
             {/* Image URLs */}
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">Logo Image URL</label>
+                <label className="text-xs font-semibold text-slate-700">Logo Image URL</label>
                 <input
                   type="text"
                   placeholder="https://example.com/logo.png"
                   value={logoUrl}
                   onChange={(e) => setLogoUrl(e.target.value)}
-                  className="w-full bg-slate-900 text-slate-200 text-xs rounded-xl px-3 py-2.5 border border-slate-800 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-3.5 py-2.5 border border-slate-200 focus:outline-none focus:border-blue-500 font-medium"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">Header Banner Image URL</label>
+                <label className="text-xs font-semibold text-slate-700">Header Banner Image URL</label>
                 <input
                   type="text"
                   placeholder="https://example.com/banner.png"
                   value={bannerUrl}
                   onChange={(e) => setBannerUrl(e.target.value)}
-                  className="w-full bg-slate-900 text-slate-200 text-xs rounded-xl px-3 py-2.5 border border-slate-800 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-3.5 py-2.5 border border-slate-200 focus:outline-none focus:border-blue-500 font-medium"
                 />
               </div>
             </div>
 
             {/* Colors grid */}
-            <div className="grid grid-cols-3 gap-4 border-t border-slate-900/60 pt-4">
+            <div className="grid grid-cols-3 gap-4 border-t border-slate-100 pt-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">Primary Color</label>
+                <label className="text-xs font-semibold text-slate-700">Primary Color</label>
                 <div className="flex gap-2">
                   <input
                     type="color"
@@ -596,13 +596,13 @@ export default function EventDetailPage() {
                     type="text"
                     value={primaryColor}
                     onChange={(e) => setPrimaryColor(e.target.value)}
-                    className="w-full bg-slate-900 text-slate-200 text-xs rounded-xl px-2 py-1.5 border border-slate-800 focus:outline-none"
+                    className="w-full bg-slate-50 text-slate-900 text-xs rounded-xl px-2 py-1.5 border border-slate-200 focus:outline-none font-mono"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">Secondary Color</label>
+                <label className="text-xs font-semibold text-slate-700">Secondary Color</label>
                 <div className="flex gap-2">
                   <input
                     type="color"
@@ -614,13 +614,13 @@ export default function EventDetailPage() {
                     type="text"
                     value={secondaryColor}
                     onChange={(e) => setSecondaryColor(e.target.value)}
-                    className="w-full bg-slate-900 text-slate-200 text-xs rounded-xl px-2 py-1.5 border border-slate-800 focus:outline-none"
+                    className="w-full bg-slate-50 text-slate-900 text-xs rounded-xl px-2 py-1.5 border border-slate-200 focus:outline-none font-mono"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">Accent Color</label>
+                <label className="text-xs font-semibold text-slate-700">Accent Color</label>
                 <div className="flex gap-2">
                   <input
                     type="color"
@@ -632,19 +632,20 @@ export default function EventDetailPage() {
                     type="text"
                     value={accentColor}
                     onChange={(e) => setAccentColor(e.target.value)}
-                    className="w-full bg-slate-900 text-slate-200 text-xs rounded-xl px-2 py-1.5 border border-slate-800 focus:outline-none"
+                    className="w-full bg-slate-50 text-slate-900 text-xs rounded-xl px-2 py-1.5 border border-slate-200 focus:outline-none font-mono"
                   />
                 </div>
               </div>
             </div>
 
             {/* Save Button */}
-            <div className="border-t border-slate-900/60 pt-4 flex justify-end">
+            <div className="border-t border-slate-100 pt-4 flex justify-end">
               <Button
                 variant="primary"
                 size="sm"
                 disabled={updatingBranding}
                 onClick={handleSaveBranding}
+                className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20"
               >
                 {updatingBranding ? (
                   <Loader2 className="animate-spin w-4 h-4 mr-2" />
@@ -661,21 +662,21 @@ export default function EventDetailPage() {
       {/* Tab 5: Event Settings */}
       {activeTab === "settings" && (
         <>
-          <Card className="border-slate-800 bg-slate-950/20">
-          <CardHeader>
-            <CardTitle>Event Settings</CardTitle>
-            <CardDescription>
+          <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
+          <CardHeader className="border-b border-slate-100 pb-4">
+            <CardTitle className="text-base font-bold text-slate-900">Event Settings</CardTitle>
+            <CardDescription className="text-xs text-slate-600 font-medium">
               Configure access visibility, verification mechanisms, and whitelists.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6 max-w-2xl font-sans">
+          <CardContent className="space-y-6 max-w-2xl font-sans pt-4">
             {/* Visibility Settings */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300">Visibility</label>
+              <label className="text-xs font-semibold text-slate-700">Visibility</label>
               <select
                 value={visibility}
                 onChange={(e: any) => setVisibility(e.target.value)}
-                className="w-full bg-slate-900 text-slate-200 text-xs rounded-xl px-3 py-2.5 border border-slate-800 focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-3.5 py-2.5 border border-slate-200 focus:outline-none focus:border-blue-500 font-medium"
               >
                 <option value="PUBLIC">Public (Visible on search and discovery)</option>
                 <option value="UNLISTED">Unlisted (Accessible only via direct link)</option>
@@ -685,11 +686,11 @@ export default function EventDetailPage() {
 
             {/* Live Results Settings */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300">Live Results Visibility</label>
+              <label className="text-xs font-semibold text-slate-700">Live Results Visibility</label>
               <select
                 value={liveResultsMode}
                 onChange={(e: any) => setLiveResultsMode(e.target.value)}
-                className="w-full bg-slate-900 text-slate-200 text-xs rounded-xl px-3 py-2.5 border border-slate-800 focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-3.5 py-2.5 border border-slate-200 focus:outline-none focus:border-blue-500 font-medium"
               >
                 <option value="HIDDEN">Hidden (Only organizers can see live results)</option>
                 <option value="RANKINGS">Rankings Only (Position without votes count)</option>
@@ -701,11 +702,11 @@ export default function EventDetailPage() {
 
             {/* Verification Method Settings */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300">Voter Authentication & Verification Method</label>
+              <label className="text-xs font-semibold text-slate-700">Voter Authentication & Verification Method</label>
               <select
                 value={verificationMethod}
                 onChange={(e: any) => setVerificationMethod(e.target.value)}
-                className="w-full bg-slate-900 text-slate-200 text-xs rounded-xl px-3 py-2.5 border border-slate-800 focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-3.5 py-2.5 border border-slate-200 focus:outline-none focus:border-blue-500 font-medium"
               >
                 <option value="NONE">None (Guest voting, standard tracking only)</option>
                 <option value="EMAIL_OTP">Email OTP Verification (Verifies real emails via 6-digit code)</option>
@@ -715,24 +716,24 @@ export default function EventDetailPage() {
 
             {/* Email OTP Whitelist Settings (conditional) */}
             {verificationMethod === "EMAIL_OTP" && (
-              <div className="space-y-4 pt-2 border-t border-slate-800/80 animate-in fade-in duration-300">
+              <div className="space-y-4 pt-2 border-t border-slate-100 animate-in fade-in duration-300">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300">Whitelist Domains</label>
-                  <CardDescription className="text-[10px] pb-1">
-                    Comma-separated list of allowed domains (e.g. <code className="text-indigo-400">college.edu, company.com</code>). Leave empty to allow any domain.
+                  <label className="text-xs font-semibold text-slate-700">Whitelist Domains</label>
+                  <CardDescription className="text-[10px] pb-1 font-medium text-slate-500">
+                    Comma-separated list of allowed domains (e.g. <code className="text-blue-600">college.edu, company.com</code>). Leave empty to allow any domain.
                   </CardDescription>
                   <textarea
                     value={whitelistDomainsText}
                     onChange={(e) => setWhitelistDomainsText(e.target.value)}
                     placeholder="college.edu, company.com"
                     rows={2}
-                    className="w-full bg-slate-900 text-slate-200 text-xs rounded-xl px-3 py-2 border border-slate-800 focus:outline-none focus:border-indigo-500 font-mono"
+                    className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-3.5 py-2 border border-slate-200 focus:outline-none focus:border-blue-500 font-mono"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300">Whitelist Emails</label>
-                  <CardDescription className="text-[10px] pb-1">
+                  <label className="text-xs font-semibold text-slate-700">Whitelist Emails</label>
+                  <CardDescription className="text-[10px] pb-1 font-medium text-slate-500">
                     Comma-separated list of specific whitelisted emails. Leave empty to ignore.
                   </CardDescription>
                   <textarea
@@ -740,7 +741,7 @@ export default function EventDetailPage() {
                     onChange={(e) => setWhitelistEmailsText(e.target.value)}
                     placeholder="voter1@college.edu, voter2@college.edu"
                     rows={2}
-                    className="w-full bg-slate-900 text-slate-200 text-xs rounded-xl px-3 py-2 border border-slate-800 focus:outline-none focus:border-indigo-500 font-mono"
+                    className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-3.5 py-2 border border-slate-200 focus:outline-none focus:border-blue-500 font-mono"
                   />
                 </div>
               </div>
@@ -748,12 +749,12 @@ export default function EventDetailPage() {
 
             {/* Invitation Code Admin Link (conditional) */}
             {verificationMethod === "INVITATION_CODE" && (
-              <div className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/20 text-xs space-y-3 animate-in fade-in duration-300">
-                <p className="text-slate-400 leading-relaxed">
+              <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 text-xs space-y-3 animate-in fade-in duration-300">
+                <p className="text-blue-950 font-medium leading-relaxed">
                   Authentication requires voters to input unique, single-use invite codes. You can generate, manage, and distribute these codes in the Invitation Panel.
                 </p>
                 <Link href={`/events/${eventId}/invitations`}>
-                  <Button variant="outline" size="sm" className="border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/10">
+                  <Button variant="outline" size="sm" className="bg-white border-blue-200 text-blue-700 hover:bg-blue-50 font-bold">
                     Manage Invitation Codes
                   </Button>
                 </Link>
@@ -761,12 +762,12 @@ export default function EventDetailPage() {
             )}
 
             {/* Submit Action */}
-            <div className="flex items-center gap-3 pt-4 border-t border-slate-800/80">
+            <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
               <Button
                 variant="primary"
                 onClick={handleSaveSettings}
                 disabled={updatingSettings}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white"
+                className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20"
               >
                 {updatingSettings ? (
                   <Loader2 className="animate-spin w-4 h-4 mr-1.5" />
@@ -774,8 +775,8 @@ export default function EventDetailPage() {
                 <span>Save Settings</span>
               </Button>
               {settingsSuccess && (
-                <span className="text-xs text-emerald-400 font-medium animate-in fade-in duration-300">
-                  Settings updated successfully!
+                <span className="text-xs text-emerald-600 font-bold animate-in fade-in duration-300">
+                  ✓ Settings updated successfully!
                 </span>
               )}
             </div>
@@ -783,37 +784,37 @@ export default function EventDetailPage() {
         </Card>
 
         {/* Duplication Card */}
-        <Card className="border-slate-800 bg-slate-950/20 mt-6">
-          <CardHeader>
-            <CardTitle>Duplicate Event as Template</CardTitle>
-            <CardDescription>
+        <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm mt-6">
+          <CardHeader className="border-b border-slate-100 pb-4">
+            <CardTitle className="text-base font-bold text-slate-900">Duplicate Event as Template</CardTitle>
+            <CardDescription className="text-xs text-slate-600 font-medium">
               Deep-copy this event configuration (categories, nominee lists, and stages) to scaffold a new event instantly. Results, votes, and guest telemetry will be reset.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4 max-w-2xl font-sans">
+          <CardContent className="space-y-4 max-w-2xl font-sans pt-4">
             <form onSubmit={handleDuplicateEvent} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300">New Event Name</label>
+                  <label className="text-xs font-semibold text-slate-700">New Event Name</label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. Next Year Excellence Awards"
                     value={dupName}
                     onChange={(e) => setDupName(e.target.value)}
-                    className="w-full bg-slate-900 text-slate-200 text-xs rounded-xl px-3 py-2.5 border border-slate-800 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-3.5 py-2.5 border border-slate-200 focus:outline-none focus:border-blue-500 font-medium"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300">New Event Slug</label>
+                  <label className="text-xs font-semibold text-slate-700">New Event Slug</label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. next-year-excellence-2027"
                     value={dupSlug}
                     onChange={(e) => setDupSlug(e.target.value)}
-                    className="w-full bg-slate-900 text-slate-200 text-xs rounded-xl px-3 py-2.5 border border-slate-800 focus:outline-none focus:border-indigo-500 font-mono"
+                    className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-3.5 py-2.5 border border-slate-200 focus:outline-none focus:border-blue-500 font-mono font-medium"
                   />
                 </div>
               </div>
@@ -822,7 +823,7 @@ export default function EventDetailPage() {
                 <Button
                   type="submit"
                   disabled={duplicating}
-                  className="bg-indigo-600 hover:bg-indigo-500 border-indigo-400/25 text-white"
+                  className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20"
                 >
                   {duplicating ? (
                     <Loader2 className="animate-spin w-4 h-4 mr-2" />

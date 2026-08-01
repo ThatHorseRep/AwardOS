@@ -92,25 +92,25 @@ export default function OrganizerNominationsPage() {
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <span>Nominations & Category Inbox</span>
             <Badge variant="purple" size="sm">
               {rawNominations.length} Submissions
             </Badge>
           </h1>
-          <p className="text-slate-400 text-xs mt-1">
+          <p className="text-slate-600 text-xs mt-1 font-medium">
             Review raw guest nominations and approve suggested category submissions from event visitors.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" className="border-slate-800 text-slate-200">
+          <Button variant="outline" size="sm" className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm">
             <Download className="w-4 h-4 mr-1.5" />
             <span>Export CSV</span>
           </Button>
 
           <Link href="/cleanup">
-            <Button variant="primary" size="sm" className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white">
+            <Button variant="primary" size="sm" className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20">
               <Sparkles className="w-4 h-4 mr-1.5" />
               <span>Launch AI Cleanup Engine</span>
             </Button>
@@ -119,13 +119,13 @@ export default function OrganizerNominationsPage() {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-800/80">
+      <div className="flex items-center gap-2 border-b border-slate-200">
         <button
           onClick={() => setActiveTab("stream")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-t-2xl transition-all border-b-2 ${
             activeTab === "stream"
-              ? "text-indigo-400 border-indigo-500 bg-indigo-600/10"
-              : "text-slate-400 border-transparent hover:text-slate-200"
+              ? "text-blue-600 border-blue-600 bg-blue-50"
+              : "text-slate-600 border-transparent hover:text-slate-900 hover:bg-slate-100"
           }`}
         >
           <UserCheck className="w-4 h-4" />
@@ -134,10 +134,10 @@ export default function OrganizerNominationsPage() {
 
         <button
           onClick={() => setActiveTab("suggested")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-t-2xl transition-all border-b-2 ${
             activeTab === "suggested"
-              ? "text-purple-400 border-purple-500 bg-purple-600/10"
-              : "text-slate-400 border-transparent hover:text-slate-200"
+              ? "text-purple-600 border-purple-600 bg-purple-50"
+              : "text-slate-600 border-transparent hover:text-slate-900 hover:bg-slate-100"
           }`}
         >
           <MessageSquare className="w-4 h-4" />
@@ -147,11 +147,11 @@ export default function OrganizerNominationsPage() {
 
       {/* Tab 1: Raw Nominations Stream */}
       {activeTab === "stream" && (
-        <Card className="border-slate-800 bg-slate-950/20">
-          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between space-y-2 sm:space-y-0 pb-4">
+        <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between space-y-2 sm:space-y-0 pb-4 border-b border-slate-100">
             <div>
-              <CardTitle className="text-base font-bold text-white">Incoming Nominations Stream</CardTitle>
-              <CardDescription className="text-xs">
+              <CardTitle className="text-base font-bold text-slate-900">Incoming Nominations Stream</CardTitle>
+              <CardDescription className="text-xs text-slate-600 font-medium">
                 Raw guest submission logs before AI normalization & duplicate matching.
               </CardDescription>
             </div>
@@ -163,31 +163,31 @@ export default function OrganizerNominationsPage() {
                 placeholder="Filter nominations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-900 text-slate-200 text-xs rounded-xl pl-9 pr-3 py-2 border border-slate-800 focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-50 text-slate-900 text-xs rounded-full pl-9 pr-4 py-2 border border-slate-200 focus:outline-none focus:border-blue-500 font-medium"
               />
             </div>
           </CardHeader>
 
-          <CardContent>
+          <CardContent className="pt-2">
             {filteredNomList.length === 0 ? (
-              <div className="py-12 text-center text-slate-500 text-xs space-y-2">
-                <Inbox className="w-8 h-8 text-slate-600 mx-auto" />
+              <div className="py-12 text-center text-slate-500 text-xs space-y-2 font-medium">
+                <Inbox className="w-8 h-8 text-slate-400 mx-auto" />
                 <p>No nomination records submitted yet.</p>
               </div>
             ) : (
-              <div className="divide-y divide-slate-800/60">
+              <div className="divide-y divide-slate-100">
                 {filteredNomList.map((nom) => (
-                  <div key={nom.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-900/40 transition-colors">
+                  <div key={nom.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/80 transition-colors rounded-2xl">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-bold text-white">{nom.nomineeText}</h4>
+                        <h4 className="text-sm font-bold text-slate-900">{nom.nomineeText}</h4>
                         <Badge variant="purple" size="sm">{nom.categoryName}</Badge>
                       </div>
-                      <p className="text-xs text-slate-400">Program: <strong className="text-slate-300">{nom.eventTitle}</strong></p>
-                      <span className="text-[10px] font-mono text-slate-500 block">Session ID: {nom.sessionId}</span>
+                      <p className="text-xs text-slate-600 font-medium">Program: <strong className="text-slate-900">{nom.eventTitle}</strong></p>
+                      <span className="text-[10px] font-mono text-slate-400 block">Session ID: {nom.sessionId}</span>
                     </div>
 
-                    <div className="text-xs text-slate-400 font-mono">
+                    <div className="text-xs text-slate-500 font-mono font-medium">
                       <span>{nom.date}</span>
                     </div>
                   </div>

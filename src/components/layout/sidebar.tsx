@@ -10,12 +10,17 @@ import {
   Settings, 
   Trophy,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Vote,
+  Sparkles,
+  Inbox
 } from 'lucide-react'
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
   { icon: Calendar, label: 'Events', href: '/events' },
+  { icon: Inbox, label: 'Nominations', href: '/nominations' },
+  { icon: Vote, label: 'Voting Hub', href: '/voting' },
   { icon: Users, label: 'Members', href: '/team' },
   { icon: Settings, label: 'Settings', href: '/settings' },
 ]
@@ -25,67 +30,68 @@ export default function Sidebar() {
   const pathname = usePathname()
 
   return (
-    <>
-      <aside 
-        className={`
-          hidden md:flex flex-col
-          bg-zinc-950 border-r border-zinc-800/50 
-          h-full transition-all duration-300 relative
-          ${collapsed ? 'w-[72px]' : 'w-[280px]'}
-        `}
-      >
-        <div className="flex items-center h-16 px-4 border-b border-zinc-800/50 shrink-0">
-          <Trophy className="w-8 h-8 text-indigo-500 shrink-0" />
-          {!collapsed && (
-            <span className="ml-3 font-bold text-xl tracking-tight text-white truncate transition-opacity duration-300">
+    <aside 
+      className={`
+        hidden md:flex flex-col
+        bg-zinc-950 border-r border-zinc-900 
+        h-full transition-all duration-300 relative select-none shrink-0
+        ${collapsed ? 'w-[76px]' : 'w-[260px]'}
+      `}
+    >
+      {/* Brand Header */}
+      <div className="flex items-center h-16 px-5 border-b border-zinc-900 shrink-0">
+        <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-600/20 shrink-0">
+          <Trophy className="w-5 h-5 text-white" />
+        </div>
+        {!collapsed && (
+          <div className="ml-3">
+            <span className="font-bold text-lg tracking-tight text-white block leading-none">
               AwardOS
             </span>
-          )}
-        </div>
+            <span className="text-[10px] text-zinc-500 font-medium">Event Engine</span>
+          </div>
+        )}
+      </div>
 
-        <nav className="flex-1 py-4 overflow-y-auto">
-          <ul className="px-3 space-y-1">
-            {navItems.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
-              return (
-                <li key={item.href}>
-                  <Link 
-                    href={item.href}
-                    className={`
-                      flex items-center px-3 py-2.5 rounded-xl transition-all group
-                      ${isActive 
-                        ? 'bg-indigo-600/10 text-indigo-400' 
-                        : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'
-                      }
-                    `}
-                  >
-                    <div className="relative flex items-center justify-center shrink-0">
-                      {isActive && (
-                        <div className="absolute -left-[13px] h-5 w-1 bg-indigo-500 rounded-r-full" />
-                      )}
-                      <item.icon className="w-5 h-5 shrink-0" />
-                    </div>
-                    {!collapsed && (
-                      <span className="ml-3 font-medium truncate">
-                        {item.label}
-                      </span>
-                    )}
-                  </Link>
-                </li>
-              )
-            })}
-          </ul>
-        </nav>
+      {/* Nav List */}
+      <nav className="flex-1 py-5 overflow-y-auto px-3">
+        <ul className="space-y-1.5">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(`${item.href}`))
+            return (
+              <li key={item.href}>
+                <Link 
+                  href={item.href}
+                  className={`
+                    flex items-center px-3.5 py-2.5 rounded-full transition-all text-xs font-semibold group
+                    ${isActive 
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25' 
+                      : 'text-zinc-400 hover:text-white hover:bg-zinc-900/80'
+                    }
+                  `}
+                >
+                  <item.icon className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${isActive ? 'text-white' : 'text-zinc-400'}`} />
+                  {!collapsed && (
+                    <span className="ml-3 truncate">
+                      {item.label}
+                    </span>
+                  )}
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+      </nav>
 
-        <div className="p-3 border-t border-zinc-800/50">
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="flex items-center justify-center w-full p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800/50 transition-colors"
-          >
-            {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-          </button>
-        </div>
-      </aside>
-    </>
+      {/* Collapse Toggle */}
+      <div className="p-3 border-t border-zinc-900">
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="flex items-center justify-center w-full py-2 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors text-xs font-medium"
+        >
+          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+        </button>
+      </div>
+    </aside>
   )
 }

@@ -43,16 +43,11 @@ export default function AICleanupDashboardPage() {
   const [taskData, setTaskData] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [runningCleanup, setRunningCleanup] = useState(false);
-  const [actionLoading, setActionLoading] = useState<string | null>(null); // suggestion ID being processed
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // Filter state
   const [confidenceFilter, setConfidenceFilter] = useState<"ALL" | "HIGH" | "MEDIUM" | "LOW">("ALL");
-
-  // Inline editing state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editedName, setEditedName] = useState("");
-
-  // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const loadData = async () => {
@@ -170,16 +165,16 @@ export default function AICleanupDashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="animate-spin rounded-full h-8 w-8 text-indigo-500" />
+        <Loader2 className="animate-spin rounded-full h-8 w-8 text-blue-600" />
       </div>
     );
   }
 
   if (!event) {
     return (
-      <div className="text-center py-12 text-slate-300">
-        <h2 className="text-xl font-bold text-white">Event not found</h2>
-        <Link href="/dashboard/events" className="mt-4 inline-block text-indigo-400 hover:underline">
+      <div className="text-center py-12">
+        <h2 className="text-xl font-bold text-slate-900">Event not found</h2>
+        <Link href="/events" className="mt-4 inline-block text-blue-600 hover:underline font-bold">
           Back to Events
         </Link>
       </div>
@@ -196,23 +191,23 @@ export default function AICleanupDashboardPage() {
   });
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
+    <div className="space-y-6 max-w-6xl mx-auto font-sans pb-16 select-none">
       {/* Header Navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
           <Link href={`/events/${eventId}`}>
-            <Button variant="ghost" size="icon" className="mt-1">
+            <Button variant="ghost" size="icon" className="mt-1 text-slate-700 hover:bg-slate-200">
               <ArrowLeft className="w-4 h-4" />
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
               <span>AI Nomination Cleanup Hub</span>
               <Badge variant="purple" size="sm">
                 Active
               </Badge>
             </h1>
-            <p className="text-slate-400 text-xs mt-1">
+            <p className="text-slate-600 text-xs mt-1 font-medium">
               Analyze incoming nominations to remove empty strings, fix casing, and resolve duplicate names.
             </p>
           </div>
@@ -223,7 +218,7 @@ export default function AICleanupDashboardPage() {
           size="sm"
           onClick={handleRunCleanup}
           disabled={runningCleanup}
-          className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-xl shadow-indigo-600/10 gap-1.5 flex items-center"
+          className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20 flex items-center gap-1.5"
         >
           {runningCleanup ? (
             <Loader2 className="animate-spin w-4 h-4" />
@@ -237,52 +232,44 @@ export default function AICleanupDashboardPage() {
       {/* Overview Stats */}
       {taskData?.task && (
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          <Card className="border-slate-800bg-slate-950/20">
-            <CardContent className="pt-6">
-              <span className="text-[10px] text-slate-500 uppercase block font-semibold">Blank Removed</span>
-              <div className="text-2xl font-bold text-white mt-1">
-                {taskData.task.stats?.blankRemovedCount || 0}
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-slate-800 bg-slate-950/20">
-            <CardContent className="pt-6">
-              <span className="text-[10px] text-slate-500 uppercase block font-semibold">Casing Normalized</span>
-              <div className="text-2xl font-bold text-white mt-1">
-                {taskData.task.stats?.normalizedCount || 0}
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-slate-800 bg-slate-950/20">
-            <CardContent className="pt-6">
-              <span className="text-[10px] text-slate-500 uppercase block font-semibold">Merge Recommendations</span>
-              <div className="text-2xl font-bold text-purple-400 mt-1">
-                {pendingSuggestions.length} Pending
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-slate-800 bg-slate-950/20">
-            <CardContent className="pt-6">
-              <span className="text-[10px] text-slate-500 uppercase block font-semibold">Last Analyzed</span>
-              <div className="text-xs text-slate-300 mt-2 font-mono">
-                {new Date(taskData.task.completedAt || taskData.task.createdAt).toLocaleString()}
-              </div>
-            </CardContent>
-          </Card>
+          <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm">
+            <span className="text-[10px] text-slate-500 uppercase block font-bold">Blank Removed</span>
+            <div className="text-2xl font-extrabold text-slate-900 mt-1">
+              {taskData.task.stats?.blankRemovedCount || 0}
+            </div>
+          </div>
+          <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm">
+            <span className="text-[10px] text-slate-500 uppercase block font-bold">Casing Normalized</span>
+            <div className="text-2xl font-extrabold text-slate-900 mt-1">
+              {taskData.task.stats?.normalizedCount || 0}
+            </div>
+          </div>
+          <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm">
+            <span className="text-[10px] text-slate-500 uppercase block font-bold">Merge Recommendations</span>
+            <div className="text-2xl font-extrabold text-blue-600 mt-1">
+              {pendingSuggestions.length} Pending
+            </div>
+          </div>
+          <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm">
+            <span className="text-[10px] text-slate-500 uppercase block font-bold">Last Analyzed</span>
+            <div className="text-xs text-slate-700 mt-2 font-mono font-medium">
+              {new Date(taskData.task.completedAt || taskData.task.createdAt).toLocaleString()}
+            </div>
+          </div>
         </div>
       )}
 
       {/* Main merge review console */}
       {!taskData ? (
-        <Card className="border-slate-800/80 bg-zinc-950/40 min-h-[300px] flex flex-col items-center justify-center text-center p-8">
-          <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mb-4 text-purple-400">
+        <Card className="border-slate-200/80 bg-white rounded-3xl min-h-[300px] flex flex-col items-center justify-center text-center p-8 shadow-sm">
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center mb-4 text-blue-600">
             <Sparkles className="w-6 h-6" />
           </div>
-          <h3 className="text-sm font-semibold text-slate-200">Deduplicate Nominations with AI</h3>
-          <p className="text-xs text-slate-500 mt-1 max-w-sm">
-            Launch our AI agent to cluster duplicate nominations and fix typographical mistakes across your active award categories.
+          <h3 className="text-base font-bold text-slate-900">Deduplicate Nominations with AI</h3>
+          <p className="text-xs text-slate-600 mt-1 max-w-sm font-medium">
+            Launch our AI engine to cluster duplicate nominations and fix typographical mistakes across your active award categories.
           </p>
-          <Button variant="primary" size="sm" className="mt-6" onClick={handleRunCleanup} disabled={runningCleanup}>
+          <Button variant="primary" size="sm" className="mt-6 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold" onClick={handleRunCleanup} disabled={runningCleanup}>
             {runningCleanup ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : null}
             <span>Run Initial AI Analysis</span>
           </Button>
@@ -302,14 +289,14 @@ export default function AICleanupDashboardPage() {
                 </Badge>
                 <Badge
                   variant={confidenceFilter === "HIGH" ? "purple" : "default"}
-                  className="cursor-pointer bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                  className="cursor-pointer bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
                   onClick={() => setConfidenceFilter("HIGH")}
                 >
                   High Confidence
                 </Badge>
                 <Badge
                   variant={confidenceFilter === "MEDIUM" ? "purple" : "default"}
-                  className="cursor-pointer bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
+                  className="cursor-pointer bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
                   onClick={() => setConfidenceFilter("MEDIUM")}
                 >
                   Medium Confidence
@@ -319,7 +306,7 @@ export default function AICleanupDashboardPage() {
               {pendingSuggestions.length > 0 && (
                 <button
                   onClick={() => toggleSelectAll(pendingSuggestions)}
-                  className="text-xs text-indigo-400 hover:underline flex items-center gap-1.5"
+                  className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1.5"
                 >
                   {selectedIds.length === pendingSuggestions.length ? "Deselect All" : "Select All Pending"}
                 </button>
@@ -327,7 +314,7 @@ export default function AICleanupDashboardPage() {
             </div>
 
             {filteredSuggestions.length === 0 ? (
-              <Card className="border-slate-800 bg-slate-900/10 text-center py-12 text-slate-500 text-xs">
+              <Card className="border-slate-200/80 bg-white rounded-3xl text-center py-12 text-slate-500 text-xs shadow-sm font-medium">
                 No duplicate merge recommendations match the active filter.
               </Card>
             ) : (
@@ -342,12 +329,12 @@ export default function AICleanupDashboardPage() {
                   return (
                     <div
                       key={sug.id}
-                      className={`p-5 rounded-2xl border transition-all duration-300 ${
+                      className={`p-5 rounded-3xl border transition-all duration-300 ${
                         isApproved
-                          ? "bg-emerald-950/5 border-emerald-500/20"
+                          ? "bg-emerald-50/60 border-emerald-200"
                           : isRejected
-                          ? "bg-slate-900/20 border-slate-800 opacity-60"
-                          : "bg-slate-900/40 border-slate-800 hover:border-slate-700/50"
+                          ? "bg-slate-50 border-slate-200 opacity-60"
+                          : "bg-white border-slate-200/80 shadow-sm hover:border-blue-500/50"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-4">
@@ -355,10 +342,10 @@ export default function AICleanupDashboardPage() {
                           {isPending && (
                             <button
                               onClick={() => toggleSelect(sug.id)}
-                              className="mt-1 text-slate-500 hover:text-white"
+                              className="mt-1 text-slate-400 hover:text-slate-900"
                             >
                               {isSelected ? (
-                                <CheckSquare className="w-4 h-4 text-indigo-500" />
+                                <CheckSquare className="w-4 h-4 text-blue-600" />
                               ) : (
                                 <Square className="w-4 h-4" />
                               )}
@@ -392,12 +379,12 @@ export default function AICleanupDashboardPage() {
                                   type="text"
                                   value={editedName}
                                   onChange={(e) => setEditedName(e.target.value)}
-                                  className="bg-slate-800 text-white text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 focus:outline-none focus:border-indigo-500"
+                                  className="bg-slate-50 text-slate-900 text-xs px-3 py-1.5 rounded-xl border border-slate-300 focus:outline-none focus:border-blue-500 font-medium"
                                 />
                                 <Button
                                   variant="primary"
                                   size="sm"
-                                  className="h-8"
+                                  className="h-8 rounded-full bg-blue-600 text-white font-bold"
                                   onClick={() => handleApprove(sug.id, editedName)}
                                 >
                                   Save & Merge
@@ -405,14 +392,14 @@ export default function AICleanupDashboardPage() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-8 text-slate-400"
+                                  className="h-8 text-slate-600"
                                   onClick={() => setEditingId(null)}
                                 >
                                   Cancel
                                 </Button>
                               </div>
                             ) : (
-                              <h4 className="text-sm font-bold text-white flex items-center gap-1.5 pt-0.5">
+                              <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5 pt-0.5">
                                 <span>Suggested: {sug.suggestedName}</span>
                                 {isPending && (
                                   <button
@@ -420,7 +407,7 @@ export default function AICleanupDashboardPage() {
                                       setEditingId(sug.id);
                                       setEditedName(sug.suggestedName);
                                     }}
-                                    className="text-slate-500 hover:text-white"
+                                    className="text-slate-400 hover:text-slate-900"
                                   >
                                     <Edit2 className="w-3.5 h-3.5" />
                                   </button>
@@ -429,24 +416,24 @@ export default function AICleanupDashboardPage() {
                             )}
 
                             {/* List of raw duplicate strings matching */}
-                            <div className="text-[11px] text-slate-400 pt-1.5 space-y-1">
+                            <div className="text-[11px] text-slate-600 pt-1.5 space-y-1 font-medium">
                               <span className="text-slate-500">Duplicate inputs:</span>
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 {sug.sourceNominees.map((src: string) => (
-                                  <Badge key={src} variant="default" size="sm" className="bg-slate-800 text-slate-300">
+                                  <Badge key={src} variant="default" size="sm" className="bg-slate-100 text-slate-700 border border-slate-200">
                                     {src}
                                   </Badge>
                                 ))}
                               </div>
                             </div>
 
-                            <p className="text-[11px] text-slate-500 italic mt-1">{sug.matchReason}</p>
+                            <p className="text-[11px] text-slate-500 italic mt-1 font-medium">{sug.matchReason}</p>
                           </div>
                         </div>
 
                         <div className="shrink-0">
                           {isProcessing ? (
-                            <Loader2 className="animate-spin w-5 h-5 text-indigo-400" />
+                            <Loader2 className="animate-spin w-5 h-5 text-blue-600" />
                           ) : (
                             <>
                               {isPending && (
@@ -455,18 +442,18 @@ export default function AICleanupDashboardPage() {
                                     variant="outline"
                                     size="sm"
                                     onClick={() => handleApprove(sug.id)}
-                                    className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500 hover:text-white"
+                                    className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-600 hover:text-white font-bold"
                                   >
-                                    <Check className="w-3.5 h-3.5" />
+                                    <Check className="w-3.5 h-3.5 mr-1" />
                                     <span>Accept</span>
                                   </Button>
                                   <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() => handleReject(sug.id)}
-                                    className="bg-rose-500/10 text-rose-400 border-rose-500/20 hover:bg-rose-500 hover:text-white"
+                                    className="bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-600 hover:text-white font-bold"
                                   >
-                                    <X className="w-3.5 h-3.5" />
+                                    <X className="w-3.5 h-3.5 mr-1" />
                                     <span>Reject</span>
                                   </Button>
                                 </div>
@@ -477,7 +464,7 @@ export default function AICleanupDashboardPage() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleUndo(sug.id)}
-                                  className="text-slate-400 hover:text-white hover:bg-slate-800"
+                                  className="text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium"
                                 >
                                   <RotateCcw className="w-3.5 h-3.5 mr-1" />
                                   <span>Undo</span>
@@ -496,16 +483,16 @@ export default function AICleanupDashboardPage() {
 
           {/* Sidebar / Instructions panel */}
           <div className="space-y-4">
-            <Card className="border-slate-800 bg-slate-950/20">
-              <CardHeader>
+            <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
+              <CardHeader className="border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-purple-400" />
-                  <CardTitle className="text-sm font-bold">AI Deduplication Tips</CardTitle>
+                  <Sparkles className="w-4 h-4 text-purple-600" />
+                  <CardTitle className="text-sm font-bold text-slate-900">AI Deduplication Tips</CardTitle>
                 </div>
               </CardHeader>
-              <CardContent className="text-xs text-slate-400 leading-relaxed space-y-3">
+              <CardContent className="text-xs text-slate-600 leading-relaxed space-y-3 pt-3 font-medium">
                 <p>
-                  Our AI engine scans all incoming guest nominations, normalizes text casing (e.g. converting <code className="text-indigo-400">JANE DOE</code> to <code className="text-indigo-400">Jane Doe</code>), and uses fuzzy string metrics alongside LLMs to group close match entries.
+                  Our AI engine scans all incoming guest nominations, normalizes text casing (e.g. converting <code className="text-blue-600">JANE DOE</code> to <code className="text-blue-600">Jane Doe</code>), and uses fuzzy string metrics alongside LLMs to group close match entries.
                 </p>
                 <p>
                   Approving a suggestion inserts the nominee as an official candidate for that category and redirects all matching submissions to point to it, ensuring precise tally computation.
@@ -514,29 +501,29 @@ export default function AICleanupDashboardPage() {
             </Card>
 
             {/* Audit log trail widget */}
-            <Card className="border-slate-800 bg-slate-950/20">
-              <CardHeader>
+            <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
+              <CardHeader className="border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-indigo-400" />
-                  <CardTitle className="text-sm font-bold">Audit History</CardTitle>
+                  <Layers className="w-4 h-4 text-blue-600" />
+                  <CardTitle className="text-sm font-bold text-slate-900">Audit History</CardTitle>
                 </div>
-                <CardDescription className="text-[10px]">
+                <CardDescription className="text-[10px] text-slate-500 font-medium">
                   Recent actions and cleanups executed.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="text-xs space-y-3 max-h-[200px] overflow-y-auto">
+              <CardContent className="text-xs space-y-3 max-h-[200px] overflow-y-auto pt-3">
                 {approvedSuggestions.length === 0 ? (
-                  <span className="text-slate-500 italic block">No merge operations finalized yet.</span>
+                  <span className="text-slate-500 italic block font-medium">No merge operations finalized yet.</span>
                 ) : (
                   <div className="space-y-2">
                     {approvedSuggestions.map((sug: any) => (
-                      <div key={sug.id} className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-                        <div className="flex items-center justify-between text-[10px] text-slate-500">
+                      <div key={sug.id} className="p-3 rounded-2xl bg-slate-50 border border-slate-200/60 space-y-1">
+                        <div className="flex items-center justify-between text-[10px] text-slate-500 font-medium">
                           <span>Merge Success</span>
-                          <span>Approved</span>
+                          <span className="font-bold text-emerald-600">Approved</span>
                         </div>
-                        <p className="text-slate-300 font-semibold">{sug.suggestedName}</p>
-                        <span className="text-[10px] text-slate-500 block">
+                        <p className="text-slate-900 font-bold">{sug.suggestedName}</p>
+                        <span className="text-[10px] text-slate-500 block font-medium">
                           Merged {sug.sourceNominees.length} raw spelling variations.
                         </span>
                       </div>
@@ -551,8 +538,8 @@ export default function AICleanupDashboardPage() {
 
       {/* Floating Bulk Action Drawer */}
       {selectedIds.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/90 border border-slate-700/80 rounded-2xl px-6 py-4 flex items-center gap-4 shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom duration-300 z-50">
-          <span className="text-xs text-slate-300 font-medium">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white border border-slate-800 rounded-full px-6 py-3.5 flex items-center gap-4 shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom duration-300 z-50">
+          <span className="text-xs font-semibold">
             {selectedIds.length} merge recommendation{selectedIds.length > 1 ? "s" : ""} selected
           </span>
           <div className="flex items-center gap-2">
@@ -561,7 +548,7 @@ export default function AICleanupDashboardPage() {
               size="sm"
               onClick={handleBulkApprove}
               disabled={runningCleanup}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white"
+              className="rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
             >
               Approve Merges
             </Button>
