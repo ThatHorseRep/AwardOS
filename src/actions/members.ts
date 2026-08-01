@@ -9,7 +9,7 @@ import {
   users,
 } from "@/lib/db/schema";
 import { eq, and, sql, isNull, desc } from "drizzle-orm";
-import { getOrCreateWorkspaceAction, getCurrentUser } from "./workspaces";
+import { getOrCreateWorkspaceAction, getCurrentUser, ensureUserRecord } from "./workspaces";
 
 // 1. Fetch workspace members list
 export async function getWorkspaceMembersAction() {
@@ -68,7 +68,7 @@ export async function getWorkspaceInvitesAction() {
   return invitesList;
 }
 
-// 3. Generate secure invite token
+// 3. Generate secure invite token / direct email invitation
 export async function generateWorkspaceInviteAction(input: {
   email?: string;
   role: "OWNER" | "ADMIN" | "EVENT_MANAGER" | "JUDGE" | "REVIEWER" | "SECRETARY" | "PRO" | "VOLUNTEER";
@@ -94,15 +94,55 @@ export async function generateWorkspaceInviteAction(input: {
     expiresAt.setDate(expiresAt.getDate() + input.expiresDays);
   }
 
+  const isEmailTargeted = Boolean(input.email && input.email.trim().length > 0);
+  const targetEmail = input.email ? input.email.trim().toLowerCase() : null;
+  const maxUses = isEmailTargeted ? 1 : (input.maxUses || 1);
+
+  let directMemberAdded = false;
+
+  // If email is provided, check if user exists in the system and add them directly
+  if (targetEmail) {
+    const existingUser = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, targetEmail))
+      .limit(1);
+
+    if (existingUser.length > 0) {
+      const targetUserId = existingUser[0].id;
+      // Add or update workspace member record
+      await db
+        .insert(workspaceMembers)
+        .values({
+          workspaceId: workspace.id,
+          userId: targetUserId,
+          role: input.role,
+          customRoleId: input.customRoleId || null,
+          status: "PENDING",
+          invitedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: [workspaceMembers.workspaceId, workspaceMembers.userId],
+          set: {
+            role: input.role,
+            customRoleId: input.customRoleId || null,
+            status: "PENDING",
+            invitedAt: new Date(),
+          },
+        });
+      directMemberAdded = true;
+    }
+  }
+
   const [newInvite] = await db
     .insert(workspaceInvites)
     .values({
       workspaceId: workspace.id,
-      email: input.email || null,
+      email: targetEmail,
       role: input.role,
       customRoleId: input.customRoleId || null,
       token,
-      maxUses: input.maxUses || 1,
+      maxUses,
       usesCount: 0,
       expiresAt,
       domainRestrictions: input.domainRestrictions || [],
@@ -110,7 +150,11 @@ export async function generateWorkspaceInviteAction(input: {
     })
     .returning();
 
-  return newInvite;
+  return {
+    ...newInvite,
+    directMemberAdded,
+    targetEmail,
+  };
 }
 
 // 4. Revoke active invite link
@@ -228,4 +272,128 @@ export async function updateWorkspaceMemberRoleAction(
     .where(eq(workspaceMembers.id, memberId));
 
   return { success: true };
+}
+
+// 10. Fetch Invitation Link Details by Token (Public)
+export async function getInviteDetailsAction(token: string) {
+  try {
+    const records = await db
+      .select({
+        inviteId: workspaceInvites.id,
+        email: workspaceInvites.email,
+        role: workspaceInvites.role,
+        maxUses: workspaceInvites.maxUses,
+        usesCount: workspaceInvites.usesCount,
+        expiresAt: workspaceInvites.expiresAt,
+        domainRestrictions: workspaceInvites.domainRestrictions,
+        workspaceId: workspaces.id,
+        workspaceName: workspaces.name,
+        workspaceType: workspaces.type,
+        customRoleId: workspaceInvites.customRoleId,
+        customRoleName: customRoles.name,
+      })
+      .from(workspaceInvites)
+      .innerJoin(workspaces, eq(workspaceInvites.workspaceId, workspaces.id))
+      .leftJoin(customRoles, eq(workspaceInvites.customRoleId, customRoles.id))
+      .where(eq(workspaceInvites.token, token))
+      .limit(1);
+
+    if (records.length === 0) {
+      return { valid: false, error: "Invitation link not found or invalid." };
+    }
+
+    const inv = records[0];
+
+    // Check expiration
+    if (inv.expiresAt && new Date(inv.expiresAt) < new Date()) {
+      return { valid: false, error: "This invitation link has expired." };
+    }
+
+    // Check max uses
+    if (inv.usesCount >= inv.maxUses) {
+      return { valid: false, error: "This invitation link has reached its maximum usage limit." };
+    }
+
+    return {
+      valid: true,
+      invite: {
+        id: inv.inviteId,
+        email: inv.email,
+        role: inv.role,
+        customRoleId: inv.customRoleId || null,
+        customRoleName: inv.customRoleName,
+        domainRestrictions: (inv.domainRestrictions as string[]) || [],
+      },
+      workspace: {
+        id: inv.workspaceId,
+        name: inv.workspaceName,
+        type: inv.workspaceType,
+      },
+    };
+  } catch (err: any) {
+    console.error("Failed to fetch invite details:", err);
+    return { valid: false, error: "Failed to verify invitation link." };
+  }
+}
+
+// 11. Accept Workspace Invitation (Authenticated User)
+export async function acceptWorkspaceInviteAction(token: string) {
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new Error("You must be signed in to accept an invitation.");
+  }
+
+  // Ensure local user DB record exists
+  await ensureUserRecord(user.id, user.email, user.displayName);
+
+  const inviteCheck = await getInviteDetailsAction(token);
+  if (!inviteCheck.valid || !inviteCheck.invite || !inviteCheck.workspace) {
+    throw new Error(inviteCheck.error || "Invalid invitation link.");
+  }
+
+  const { invite, workspace } = inviteCheck;
+
+  // Domain restriction check
+  if (invite.domainRestrictions && invite.domainRestrictions.length > 0) {
+    const userDomain = user.email.split("@")[1]?.toLowerCase();
+    const isAllowed = invite.domainRestrictions.some(
+      (d: string) => d.toLowerCase() === userDomain
+    );
+    if (!isAllowed) {
+      throw new Error(
+        `This invitation is restricted to domain(s): ${invite.domainRestrictions.join(", ")}.`
+      );
+    }
+  }
+
+  // Add user to workspaceMembers table
+  await db
+    .insert(workspaceMembers)
+    .values({
+      workspaceId: workspace.id,
+      userId: user.id,
+      role: invite.role,
+      customRoleId: invite.customRoleId || null,
+      status: "ACTIVE",
+      acceptedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [workspaceMembers.workspaceId, workspaceMembers.userId],
+      set: {
+        role: invite.role,
+        customRoleId: invite.customRoleId || null,
+        status: "ACTIVE",
+        acceptedAt: new Date(),
+      },
+    });
+
+  // Increment invite usesCount
+  await db
+    .update(workspaceInvites)
+    .set({
+      usesCount: sql`${workspaceInvites.usesCount} + 1`,
+    })
+    .where(eq(workspaceInvites.id, invite.id));
+
+  return { success: true, workspaceName: workspace.name };
 }

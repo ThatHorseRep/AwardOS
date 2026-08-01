@@ -225,15 +225,23 @@ export function ShareKitModal({
                     value={targetUrl}
                     className="w-full bg-slate-50 text-slate-800 text-xs rounded-xl px-3 py-2 border border-slate-200 font-mono font-medium focus:outline-none"
                   />
-                  <Button
-                    variant="outline"
-                    size="sm"
+                  <button
+                    type="button"
                     onClick={handleCopyLink}
-                    className="shrink-0 rounded-xl bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold"
+                    className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all shrink-0 active:scale-95 border border-slate-800"
                   >
-                    {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedLink ? "Copied!" : "Copy"}</span>
-                  </Button>
+                    {copiedLink ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-emerald-400">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5 text-blue-400" />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             </div>
@@ -243,7 +251,7 @@ export function ShareKitModal({
           {activeTab === "embed" && (
             <div className="space-y-4">
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
-                <span className="text-xs font-bold text-slate-900 block flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                   <Award className="w-4 h-4 text-blue-600" /> Website Live Widget Preview
                 </span>
 
@@ -278,14 +286,23 @@ export function ShareKitModal({
                 />
               </div>
 
-              <Button
-                variant="primary"
+              <button
+                type="button"
                 onClick={handleCopyEmbed}
-                className="w-full rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-600/20"
+                className="w-full py-3 px-4 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 transition-all active:scale-95"
               >
-                {copiedEmbed ? <Check className="w-4 h-4 mr-1.5" /> : <Code className="w-4 h-4 mr-1.5" />}
-                <span>{copiedEmbed ? "Embed Snippet Copied!" : "Copy Embed HTML Code"}</span>
-              </Button>
+                {copiedEmbed ? (
+                  <>
+                    <Check className="w-4 h-4 text-emerald-300" />
+                    <span>Embed Snippet Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Code className="w-4 h-4" />
+                    <span>Copy Embed HTML Code</span>
+                  </>
+                )}
+              </button>
             </div>
           )}
         </CardContent>

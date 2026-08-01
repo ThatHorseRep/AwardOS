@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   Mail,
   Copy,
+  Check,
   Trash2,
   Lock,
   Plus,
@@ -16,6 +17,7 @@ import {
   Calendar,
   X,
   Undo2,
+  Info,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,7 +53,10 @@ export default function WorkspaceTeamPage() {
   const [inviteExpiresDays, setInviteExpiresDays] = useState(7);
   const [inviteDomains, setInviteDomains] = useState("");
   const [generatingLink, setGeneratingLink] = useState(false);
-  const [generatedLinkUrl, setGeneratedLinkUrl] = useState<string | null>(null);
+  const [generatedInviteResult, setGeneratedInviteResult] = useState<any | null>(null);
+
+  // Copied links state
+  const [copiedLinkUrl, setCopiedLinkUrl] = useState<string | null>(null);
 
   // Custom roles form states
   const [newRoleName, setNewRoleName] = useState("");
@@ -106,26 +111,31 @@ export default function WorkspaceTeamPage() {
   const handleGenerateInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     setGeneratingLink(true);
-    setGeneratedLinkUrl(null);
+    setGeneratedInviteResult(null);
     try {
       const domains = inviteDomains
         .split(",")
         .map((d) => d.trim().toLowerCase())
         .filter((d) => d.length > 0);
 
+      const isEmailTargeted = Boolean(inviteEmail && inviteEmail.trim().length > 0);
+
       const invite = await generateWorkspaceInviteAction({
         email: inviteEmail.trim() || undefined,
         role: inviteRole,
         customRoleId: selectedCustomRoleId || undefined,
-        maxUses: inviteMaxUses,
+        maxUses: isEmailTargeted ? 1 : inviteMaxUses,
         expiresDays: inviteExpiresDays,
         domainRestrictions: domains,
       });
 
-      // Construct invite url
       const origin = window.location.origin;
       const url = `${origin}/invite/${invite.token}`;
-      setGeneratedLinkUrl(url);
+
+      setGeneratedInviteResult({
+        ...invite,
+        url,
+      });
       await loadData();
     } catch (err) {
       console.error("Failed to generate invite:", err);
@@ -137,7 +147,8 @@ export default function WorkspaceTeamPage() {
 
   const handleCopyLink = (url: string) => {
     navigator.clipboard.writeText(url);
-    alert("Invite link copied to clipboard!");
+    setCopiedLinkUrl(url);
+    setTimeout(() => setCopiedLinkUrl(null), 2500);
   };
 
   const handleRevokeInvite = async (inviteId: string) => {
@@ -219,6 +230,8 @@ export default function WorkspaceTeamPage() {
     );
   }
 
+  const isEmailTargeted = Boolean(inviteEmail && inviteEmail.trim().length > 0);
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto font-sans pb-12 select-none">
       {/* Header bar */}
@@ -237,7 +250,7 @@ export default function WorkspaceTeamPage() {
           variant="primary"
           size="sm"
           onClick={() => {
-            setGeneratedLinkUrl(null);
+            setGeneratedInviteResult(null);
             setShowInviteModal(true);
           }}
           className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20"
@@ -335,12 +348,18 @@ export default function WorkspaceTeamPage() {
                 {invites.map((inv) => {
                   const isCurrentAction = submittingActionId === inv.id;
                   const inviteUrl = `${window.location.origin}/invite/${inv.token}`;
+                  const isCopied = copiedLinkUrl === inviteUrl;
 
                   return (
                     <div key={inv.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
                       <div className="space-y-1.5 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-bold text-slate-900">Role: {inv.customRoleName || inv.role}</span>
+                          {inv.email && (
+                            <Badge variant="purple" size="sm" className="font-mono text-[10px]">
+                              Direct: {inv.email}
+                            </Badge>
+                          )}
                           <Badge variant="neutral" size="sm">
                             {inv.usesCount} / {inv.maxUses === 9999 ? "∞" : inv.maxUses} used
                           </Badge>
@@ -361,15 +380,23 @@ export default function WorkspaceTeamPage() {
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
-                        <Button
-                          variant="outline"
-                          size="sm"
+                        <button
+                          type="button"
                           onClick={() => handleCopyLink(inviteUrl)}
-                          className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 h-8 shadow-sm"
+                          className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all active:scale-95 border border-slate-800"
                         >
-                          <Copy className="w-3.5 h-3.5 mr-1" />
-                          <span>Copy</span>
-                        </Button>
+                          {isCopied ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              <span className="text-emerald-400">Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5 text-blue-400" />
+                              <span>Copy</span>
+                            </>
+                          )}
+                        </button>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -527,54 +554,79 @@ export default function WorkspaceTeamPage() {
             </button>
 
             <div>
-              <h3 className="text-base font-bold text-slate-900">Generate Workspace Invitation Link</h3>
+              <h3 className="text-base font-bold text-slate-900">Workspace Invitation Studio</h3>
               <p className="text-xs text-slate-600 font-medium mt-0.5">
-                Scaffold links with expiry schedules and domain restrictions.
+                Send direct invitations via email or generate shareable access links.
               </p>
             </div>
 
             <div className="pt-2">
-              {generatedLinkUrl ? (
+              {generatedInviteResult ? (
                 <div className="space-y-4 animate-in fade-in duration-300">
                   <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 space-y-3">
-                    <p className="text-blue-900 text-xs leading-relaxed font-semibold">
-                      ✓ Invite link generated successfully! Share this link with your team member:
+                    <p className="text-blue-950 text-xs leading-relaxed font-semibold flex items-start gap-2">
+                      <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>
+                        {generatedInviteResult.directMemberAdded
+                          ? `Direct invitation issued for ${generatedInviteResult.targetEmail}! They have been added to the workspace and can accept via AwardOS or the link below.`
+                          : generatedInviteResult.targetEmail
+                          ? `Direct invitation link generated for ${generatedInviteResult.targetEmail}! Share this single-use link with them:`
+                          : `Shareable invitation link generated successfully! Share this link with your team:`}
+                      </span>
                     </p>
-                    <div className="p-3 bg-white rounded-xl text-blue-600 font-mono text-[11px] select-all break-all border border-blue-200 shadow-sm">
-                      {generatedLinkUrl}
+                    <div className="p-3 bg-white rounded-xl text-blue-600 font-mono text-[11px] select-all break-all border border-blue-200 shadow-sm font-semibold">
+                      {generatedInviteResult.url}
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      className="flex-1 bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                      onClick={() => handleCopyLink(generatedLinkUrl)}
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleCopyLink(generatedInviteResult.url)}
+                      className="flex-1 py-3 px-4 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 border border-slate-800"
                     >
-                      <Copy className="w-4 h-4 mr-2" />
-                      <span>Copy Link</span>
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      className="flex-1 bg-slate-100 text-slate-800 hover:bg-slate-200"
-                      onClick={() => setGeneratedLinkUrl(null)}
+                      {copiedLinkUrl === generatedInviteResult.url ? (
+                        <>
+                          <Check className="w-4 h-4 text-emerald-400" />
+                          <span className="text-emerald-400">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4 text-blue-400" />
+                          <span>Copy Link</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setGeneratedInviteResult(null)}
+                      className="flex-1 py-3 px-4 rounded-2xl bg-slate-100 text-slate-800 hover:bg-slate-200 font-bold text-xs flex items-center justify-center transition-colors"
                     >
                       <span>Create Another</span>
-                    </Button>
+                    </button>
                   </div>
                 </div>
               ) : (
                 <form onSubmit={handleGenerateInvite} className="space-y-4 text-xs">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5 col-span-2">
-                      <label className="text-xs font-semibold text-slate-700">Target Email (Optional)</label>
+                      <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                        <span>Target Recipient Email</span>
+                        <span className="text-[10px] text-slate-500 font-normal">Optional</span>
+                      </label>
                       <input
                         type="email"
-                        placeholder="e.g. co-organizer@university.edu"
+                        placeholder="e.g. colleague@university.edu"
                         value={inviteEmail}
                         onChange={(e) => setInviteEmail(e.target.value)}
                         className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-3.5 py-2.5 border border-slate-200 focus:outline-none focus:border-blue-500 font-medium"
                       />
+                      <p className="text-[10px] text-slate-500 font-medium">
+                        {isEmailTargeted
+                          ? "✓ Direct Email Targeted: Restricted to 1 recipient."
+                          : "Leave empty to generate a shareable open link."}
+                      </p>
                     </div>
 
                     <div className="space-y-1.5">
@@ -626,11 +678,15 @@ export default function WorkspaceTeamPage() {
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-700">Max Usage Click Budget</label>
+                      <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                        <span>Max Usage Budget</span>
+                        {isEmailTargeted && <span className="text-[10px] text-blue-600 font-bold">1 Use</span>}
+                      </label>
                       <select
-                        value={inviteMaxUses}
+                        disabled={isEmailTargeted}
+                        value={isEmailTargeted ? 1 : inviteMaxUses}
                         onChange={(e: any) => setInviteMaxUses(Number(e.target.value))}
-                        className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-3.5 py-2.5 border border-slate-200 focus:outline-none font-medium"
+                        className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-3.5 py-2.5 border border-slate-200 focus:outline-none disabled:opacity-50 font-medium"
                       >
                         <option value={1}>1 Usage (Single User)</option>
                         <option value={5}>5 Usages</option>
@@ -662,7 +718,7 @@ export default function WorkspaceTeamPage() {
                       ) : (
                         <UserPlus className="w-4 h-4 mr-2" />
                       )}
-                      <span>Create Invitation Link</span>
+                      <span>{isEmailTargeted ? "Send Direct Invitation" : "Create Invitation Link"}</span>
                     </Button>
                   </div>
                 </form>
