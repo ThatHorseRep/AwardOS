@@ -7,6 +7,7 @@ import {
   voterOtps,
   invitationCodes,
   categories,
+  workflowStages,
 } from "@/lib/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 
@@ -18,8 +19,9 @@ export async function POST(
     const { slug } = await params;
     const body = await request.json();
     const { votes, sessionId, verificationSession } = body;
+    const votesMap = votes && typeof votes === "object" ? votes : {};
 
-    // 1. Verify event exists
+    // 1. Verify event exists and voting stage is active
     const eventList = await db
       .select()
       .from(events)
@@ -31,102 +33,115 @@ export async function POST(
     }
 
     const event = eventList[0];
+
+    // Verify stage status
+    const stages = await db
+      .select()
+      .from(workflowStages)
+      .where(eq(workflowStages.eventId, event.id));
+    const votingStage = stages.find((s) => s.stageType === "VOTING");
+    const isVotingActive = votingStage ? votingStage.status === "ACTIVE" : event.status === "ACTIVE";
+
+    if (!isVotingActive) {
+      return NextResponse.json(
+        { error: "Voting is not currently active for this event program." },
+        { status: 403 }
+      );
+    }
+
     const verificationConfig = (event.verificationConfig as any) || {};
     const expectedMethod = verificationConfig.method || "NONE";
 
-    // 2. Validate Voter Authentication / Verification Session
-    let verifiedEmail: string | null = null;
-    let usedInvitationCode: string | null = null;
-
-    if (expectedMethod === "EMAIL_OTP") {
-      if (!verificationSession || !verificationSession.email || !verificationSession.otpId) {
-        return NextResponse.json({ error: "Email verification is required." }, { status: 403 });
-      }
-
-      // Query voterOtps
-      const otpList = await db
-        .select()
-        .from(voterOtps)
-        .where(
-          and(
-            eq(voterOtps.id, verificationSession.otpId),
-            eq(voterOtps.eventId, event.id),
-            eq(voterOtps.email, verificationSession.email.trim().toLowerCase()),
-            eq(voterOtps.verified, true)
-          )
-        )
-        .limit(1);
-
-      if (otpList.length === 0) {
-        return NextResponse.json({ error: "Verification session invalid or unverified." }, { status: 403 });
-      }
-
-      verifiedEmail = verificationSession.email.trim().toLowerCase();
-
-      // Check double-voting by verified email
-      const existingVoteSession = await db
-        .select()
-        .from(voteSessions)
-        .where(
-          and(
-            eq(voteSessions.eventId, event.id),
-            eq(voteSessions.verifiedEmail, verifiedEmail as string)
-          )
-        )
-        .limit(1);
-
-      if (existingVoteSession.length > 0) {
-        return NextResponse.json({ error: "You have already cast a ballot for this event." }, { status: 400 });
-      }
-    } else if (expectedMethod === "INVITATION_CODE") {
-      if (!verificationSession || !verificationSession.code) {
-        return NextResponse.json({ error: "Invitation code is required." }, { status: 403 });
-      }
-
-      const cleanCode = verificationSession.code.trim().toUpperCase();
-
-      // Query invitationCodes
-      const codeList = await db
-        .select()
-        .from(invitationCodes)
-        .where(
-          and(
-            eq(invitationCodes.code, cleanCode),
-            eq(invitationCodes.eventId, event.id),
-            eq(invitationCodes.status, "UNUSED")
-          )
-        )
-        .limit(1);
-
-      if (codeList.length === 0) {
-        return NextResponse.json({ error: "Invitation code is invalid or has already been used." }, { status: 403 });
-      }
-
-      usedInvitationCode = cleanCode;
-    } else {
-      // NONE: Double-voting check by sessionId + eventId
-      const existingVoteSession = await db
-        .select()
-        .from(voteSessions)
-        .where(
-          and(
-            eq(voteSessions.eventId, event.id),
-            eq(voteSessions.sessionToken, `ballot-${sessionId}`)
-          )
-        )
-        .limit(1);
-
-      if (existingVoteSession.length > 0) {
-        return NextResponse.json({ error: "You have already cast a ballot for this event." }, { status: 400 });
-      }
-    }
-
-    // 3. Save Ballot in Database Transaction
     const ballotId = `ballot-${sessionId || Math.random().toString(36).substring(2, 7)}-${Date.now()}`;
     const ipAddress = request.headers.get("x-forwarded-for") || "127.0.0.1";
     const userAgent = request.headers.get("user-agent") || "";
 
+    // 2. Perform verification & save ballot in atomic transaction
     const result = await db.transaction(async (tx) => {
+      let verifiedEmail: string | null = null;
+      let usedInvitationCode: string | null = null;
+
+      if (expectedMethod === "EMAIL_OTP") {
+        if (!verificationSession || !verificationSession.email || !verificationSession.otpId) {
+          throw new Error("Email verification is required.");
+        }
+
+        const otpList = await tx
+          .select()
+          .from(voterOtps)
+          .where(
+            and(
+              eq(voterOtps.id, verificationSession.otpId),
+              eq(voterOtps.eventId, event.id),
+              eq(voterOtps.email, verificationSession.email.trim().toLowerCase()),
+              eq(voterOtps.verified, true)
+            )
+          )
+          .limit(1);
+
+        if (otpList.length === 0) {
+          throw new Error("Verification session invalid or unverified.");
+        }
+
+        verifiedEmail = verificationSession.email.trim().toLowerCase();
+
+        // Check double voting by verified email inside transaction
+        const existingVoteSession = await tx
+          .select()
+          .from(voteSessions)
+          .where(
+            and(
+              eq(voteSessions.eventId, event.id),
+              eq(voteSessions.verifiedEmail, verifiedEmail as string)
+            )
+          )
+          .limit(1);
+
+        if (existingVoteSession.length > 0) {
+          throw new Error("You have already cast a ballot for this event.");
+        }
+      } else if (expectedMethod === "INVITATION_CODE") {
+        if (!verificationSession || !verificationSession.code) {
+          throw new Error("Invitation code is required.");
+        }
+
+        const cleanCode = verificationSession.code.trim().toUpperCase();
+
+        const codeList = await tx
+          .select()
+          .from(invitationCodes)
+          .where(
+            and(
+              eq(invitationCodes.code, cleanCode),
+              eq(invitationCodes.eventId, event.id),
+              eq(invitationCodes.status, "UNUSED")
+            )
+          )
+          .limit(1);
+
+        if (codeList.length === 0) {
+          throw new Error("Invitation code is invalid or has already been used.");
+        }
+
+        usedInvitationCode = cleanCode;
+      } else {
+        // NONE: Check double voting by sessionId inside transaction
+        const existingVoteSession = await tx
+          .select()
+          .from(voteSessions)
+          .where(
+            and(
+              eq(voteSessions.eventId, event.id),
+              eq(voteSessions.sessionToken, `ballot-${sessionId}`)
+            )
+          )
+          .limit(1);
+
+        if (existingVoteSession.length > 0) {
+          throw new Error("You have already cast a ballot for this event.");
+        }
+      }
+
       // Insert Vote Session
       const newSessionList = await tx
         .insert(voteSessions)
@@ -143,9 +158,13 @@ export async function POST(
         })
         .returning({ id: voteSessions.id });
 
+      if (newSessionList.length === 0) {
+        throw new Error("Failed to record vote session.");
+      }
+
       const voteSessionId = newSessionList[0].id;
 
-      // Fetch active categories to ensure we log skips properly
+      // Fetch active categories
       const eventCategories = await tx
         .select()
         .from(categories)
@@ -155,7 +174,7 @@ export async function POST(
       let categoriesSkipped = 0;
 
       for (const cat of eventCategories) {
-        const nomineeId = votes[cat.id];
+        const nomineeId = votesMap[cat.id];
         if (nomineeId) {
           categoriesVoted++;
           await tx.insert(votesTable).values({

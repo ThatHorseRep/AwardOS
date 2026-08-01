@@ -15,6 +15,7 @@ import {
   KeyRound,
   RotateCcw,
   Loader2,
+  Info,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -207,14 +208,29 @@ export default function PublicBallotPage() {
     );
   }
 
-  if (!event) {
+  const votingStage = event?.stages?.find((s: any) => s.stageType === "VOTING");
+  const isVotingActive = votingStage ? votingStage.status === "ACTIVE" : event?.status === "ACTIVE";
+
+  if (!event || !isVotingActive) {
     return (
-      <div className="text-center py-12">
-        <h2 className="text-xl font-bold text-slate-900">Event not found</h2>
-        <Link href="/" className="mt-4 inline-block text-blue-600 hover:underline font-bold">
-          Go Home
-        </Link>
-      </div>
+      <Card className="border-slate-200/80 bg-white rounded-3xl p-8 text-center max-w-lg mx-auto shadow-sm font-sans select-none my-12">
+        <CardHeader>
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-3 border border-amber-200">
+            <Info className="w-6 h-6" />
+          </div>
+          <CardTitle className="text-xl font-bold text-slate-900">Voting Period Closed or Pending</CardTitle>
+          <CardDescription className="text-xs text-slate-600 font-medium mt-1">
+            Voting is not currently active for {event?.name || "this event"}. Please check the event schedule for updates.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-2">
+          <Link href={`/e/${slug}`}>
+            <Button variant="primary" className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold px-6">
+              Return to Event Program
+            </Button>
+          </Link>
+        </CardContent>
+      </Card>
     );
   }
 
