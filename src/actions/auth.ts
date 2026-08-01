@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 export const encodedRedirect = async (
   type: "error" | "success",
@@ -65,7 +65,10 @@ export const signUpAction = async (formData: FormData) => {
 
 export const googleSignInAction = async (originUrl?: string) => {
   const cookieStore = await cookies();
-  const callbackUrl = `${originUrl || "https://awardos-alpha.vercel.app"}/api/auth/callback`;
+  const headerList = await headers();
+  const host = headerList.get("x-forwarded-host") || headerList.get("host") || "awardos-alpha.vercel.app";
+  const protocol = host.includes("localhost") ? "http" : "https";
+  const callbackUrl = `${protocol}://${host}/api/auth/callback`;
 
   let googleUrl: string | null = null;
 
