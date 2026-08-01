@@ -15,39 +15,17 @@
   }
 }
 
+/* Enable Native View Transitions API for seamless route changes */
+@view-transition {
+  navigation: auto;
+}
+
 body {
   background-color: var(--canvas);
   color: var(--text-main);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   overflow-x: hidden;
-}
-
-/* Card Styling Utilities */
-.card-dark {
-  background-color: #18181b;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 1.5rem; /* 24px */
-  color: #ffffff;
-}
-
-.card-light {
-  background-color: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 1.5rem; /* 24px */
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
-}
-
-.btn-royal-blue {
-  background-color: #2563eb;
-  color: #ffffff;
-  border-radius: 9999px; /* full pill */
-  transition: all 0.2s ease;
-}
-
-.btn-royal-blue:hover {
-  background-color: #1d4ed8;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+  -webkit-font-smoothing: antialiased;
 }
 
 /* Custom Scrollbar */
@@ -67,4 +45,117 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* Keyframe Animations */
+@keyframes pageEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleUpIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(37, 99, 235, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(37, 99, 235, 0.45);
+  }
+}
+
+@keyframes floatSmooth {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+/* Utility Animation Classes */
+.animate-page-entrance {
+  animation: pageEntrance 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-up {
+  animation: slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-scale-in {
+  animation: scaleUpIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2.5s infinite ease-in-out;
+}
+
+.animate-float {
+  animation: floatSmooth 3s infinite ease-in-out;
+}
+
+/* Card & Button Lift & Active Micro-Interactions */
+.hover-lift {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hover-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 24px -6px rgba(0, 0, 0, 0.08), 0 4px 8px -4px rgba(0, 0, 0, 0.04);
+}
+
+.btn-interactive {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-interactive:hover {
+  transform: translateY(-1px);
+}
+
+.btn-interactive:active {
+  transform: translateY(1px) scale(0.97);
+}
+
+/* Royal Blue Primary Button Utility */
+.btn-royal-blue {
+  background-color: #2563eb;
+  color: #ffffff;
+  border-radius: 9999px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-royal-blue:hover {
+  background-color: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.3);
+}
+
+.btn-royal-blue:active {
+  transform: translateY(1px) scale(0.97);
 }
