@@ -67,6 +67,8 @@ export const googleSignInAction = async (originUrl?: string) => {
   const cookieStore = await cookies();
   const callbackUrl = `${originUrl || "https://awardos-alpha.vercel.app"}/api/auth/callback`;
 
+  let googleUrl: string | null = null;
+
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -76,18 +78,23 @@ export const googleSignInAction = async (originUrl?: string) => {
       },
     });
 
-    if (error || !data?.url) {
-      console.warn("Supabase Google OAuth provider is not active. Routing seamlessly to dashboard:", error?.message);
-      cookieStore.set("awardos_dev_mode", "true", { path: "/", maxAge: 60 * 60 * 24 * 7 });
-      return redirect("/dashboard");
+    if (error) {
+      console.warn("Supabase Google OAuth error:", error.message);
+    } else if (data?.url) {
+      googleUrl = data.url;
     }
-
-    return redirect(data.url);
   } catch (err: any) {
-    console.warn("Google authentication seamless fallback active:", err?.message || err);
-    cookieStore.set("awardos_dev_mode", "true", { path: "/", maxAge: 60 * 60 * 24 * 7 });
-    return redirect("/dashboard");
+    console.warn("Google auth initialization error:", err?.message || err);
   }
+
+  // If Google OAuth URL was generated, redirect to Google!
+  if (googleUrl) {
+    return redirect(googleUrl);
+  }
+
+  // Fallback if Google OAuth is unconfigured
+  cookieStore.set("awardos_dev_mode", "true", { path: "/", maxAge: 60 * 60 * 24 * 7 });
+  return redirect("/dashboard");
 };
 
 export const enableDevBypassAction = async () => {

@@ -38,6 +38,16 @@ export default function Header({ user }: HeaderProps) {
     { icon: Settings, label: 'Settings', href: '/settings' },
   ]
 
+  const handleSignOut = async () => {
+    setDropdownOpen(false);
+    try {
+      await signOutAction();
+    } catch (err) {
+      console.warn("Sign out fallback redirect:", err);
+    }
+    window.location.href = "/";
+  };
+
   return (
     <header className="sticky top-0 z-40 h-16 flex items-center justify-between px-4 md:px-6 bg-zinc-950/90 backdrop-blur-xl border-b border-zinc-900 shrink-0 select-none">
       <div className="flex items-center gap-3">
@@ -92,7 +102,7 @@ export default function Header({ user }: HeaderProps) {
                 </div>
                 <div className="border-t border-zinc-800 py-1">
                   <button 
-                    onClick={() => signOutAction()}
+                    onClick={handleSignOut}
                     className="w-full px-4 py-2 text-xs font-medium text-left text-red-400 hover:bg-red-400/10 transition-colors flex items-center gap-2"
                   >
                     <LogOut className="w-3.5 h-3.5" />
