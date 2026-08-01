@@ -34,6 +34,12 @@ export default function PublicEventPage() {
   const [loading, setLoading] = useState(true);
   const [event, setEvent] = useState<any | null>(null);
   const [selectedNomineeModal, setSelectedNomineeModal] = useState<any | null>(null);
+  const [shareModalState, setShareModalState] = useState<{
+    isOpen: boolean;
+    nomineeName?: string;
+    categoryName?: string;
+    nomineeId?: string;
+  }>({ isOpen: false });
 
   useEffect(() => {
     async function loadData() {
@@ -49,6 +55,15 @@ export default function PublicEventPage() {
     loadData();
   }, [slug]);
 
+  const handleShareNominee = (nomineeName: string, catName: string, nomineeId?: string) => {
+    setShareModalState({
+      isOpen: true,
+      nomineeName,
+      categoryName: catName,
+      nomineeId,
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -59,11 +74,23 @@ export default function PublicEventPage() {
 
   if (!event) {
     return (
-      <div className="text-center py-12 font-sans select-none">
-        <h2 className="text-xl font-bold text-slate-900">Event not found</h2>
-        <Link href="/" className="mt-4 inline-block text-blue-600 hover:underline font-bold">
-          Go Home
-        </Link>
+      <div className="text-center py-12 font-sans select-none max-w-md mx-auto">
+        <Card className="border-slate-200/80 bg-white rounded-3xl p-8 text-center shadow-sm">
+          <CardHeader>
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-3 border border-rose-200">
+              <Info className="w-6 h-6" />
+            </div>
+            <CardTitle className="text-xl font-bold text-slate-900">Event Not Found</CardTitle>
+            <CardDescription className="text-xs text-slate-600 font-medium mt-1">
+              The requested award event could not be found or has been removed.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <Link href="/" className="inline-block text-blue-600 hover:underline font-bold text-xs">
+              Go to Home Page →
+            </Link>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -84,22 +111,6 @@ export default function PublicEventPage() {
         year: "numeric",
       })
     : "TBD";
-
-  const [shareModalState, setShareModalState] = useState<{
-    isOpen: boolean;
-    nomineeName?: string;
-    categoryName?: string;
-    nomineeId?: string;
-  }>({ isOpen: false });
-
-  const handleShareNominee = (nomineeName: string, catName: string, nomineeId?: string) => {
-    setShareModalState({
-      isOpen: true,
-      nomineeName,
-      categoryName: catName,
-      nomineeId,
-    });
-  };
 
   return (
     <div className="space-y-6 font-sans select-none pb-16 max-w-5xl mx-auto">
