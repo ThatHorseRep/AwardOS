@@ -30,7 +30,7 @@ export default function SuggestedCategoriesInboxPage() {
   const [event, setEvent] = useState<any | null>(null);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState<string | null>(null); // suggestion text being processed
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Approval Modal/Form State
   const [approvalText, setApprovalText] = useState<string | null>(null);
@@ -66,7 +66,7 @@ export default function SuggestedCategoriesInboxPage() {
       const response = await approveSuggestionAction(eventId, approvalText, categoryName.trim());
       if (response.success) {
         setApprovalText(null);
-        await loadData(); // reload list
+        await loadData();
       }
     } catch (err) {
       console.error("Failed to approve suggestion:", err);
@@ -82,7 +82,7 @@ export default function SuggestedCategoriesInboxPage() {
     try {
       const response = await rejectSuggestionAction(eventId, text);
       if (response.success) {
-        await loadData(); // reload list
+        await loadData();
       }
     } catch (err) {
       console.error("Failed to reject suggestion:", err);
@@ -95,16 +95,16 @@ export default function SuggestedCategoriesInboxPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="animate-spin rounded-full h-8 w-8 text-indigo-500" />
+        <Loader2 className="animate-spin rounded-full h-8 w-8 text-blue-600" />
       </div>
     );
   }
 
   if (!event) {
     return (
-      <div className="text-center py-12 text-slate-300">
-        <h2 className="text-xl font-bold text-white">Event not found</h2>
-        <Link href="/dashboard/events" className="mt-4 inline-block text-indigo-400 hover:underline">
+      <div className="text-center py-12 font-sans select-none">
+        <h2 className="text-xl font-bold text-slate-900">Event not found</h2>
+        <Link href="/events" className="mt-4 inline-block text-blue-600 hover:underline font-bold">
           Back to Events
         </Link>
       </div>
@@ -112,24 +112,24 @@ export default function SuggestedCategoriesInboxPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 max-w-5xl mx-auto font-sans select-none pb-16">
       {/* Header bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
           <Link href={`/events/${eventId}`}>
-            <Button variant="ghost" size="icon" className="mt-1">
+            <Button variant="ghost" size="icon" className="mt-1 text-slate-700 hover:bg-slate-200">
               <ArrowLeft className="w-4 h-4" />
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
               <span>Suggested Categories Inbox</span>
               <Badge variant="purple" size="sm">
                 {suggestions.length} Unique
               </Badge>
             </h1>
-            <p className="text-slate-400 text-xs mt-1">
-              Review and approve custom categories suggested by guest nominators for <strong className="text-slate-300">{event.name}</strong>.
+            <p className="text-slate-600 text-xs mt-1 font-medium">
+              Review and approve custom categories suggested by guest nominators for <strong className="text-slate-900">{event.name}</strong>.
             </p>
           </div>
         </div>
@@ -139,12 +139,12 @@ export default function SuggestedCategoriesInboxPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 space-y-4">
           {suggestions.length === 0 ? (
-            <Card className="border-slate-800/80 bg-zinc-950/40 min-h-[300px] flex flex-col items-center justify-center text-center p-8">
-              <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mb-4 text-slate-500">
+            <Card className="border-slate-200/80 bg-white rounded-3xl min-h-[300px] flex flex-col items-center justify-center text-center p-8 shadow-sm">
+              <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center mb-4">
                 <Inbox className="w-6 h-6" />
               </div>
-              <h3 className="text-sm font-semibold text-slate-200">Suggested Categories Inbox Empty</h3>
-              <p className="text-xs text-slate-500 mt-1 max-w-sm">
+              <h3 className="text-sm font-bold text-slate-900">Suggested Categories Inbox Empty</h3>
+              <p className="text-xs text-slate-600 mt-1 max-w-sm font-medium">
                 No custom categories have been suggested by guests yet. Open the nominations stage and share the event link to start collecting suggestions!
               </p>
             </Card>
@@ -155,12 +155,12 @@ export default function SuggestedCategoriesInboxPage() {
                 return (
                   <div
                     key={sug.suggestionText}
-                    className="p-5 rounded-2xl bg-slate-900/40 border border-slate-800 flex items-center justify-between gap-4 hover:border-slate-700/50 transition-all duration-300"
+                    className="p-5 rounded-3xl bg-white border border-slate-200/80 flex items-center justify-between gap-4 hover:border-purple-300 shadow-sm transition-all duration-200"
                   >
                     <div className="space-y-1">
-                      <h4 className="text-sm font-semibold text-white">{sug.suggestionText}</h4>
+                      <h4 className="text-sm font-bold text-slate-900">{sug.suggestionText}</h4>
                       <div className="flex items-center gap-2">
-                        <Badge variant="info" size="sm">
+                        <Badge variant="purple" size="sm">
                           Suggested {sug.count} time{sug.count > 1 ? "s" : ""}
                         </Badge>
                       </div>
@@ -168,25 +168,25 @@ export default function SuggestedCategoriesInboxPage() {
 
                     <div className="flex items-center gap-2 shrink-0">
                       {isProcessing ? (
-                        <Loader2 className="animate-spin w-5 h-5 text-indigo-400" />
+                        <Loader2 className="animate-spin w-5 h-5 text-blue-600" />
                       ) : (
                         <>
                           <Button
                             variant="outline"
                             size="sm"
-                            className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500 hover:text-white"
+                            className="bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-600 hover:text-white font-bold rounded-full"
                             onClick={() => handleApproveClick(sug.suggestionText)}
                           >
-                            <CheckCircle className="w-4 h-4" />
+                            <CheckCircle className="w-4 h-4 mr-1" />
                             <span>Approve</span>
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
-                            className="bg-rose-500/10 text-rose-400 border-rose-500/20 hover:bg-rose-500 hover:text-white"
+                            className="bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-600 hover:text-white font-bold rounded-full"
                             onClick={() => handleReject(sug.suggestionText)}
                           >
-                            <XCircle className="w-4 h-4" />
+                            <XCircle className="w-4 h-4 mr-1" />
                             <span>Reject</span>
                           </Button>
                         </>
@@ -202,25 +202,25 @@ export default function SuggestedCategoriesInboxPage() {
         {/* Action Panel / Category Setup Sidebar */}
         <div className="space-y-4">
           {approvalText ? (
-            <Card className="border-indigo-500/30 bg-indigo-950/10 animate-in fade-in duration-300">
-              <CardHeader>
+            <Card className="border-purple-200 bg-purple-50/50 rounded-3xl shadow-sm animate-in fade-in duration-300">
+              <CardHeader className="border-b border-purple-100 pb-3">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-indigo-400" />
-                  <CardTitle className="text-sm">Approve Category</CardTitle>
+                  <Sparkles className="w-4 h-4 text-purple-600" />
+                  <CardTitle className="text-sm font-bold text-slate-900">Approve Category</CardTitle>
                 </div>
-                <CardDescription className="text-xs">
+                <CardDescription className="text-xs text-slate-600 font-medium">
                   Create a new official award category based on user suggestion.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 pt-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300">Category Name</label>
+                  <label className="text-xs font-semibold text-slate-700">Category Name</label>
                   <input
                     type="text"
                     value={categoryName}
                     onChange={(e) => setCategoryName(e.target.value)}
                     placeholder="e.g. Best Student Volunteer"
-                    className="w-full bg-slate-900 text-slate-200 text-xs rounded-xl px-3 py-2.5 border border-slate-800 focus:outline-none focus:border-indigo-500/60"
+                    className="w-full bg-white text-slate-900 text-xs rounded-2xl px-3.5 py-2.5 border border-purple-200 focus:outline-none focus:border-purple-500 font-medium"
                   />
                 </div>
 
@@ -228,7 +228,7 @@ export default function SuggestedCategoriesInboxPage() {
                   <Button
                     variant="primary"
                     size="sm"
-                    className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white"
+                    className="flex-1 rounded-full bg-purple-600 hover:bg-purple-500 text-white font-bold shadow-md shadow-purple-600/20"
                     onClick={handleApproveConfirm}
                     disabled={!categoryName.trim() || !!actionLoading}
                   >
@@ -237,7 +237,7 @@ export default function SuggestedCategoriesInboxPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-slate-400 hover:text-white"
+                    className="text-slate-600 hover:text-slate-900 font-medium"
                     onClick={() => setApprovalText(null)}
                   >
                     Cancel
@@ -246,17 +246,17 @@ export default function SuggestedCategoriesInboxPage() {
               </CardContent>
             </Card>
           ) : (
-            <Card className="border-slate-800 bg-slate-950/20">
-              <CardHeader>
+            <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
+              <CardHeader className="border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-purple-400" />
-                  <CardTitle className="text-sm">Suggestions Insights</CardTitle>
+                  <MessageSquare className="w-4 h-4 text-purple-600" />
+                  <CardTitle className="text-sm font-bold text-slate-900">Suggestions Insights</CardTitle>
                 </div>
-                <CardDescription className="text-xs">
+                <CardDescription className="text-xs text-slate-600 font-medium">
                   How category suggestions work.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="text-xs text-slate-400 leading-relaxed space-y-2">
+              <CardContent className="text-xs text-slate-600 leading-relaxed space-y-2 pt-4 font-medium">
                 <p>
                   Visitors submit custom category suggestions inline via the public nominations form when they feel something is missing.
                 </p>
