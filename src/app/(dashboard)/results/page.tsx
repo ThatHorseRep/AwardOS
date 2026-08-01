@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
 import { getEventsAction } from "@/actions/events";
 import { Badge } from "@/components/ui/badge";

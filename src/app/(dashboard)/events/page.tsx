@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import Link from 'next/link'
 import { Plus, CalendarDays, Calendar, ArrowRight } from 'lucide-react'
 import EmptyState from '@/components/shared/empty-state'
