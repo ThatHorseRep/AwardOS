@@ -51,16 +51,16 @@ export default function PublicEventPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="animate-spin rounded-full h-8 w-8 text-indigo-500" />
+        <Loader2 className="animate-spin rounded-full h-8 w-8 text-blue-600" />
       </div>
     );
   }
 
   if (!event) {
     return (
-      <div className="text-center py-12 text-slate-300 font-sans">
-        <h2 className="text-xl font-bold text-white">Event not found</h2>
-        <Link href="/" className="mt-4 inline-block text-indigo-400 hover:underline">
+      <div className="text-center py-12 font-sans select-none">
+        <h2 className="text-xl font-bold text-slate-900">Event not found</h2>
+        <Link href="/" className="mt-4 inline-block text-blue-600 hover:underline font-bold">
           Go Home
         </Link>
       </div>
@@ -96,11 +96,9 @@ export default function PublicEventPage() {
   };
 
   return (
-    <div className="space-y-8 font-sans pb-16 max-w-5xl mx-auto">
+    <div className="space-y-6 font-sans select-none pb-16 max-w-5xl mx-auto">
       {/* Public Event Hero Banner */}
-      <div className="relative rounded-3xl overflow-hidden glass-card p-8 border border-indigo-500/25 bg-gradient-to-r from-indigo-950/40 via-purple-950/30 to-slate-900/85 text-center sm:text-left">
-        <div className="absolute right-0 top-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-
+      <div className="relative rounded-3xl overflow-hidden p-8 border border-blue-200 bg-gradient-to-r from-blue-600/10 via-purple-50/50 to-white text-center sm:text-left shadow-sm">
         <div className="relative z-10 space-y-4">
           <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
             <Badge variant="success" size="sm">
@@ -111,24 +109,24 @@ export default function PublicEventPage() {
             </Badge>
           </div>
 
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
             {event.name}
           </h1>
 
           {event.description && (
-            <p className="text-slate-300 text-xs sm:text-sm max-w-2xl leading-relaxed">
+            <p className="text-slate-600 text-xs sm:text-sm max-w-2xl leading-relaxed font-medium">
               {event.description}
             </p>
           )}
 
-          <div className="pt-2 flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs text-slate-400">
+          <div className="pt-2 flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs text-slate-600 font-medium">
             {activeStage?.endsAt && (
-              <span className="flex items-center gap-1.5 font-medium">
-                <Clock className="w-4 h-4 text-indigo-400" /> Deadline: {deadlineStr}
+              <span className="flex items-center gap-1.5 font-bold">
+                <Clock className="w-4 h-4 text-blue-600" /> Deadline: {deadlineStr}
               </span>
             )}
-            <span className="flex items-center gap-1.5 font-medium">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <span className="flex items-center gap-1.5 font-bold">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
               <span>{event.verificationLevel === "ADVANCED" ? "Advanced Access Check" : "Standard Ballot Integrity"}</span>
             </span>
           </div>
@@ -140,25 +138,25 @@ export default function PublicEventPage() {
                 variant="primary"
                 size="lg"
                 disabled={!isVotingActive}
-                className="rounded-full px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-xl shadow-blue-600/30"
+                className="rounded-full px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20"
               >
-                <Vote className="w-5 h-5 mr-1" />
+                <Vote className="w-5 h-5 mr-1.5" />
                 <span>{isVotingActive ? "Cast Your Vote" : "Voting Closed"}</span>
-                <ArrowRight className="w-4 h-4 ml-1" />
+                <ArrowRight className="w-4 h-4 ml-1.5" />
               </Button>
             </Link>
 
             <Link href={`/e/${event.slug}/nominate`}>
-              <Button variant="secondary" size="lg" disabled={!isNominationActive} className="rounded-full px-6 py-3 bg-zinc-900 border border-zinc-800 text-white hover:bg-zinc-800">
-                <Users className="w-5 h-5 mr-1" />
+              <Button variant="secondary" size="lg" disabled={!isNominationActive} className="rounded-full px-6 py-3 bg-white border border-slate-200 text-slate-900 hover:bg-slate-50 font-bold shadow-sm">
+                <Users className="w-5 h-5 mr-1.5 text-purple-600" />
                 <span>{isNominationActive ? "Submit Nomination" : "Nominations Closed"}</span>
               </Button>
             </Link>
 
             {isResultsPublished && (
               <Link href={`/e/${event.slug}/results`}>
-                <Button variant="outline" size="lg" className="rounded-full px-6 py-3 border-slate-800 text-slate-200 hover:bg-slate-900">
-                  <Trophy className="w-5 h-5 text-amber-400 mr-2" />
+                <Button variant="outline" size="lg" className="rounded-full px-6 py-3 bg-white border border-slate-200 text-slate-800 hover:bg-slate-50 font-bold shadow-sm">
+                  <Trophy className="w-5 h-5 text-amber-500 mr-2" />
                   <span>View Results</span>
                 </Button>
               </Link>
@@ -170,34 +168,34 @@ export default function PublicEventPage() {
       {/* Categories & Nominees Showcase */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+          <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <span>Award Categories & Nominee Showcase</span>
             <Badge variant="neutral" size="sm">{event.categories?.length || 0}</Badge>
           </h2>
         </div>
 
         {event.categories?.length === 0 ? (
-          <div className="text-center py-8 text-slate-500 text-xs italic">
+          <div className="text-center py-8 text-slate-500 text-xs italic font-medium">
             No active categories found for this program.
           </div>
         ) : (
           <div className="space-y-6">
             {event.categories?.map((cat: any, idx: number) => (
-              <Card key={cat.id} className="border-slate-800 bg-slate-950/20">
-                <CardHeader className="pb-3 border-b border-slate-900/60 flex flex-row items-center justify-between">
+              <Card key={cat.id} className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
+                <CardHeader className="pb-3 border-b border-slate-100 flex flex-row items-center justify-between">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-lg bg-indigo-500/10 text-indigo-400 font-bold text-xs flex items-center justify-center border border-indigo-500/20">
+                      <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center">
                         0{idx + 1}
                       </span>
-                      <CardTitle className="text-base text-slate-100">{cat.name}</CardTitle>
+                      <CardTitle className="text-base font-bold text-slate-900">{cat.name}</CardTitle>
                     </div>
-                    {cat.description && <CardDescription className="text-xs mt-1 text-slate-400">{cat.description}</CardDescription>}
+                    {cat.description && <CardDescription className="text-xs mt-1 text-slate-600 font-medium">{cat.description}</CardDescription>}
                   </div>
 
                   {isVotingActive && (
                     <Link href={`/e/${event.slug}/vote`}>
-                      <Button variant="ghost" size="sm" className="text-indigo-400 text-xs hover:bg-indigo-500/10">
+                      <Button variant="ghost" size="sm" className="text-blue-600 text-xs font-bold hover:bg-blue-50">
                         <span>Vote in Division →</span>
                       </Button>
                     </Link>
@@ -206,28 +204,28 @@ export default function PublicEventPage() {
 
                 <CardContent className="pt-4">
                   {!cat.nominees || cat.nominees.length === 0 ? (
-                    <div className="text-slate-500 text-xs italic py-4">Nominee roster pending announcement.</div>
+                    <div className="text-slate-500 text-xs italic py-4 font-medium">Nominee roster pending announcement.</div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                       {cat.nominees.map((nom: any) => (
                         <div
                           key={nom.id}
-                          className="p-4 rounded-2xl bg-slate-900/40 border border-slate-850 hover:border-slate-700/60 transition-all flex flex-col justify-between space-y-3 group"
+                          className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 hover:border-blue-300 transition-all flex flex-col justify-between space-y-3 group"
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-center gap-3">
                               <Avatar name={nom.name} size="md" />
                               <div>
-                                <h4 className="font-bold text-white text-sm group-hover:text-indigo-400 transition-colors">
+                                <h4 className="font-bold text-slate-900 text-sm group-hover:text-blue-600 transition-colors">
                                   {nom.name}
                                 </h4>
-                                <span className="text-[10px] text-slate-500 block font-mono">Candidate Profile</span>
+                                <span className="text-[10px] text-slate-500 block font-mono font-medium">Candidate Profile</span>
                               </div>
                             </div>
 
                             <button
                               onClick={() => handleShareNominee(nom.name, cat.name)}
-                              className="text-slate-500 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors"
+                              className="text-slate-400 hover:text-slate-900 p-1.5 rounded-lg hover:bg-slate-200 transition-colors"
                               title="Share Candidate"
                             >
                               <Share2 className="w-3.5 h-3.5" />
@@ -235,22 +233,22 @@ export default function PublicEventPage() {
                           </div>
 
                           {nom.bio && (
-                            <p className="text-[11px] text-slate-400 leading-relaxed line-clamp-2">
+                            <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-2 font-medium">
                               {nom.bio}
                             </p>
                           )}
 
-                          <div className="pt-2 border-t border-slate-900/60 flex items-center justify-between">
+                          <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between">
                             <button
                               onClick={() => setSelectedNomineeModal({ nominee: nom, categoryName: cat.name })}
-                              className="text-[11px] font-medium text-indigo-400 hover:underline flex items-center gap-1"
+                              className="text-[11px] font-bold text-blue-600 hover:underline flex items-center gap-1"
                             >
                               <Info className="w-3 h-3" /> View Bio
                             </button>
 
                             {isVotingActive && (
                               <Link href={`/e/${event.slug}/vote`}>
-                                <Button variant="ghost" size="sm" className="h-6 text-[10px] text-emerald-400 px-2">
+                                <Button variant="ghost" size="sm" className="h-6 text-[10px] text-emerald-600 font-bold px-2">
                                   Vote
                                 </Button>
                               </Link>
@@ -269,11 +267,11 @@ export default function PublicEventPage() {
 
       {/* Nominee Full Bio Modal */}
       {selectedNomineeModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-200 font-sans">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-5 shadow-2xl relative">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200 font-sans">
+          <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl p-6 space-y-5 shadow-2xl relative">
             <button
               onClick={() => setSelectedNomineeModal(null)}
-              className="absolute right-4 top-4 p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+              className="absolute right-4 top-4 p-1 text-slate-400 hover:text-slate-900 rounded-lg hover:bg-slate-100 font-bold"
             >
               <X className="w-4 h-4" />
             </button>
@@ -282,13 +280,13 @@ export default function PublicEventPage() {
               <Avatar name={selectedNomineeModal.nominee.name} size="lg" />
               <div>
                 <Badge variant="purple" size="sm">{selectedNomineeModal.categoryName}</Badge>
-                <h3 className="text-lg font-bold text-white mt-1">{selectedNomineeModal.nominee.name}</h3>
+                <h3 className="text-lg font-bold text-slate-900 mt-1">{selectedNomineeModal.nominee.name}</h3>
               </div>
             </div>
 
-            <div className="space-y-2 pt-2 border-t border-slate-800/80">
-              <span className="text-xs font-semibold text-slate-300 block">Candidate Biography</span>
-              <p className="text-xs text-slate-400 leading-relaxed max-h-60 overflow-y-auto pr-1">
+            <div className="space-y-2 pt-2 border-t border-slate-100">
+              <span className="text-xs font-bold text-slate-900 block">Candidate Biography</span>
+              <p className="text-xs text-slate-600 leading-relaxed max-h-60 overflow-y-auto pr-1 font-medium">
                 {selectedNomineeModal.nominee.bio || "No biography details published for this candidate profile."}
               </p>
             </div>
@@ -298,7 +296,7 @@ export default function PublicEventPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => handleShareNominee(selectedNomineeModal.nominee.name, selectedNomineeModal.categoryName)}
-                className="flex-1 border-slate-800 text-slate-200 hover:bg-slate-800"
+                className="flex-1 bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold rounded-full"
               >
                 <Share2 className="w-3.5 h-3.5 mr-1.5" />
                 <span>Share Profile</span>
@@ -306,7 +304,7 @@ export default function PublicEventPage() {
 
               {isVotingActive && (
                 <Link href={`/e/${event.slug}/vote`} className="flex-1">
-                  <Button variant="primary" size="sm" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white">
+                  <Button variant="primary" size="sm" className="w-full rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20">
                     <Vote className="w-3.5 h-3.5 mr-1.5" />
                     <span>Vote Now</span>
                   </Button>
