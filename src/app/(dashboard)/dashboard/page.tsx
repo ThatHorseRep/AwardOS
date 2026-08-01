@@ -2,7 +2,7 @@ import { getOrCreateWorkspaceAction, getCurrentUser } from '@/actions/workspaces
 import { db } from '@/lib/db'
 import { events, nominations, votes } from '@/lib/db/schema'
 import { count, eq, and, isNull } from 'drizzle-orm'
-import { CalendarPlus, Sparkles, Archive, UserPlus, Calendar, CheckSquare, Users, ChevronRight, Vote, Award, ArrowUpRight } from 'lucide-react'
+import { CalendarPlus, Sparkles, UserPlus, Calendar, CheckSquare, Users, ChevronRight, Vote, Award, ArrowUpRight } from 'lucide-react'
 import EmptyState from '@/components/shared/empty-state'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
@@ -12,34 +12,43 @@ export default async function DashboardPage() {
   const displayName = user?.displayName || 'User'
   const workspace = await getOrCreateWorkspaceAction()
 
-  // Fetch stats from DB
-  const eventsResult = await db
-    .select({ val: count() })
-    .from(events)
-    .where(and(eq(events.workspaceId, workspace.id), isNull(events.deletedAt)))
-  const totalEvents = eventsResult[0]?.val || 0
+  let totalEvents = 0
+  let totalNominations = 0
+  let totalVotes = 0
+  let recentEvents: any[] = []
 
-  const nominationsResult = await db
-    .select({ val: count() })
-    .from(nominations)
-    .innerJoin(events, eq(nominations.eventId, events.id))
-    .where(and(eq(events.workspaceId, workspace.id), isNull(events.deletedAt)))
-  const totalNominations = nominationsResult[0]?.val || 0
+  if (workspace?.id) {
+    try {
+      const eventsResult = await db
+        .select({ val: count() })
+        .from(events)
+        .where(and(eq(events.workspaceId, workspace.id), isNull(events.deletedAt)))
+      totalEvents = eventsResult[0]?.val || 0
 
-  const votesResult = await db
-    .select({ val: count() })
-    .from(votes)
-    .innerJoin(events, eq(votes.eventId, events.id))
-    .where(and(eq(events.workspaceId, workspace.id), isNull(events.deletedAt)))
-  const totalVotes = votesResult[0]?.val || 0
+      const nominationsResult = await db
+        .select({ val: count() })
+        .from(nominations)
+        .innerJoin(events, eq(nominations.eventId, events.id))
+        .where(and(eq(events.workspaceId, workspace.id), isNull(events.deletedAt)))
+      totalNominations = nominationsResult[0]?.val || 0
 
-  // Fetch recent events
-  const recentEvents = await db
-    .select()
-    .from(events)
-    .where(and(eq(events.workspaceId, workspace.id), isNull(events.deletedAt)))
-    .orderBy(events.createdAt)
-    .limit(4)
+      const votesResult = await db
+        .select({ val: count() })
+        .from(votes)
+        .innerJoin(events, eq(votes.eventId, events.id))
+        .where(and(eq(events.workspaceId, workspace.id), isNull(events.deletedAt)))
+      totalVotes = votesResult[0]?.val || 0
+
+      recentEvents = await db
+        .select()
+        .from(events)
+        .where(and(eq(events.workspaceId, workspace.id), isNull(events.deletedAt)))
+        .orderBy(events.createdAt)
+        .limit(4)
+    } catch (err) {
+      console.warn("Dashboard stats query error:", err)
+    }
+  }
 
   const quickActions = [
     { icon: CalendarPlus, title: 'Create Event', subtitle: 'Start a new award program', href: '/events/new', color: 'bg-blue-600/10 text-blue-600' },
@@ -49,7 +58,7 @@ export default async function DashboardPage() {
   ]
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-300 select-none pb-8">
+    <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-300 select-none pb-8 font-sans">
       
       {/* Hero Obsidian Charcoal Card */}
       <div className="rounded-3xl bg-zinc-950 p-6 md:p-8 border border-zinc-900 shadow-2xl text-white relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6">
