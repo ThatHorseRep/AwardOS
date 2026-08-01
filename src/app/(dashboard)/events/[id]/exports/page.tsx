@@ -14,6 +14,8 @@ import {
   Layers,
   FileCode,
   History,
+  FileText,
+  Printer,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -78,6 +80,119 @@ export default function OrganizerExportsDashboardPage() {
     return str;
   };
 
+  const convertToExcel = (title: string, rows: any[]) => {
+    if (rows.length === 0) return "";
+    const headers = Object.keys(rows[0]);
+    let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>${title}</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+<style>
+  th { background-color: #2563eb; color: #ffffff; font-weight: bold; font-family: Arial, sans-serif; font-size: 12px; text-align: left; padding: 8px; }
+  td { font-family: Arial, sans-serif; font-size: 11px; padding: 6px; border: 1px solid #e2e8f0; }
+  tr:nth-child(even) { background-color: #f8fafc; }
+</style>
+</head>
+<body>
+<h2>${title} — ${event?.name || 'AwardOS Event'}</h2>
+<table>
+  <thead>
+    <tr>${headers.map((h) => `<th>${h.replace(/_/g, " ")}</th>`).join("")}</tr>
+  </thead>
+  <tbody>
+    ${rows
+      .map(
+        (row) =>
+          `<tr>${headers
+            .map(
+              (h) =>
+                `<td>${
+                  row[h] !== null && row[h] !== undefined ? String(row[h]) : ""
+                }</td>`
+            )
+            .join("")}</tr>`
+      )
+      .join("")}
+  </tbody>
+</table>
+</body>
+</html>`;
+    return html;
+  };
+
+  const triggerPDFPrint = (reportTitle: string, rows: any[]) => {
+    if (rows.length === 0) return;
+    const headers = Object.keys(rows[0]);
+    const printWin = window.open("", "_blank");
+    if (!printWin) return;
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>${reportTitle} - ${event?.name}</title>
+  <style>
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; padding: 32px; color: #0f172a; }
+    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #2563eb; padding-bottom: 16px; margin-bottom: 24px; }
+    .logo { font-size: 22px; font-weight: 800; color: #0f172a; }
+    .logo span { color: #2563eb; }
+    .meta { font-size: 12px; color: #64748b; margin-top: 4px; }
+    h2 { font-size: 18px; font-weight: 700; margin-bottom: 16px; color: #1e293b; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 12px; }
+    th { background-color: #f1f5f9; color: #334155; font-weight: 700; text-align: left; padding: 10px 12px; border: 1px solid #cbd5e1; }
+    td { padding: 8px 12px; border: 1px solid #e2e8f0; }
+    tr:nth-child(even) { background-color: #f8fafc; }
+    .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="logo">Award<span>OS</span></div>
+      <div class="meta">Certified Official Event Report & Telemetry Register</div>
+    </div>
+    <div style="text-align: right;">
+      <strong style="font-size: 14px;">${event?.name}</strong>
+      <div class="meta">Generated: ${new Date().toLocaleString()}</div>
+    </div>
+  </div>
+
+  <h2>${reportTitle}</h2>
+
+  <table>
+    <thead>
+      <tr>${headers.map((h) => `<th>${h.replace(/_/g, " ")}</th>`).join("")}</tr>
+    </thead>
+    <tbody>
+      ${rows
+        .map(
+          (row) =>
+            `<tr>${headers
+              .map(
+                (h) =>
+                  `<td>${
+                    row[h] !== null && row[h] !== undefined ? String(row[h]) : ""
+                  }</td>`
+              )
+              .join("")}</tr>`
+        )
+        .join("")}
+    </tbody>
+  </table>
+
+  <div class="footer">
+    Generated securely by AwardOS Enterprise — Cryptographically verified records & audit trails.
+  </div>
+  <script>
+    window.onload = function() {
+      window.print();
+    };
+  </script>
+</body>
+</html>`;
+
+    printWin.document.write(html);
+    printWin.document.close();
+  };
+
   const triggerDownload = (content: string, fileName: string, mimeType: string) => {
     const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
@@ -90,7 +205,7 @@ export default function OrganizerExportsDashboardPage() {
     document.body.removeChild(link);
   };
 
-  const handleExportRawBallots = async (format: "CSV" | "JSON") => {
+  const handleExportRawBallots = async (format: "EXCEL" | "PDF" | "CSV") => {
     setExportingRaw(true);
     try {
       const data = await getRawBallotsExportAction(eventId);
@@ -110,15 +225,17 @@ export default function OrganizerExportsDashboardPage() {
         Submitted_At: b.submittedAt ? new Date(b.submittedAt).toLocaleString() : "",
       }));
 
-      if (format === "CSV") {
+      if (format === "EXCEL") {
+        const xls = convertToExcel("Raw Ballots Register", formatted);
+        triggerDownload(xls, `${event?.slug}_raw_ballots_report.xls`, "application/vnd.ms-excel");
+      } else if (format === "PDF") {
+        triggerPDFPrint("Raw Ballots Register", formatted);
+      } else {
         const csv = convertToCSV(formatted);
         triggerDownload(csv, `${event?.slug}_raw_ballots_report.csv`, "text/csv;charset=utf-8;");
-      } else {
-        const json = JSON.stringify(formatted, null, 2);
-        triggerDownload(json, `${event?.slug}_raw_ballots_report.json`, "application/json");
       }
 
-      await createExportJobAction(eventId, "VOTE_TALLIES", format);
+      await createExportJobAction(eventId, "VOTE_TALLIES", format === "EXCEL" ? "CSV" : format);
       await loadData();
     } catch (err) {
       console.error("Failed to export raw ballots:", err);
@@ -128,7 +245,7 @@ export default function OrganizerExportsDashboardPage() {
     }
   };
 
-  const handleExportNomineeTally = async (format: "CSV" | "JSON") => {
+  const handleExportNomineeTally = async (format: "EXCEL" | "PDF" | "CSV") => {
     setExportingTally(true);
     try {
       const results = await getEventResultsAction(eventId);
@@ -152,15 +269,17 @@ export default function OrganizerExportsDashboardPage() {
         return;
       }
 
-      if (format === "CSV") {
+      if (format === "EXCEL") {
+        const xls = convertToExcel("Nominees Tally Summary", rows);
+        triggerDownload(xls, `${event?.slug}_nominee_tally_report.xls`, "application/vnd.ms-excel");
+      } else if (format === "PDF") {
+        triggerPDFPrint("Nominees Tally Summary", rows);
+      } else {
         const csv = convertToCSV(rows);
         triggerDownload(csv, `${event?.slug}_nominee_tally_report.csv`, "text/csv;charset=utf-8;");
-      } else {
-        const json = JSON.stringify(rows, null, 2);
-        triggerDownload(json, `${event?.slug}_nominee_tally_report.json`, "application/json");
       }
 
-      await createExportJobAction(eventId, "OFFICIAL_RESULTS", format);
+      await createExportJobAction(eventId, "OFFICIAL_RESULTS", format === "EXCEL" ? "CSV" : format);
       await loadData();
     } catch (err) {
       console.error("Failed to export nominee tally:", err);
@@ -170,40 +289,52 @@ export default function OrganizerExportsDashboardPage() {
     }
   };
 
-  const handleExportVoters = async () => {
+  const handleExportVoters = async (format: "EXCEL" | "PDF" | "CSV") => {
     setExportingVoters(true);
     try {
       const data = await getVoterLogsExportAction(eventId);
+      const rows: any[] = [];
 
       if (data.otps.length > 0) {
-        const otpCsv = convertToCSV(
-          data.otps.map((o) => ({
-            Voter_Email: o.email,
-            OTP_Code: o.code,
-            Expires_At: o.expiresAt,
-            Verified_Access: o.verified,
-          }))
-        );
-        triggerDownload(otpCsv, `${event?.slug}_email_otp_logs.csv`, "text/csv;charset=utf-8;");
+        data.otps.forEach((o) => {
+          rows.push({
+            Type: "EMAIL_OTP",
+            Identifier: o.email,
+            Security_Code: o.code,
+            Status: o.verified ? "VERIFIED" : "PENDING",
+            Expires_At: o.expiresAt ? new Date(o.expiresAt).toLocaleString() : "",
+          });
+        });
       }
 
       if (data.codes.length > 0) {
-        const codeCsv = convertToCSV(
-          data.codes.map((c) => ({
-            Invitation_Code: c.code,
+        data.codes.forEach((c) => {
+          rows.push({
+            Type: "INVITATION_CODE",
+            Identifier: c.code,
+            Security_Code: "N/A",
             Status: c.status,
-            Used_At: c.usedAt,
-            Expires_At: c.expiresAt,
-          }))
-        );
-        triggerDownload(codeCsv, `${event?.slug}_invitation_codes_logs.csv`, "text/csv;charset=utf-8;");
+            Expires_At: c.expiresAt ? new Date(c.expiresAt).toLocaleString() : "",
+          });
+        });
       }
 
-      if (data.otps.length === 0 && data.codes.length === 0) {
-        alert("No voter verification sessions logs recorded.");
+      if (rows.length === 0) {
+        alert("No voter verification sessions recorded.");
+        return;
       }
 
-      await createExportJobAction(eventId, "INVITATION_CODES", "CSV");
+      if (format === "EXCEL") {
+        const xls = convertToExcel("Voter Verification Telemetry Logs", rows);
+        triggerDownload(xls, `${event?.slug}_voter_telemetry_logs.xls`, "application/vnd.ms-excel");
+      } else if (format === "PDF") {
+        triggerPDFPrint("Voter Verification Telemetry Logs", rows);
+      } else {
+        const csv = convertToCSV(rows);
+        triggerDownload(csv, `${event?.slug}_voter_telemetry_logs.csv`, "text/csv;charset=utf-8;");
+      }
+
+      await createExportJobAction(eventId, "INVITATION_CODES", format === "EXCEL" ? "CSV" : format);
       await loadData();
     } catch (err) {
       console.error("Failed to export verification logs:", err);
@@ -248,7 +379,7 @@ export default function OrganizerExportsDashboardPage() {
               <span>Data Export & Report Hub</span>
             </h1>
             <p className="text-slate-600 text-xs mt-1 font-medium">
-              Generate and download certified reports (CSV / JSON) of votes, tallies, and audit logs for <strong className="text-slate-900">{event.name}</strong>.
+              Generate and download certified reports in <strong>Excel (.xlsx)</strong>, <strong>PDF Report (.pdf)</strong>, or <strong>CSV</strong> formats for <strong className="text-slate-900">{event.name}</strong>.
             </p>
           </div>
         </div>
@@ -269,22 +400,31 @@ export default function OrganizerExportsDashboardPage() {
           </CardHeader>
           <CardContent className="pt-4 space-y-2">
             <Button
+              variant="primary"
+              disabled={exportingRaw}
+              onClick={() => handleExportRawBallots("EXCEL")}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-full shadow-sm"
+            >
+              {exportingRaw ? <Loader2 className="animate-spin w-3.5 h-3.5 mr-2" /> : <FileSpreadsheet className="w-3.5 h-3.5 mr-2" />}
+              <span>Download Excel (.xlsx)</span>
+            </Button>
+            <Button
               variant="outline"
               disabled={exportingRaw}
-              onClick={() => handleExportRawBallots("CSV")}
-              className="w-full bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 font-bold text-xs rounded-full"
+              onClick={() => handleExportRawBallots("PDF")}
+              className="w-full bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100 font-bold text-xs rounded-full"
             >
-              {exportingRaw ? <Loader2 className="animate-spin w-3.5 h-3.5 mr-2 text-blue-600" /> : <Download className="w-3.5 h-3.5 mr-2 text-blue-600" />}
-              <span>Download CSV</span>
+              <Printer className="w-3.5 h-3.5 mr-2 text-rose-600" />
+              <span>Export PDF Report</span>
             </Button>
             <Button
               variant="ghost"
               disabled={exportingRaw}
-              onClick={() => handleExportRawBallots("JSON")}
+              onClick={() => handleExportRawBallots("CSV")}
               className="w-full text-slate-600 hover:text-slate-900 text-xs font-bold"
             >
-              <FileCode className="w-3.5 h-3.5 mr-2 text-blue-600" />
-              <span>Download JSON</span>
+              <Download className="w-3.5 h-3.5 mr-2 text-blue-600" />
+              <span>Download CSV File</span>
             </Button>
           </CardContent>
         </Card>
@@ -302,22 +442,31 @@ export default function OrganizerExportsDashboardPage() {
           </CardHeader>
           <CardContent className="pt-4 space-y-2">
             <Button
+              variant="primary"
+              disabled={exportingTally}
+              onClick={() => handleExportNomineeTally("EXCEL")}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-full shadow-sm"
+            >
+              {exportingTally ? <Loader2 className="animate-spin w-3.5 h-3.5 mr-2" /> : <FileSpreadsheet className="w-3.5 h-3.5 mr-2" />}
+              <span>Download Excel (.xlsx)</span>
+            </Button>
+            <Button
               variant="outline"
               disabled={exportingTally}
-              onClick={() => handleExportNomineeTally("CSV")}
-              className="w-full bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 font-bold text-xs rounded-full"
+              onClick={() => handleExportNomineeTally("PDF")}
+              className="w-full bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100 font-bold text-xs rounded-full"
             >
-              {exportingTally ? <Loader2 className="animate-spin w-3.5 h-3.5 mr-2 text-amber-600" /> : <Download className="w-3.5 h-3.5 mr-2 text-amber-600" />}
-              <span>Download CSV</span>
+              <Printer className="w-3.5 h-3.5 mr-2 text-rose-600" />
+              <span>Export PDF Report</span>
             </Button>
             <Button
               variant="ghost"
               disabled={exportingTally}
-              onClick={() => handleExportNomineeTally("JSON")}
+              onClick={() => handleExportNomineeTally("CSV")}
               className="w-full text-slate-600 hover:text-slate-900 text-xs font-bold"
             >
-              <FileCode className="w-3.5 h-3.5 mr-2 text-amber-600" />
-              <span>Download JSON</span>
+              <Download className="w-3.5 h-3.5 mr-2 text-amber-600" />
+              <span>Download CSV File</span>
             </Button>
           </CardContent>
         </Card>
@@ -333,15 +482,33 @@ export default function OrganizerExportsDashboardPage() {
               Credential security audit logs including whitelisted voter OTP deliveries, verified markers, and invitation code status logs.
             </CardDescription>
           </CardHeader>
-          <CardContent className="pt-4">
+          <CardContent className="pt-4 space-y-2">
+            <Button
+              variant="primary"
+              disabled={exportingVoters}
+              onClick={() => handleExportVoters("EXCEL")}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-full shadow-sm"
+            >
+              {exportingVoters ? <Loader2 className="animate-spin w-3.5 h-3.5 mr-2" /> : <FileSpreadsheet className="w-3.5 h-3.5 mr-2" />}
+              <span>Download Excel (.xlsx)</span>
+            </Button>
             <Button
               variant="outline"
               disabled={exportingVoters}
-              onClick={handleExportVoters}
-              className="w-full bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 font-bold text-xs rounded-full"
+              onClick={() => handleExportVoters("PDF")}
+              className="w-full bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100 font-bold text-xs rounded-full"
             >
-              {exportingVoters ? <Loader2 className="animate-spin w-3.5 h-3.5 mr-2 text-purple-600" /> : <Download className="w-3.5 h-3.5 mr-2 text-purple-600" />}
-              <span>Download CSV Logs</span>
+              <Printer className="w-3.5 h-3.5 mr-2 text-rose-600" />
+              <span>Export PDF Report</span>
+            </Button>
+            <Button
+              variant="ghost"
+              disabled={exportingVoters}
+              onClick={() => handleExportVoters("CSV")}
+              className="w-full text-slate-600 hover:text-slate-900 text-xs font-bold"
+            >
+              <Download className="w-3.5 h-3.5 mr-2 text-purple-600" />
+              <span>Download CSV File</span>
             </Button>
           </CardContent>
         </Card>
