@@ -1,17 +1,20 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
 export async function middleware(request: NextRequest) {
-  try {
-    return await updateSession(request);
-  } catch (error) {
-    // Fail-safe fallback so Edge Middleware NEVER crashes site with 500 MIDDLEWARE_INVOCATION_FAILED
-    return NextResponse.next();
-  }
+  return await updateSession(request);
 }
 
 export const config = {
   matcher: [
+    /*
+     * Match all request paths except for:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public files (images, etc.)
+     * - API public routes are handled inside the middleware logic
+     */
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

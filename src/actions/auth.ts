@@ -16,6 +16,8 @@ export const signInAction = async (formData: FormData) => {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
 
+  let errorMessage: string | null = null;
+
   try {
     const supabase = await createClient();
     const { error } = await supabase.auth.signInWithPassword({
@@ -24,12 +26,18 @@ export const signInAction = async (formData: FormData) => {
     });
 
     if (error) {
-      return encodedRedirect("error", "/sign-in", error.message);
+      errorMessage = error.message;
     }
   } catch (err: any) {
-    console.warn("Supabase Auth remote connection failed, falling back to Dev Mode:", err?.message || err);
-    const cookieStore = await cookies();
-    cookieStore.set("awardos_dev_mode", "true", { path: "/" });
+    if (err?.digest?.startsWith("NEXT_REDIRECT")) {
+      throw err;
+    }
+    console.warn("Supabase auth sign in error:", err?.message || err);
+    errorMessage = err?.message || "Sign in failed";
+  }
+
+  if (errorMessage) {
+    return encodedRedirect("error", "/sign-in", errorMessage);
   }
 
   return redirect("/dashboard");
@@ -39,6 +47,9 @@ export const signUpAction = async (formData: FormData) => {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   const name = formData.get("name") as string;
+
+  let errorMessage: string | null = null;
+  let isSuccess = false;
 
   try {
     const supabase = await createClient();
@@ -51,13 +62,20 @@ export const signUpAction = async (formData: FormData) => {
     });
 
     if (error) {
-      return encodedRedirect("error", "/sign-up", error.message);
+      errorMessage = error.message;
+    } else {
+      isSuccess = true;
     }
   } catch (err: any) {
-    console.warn("Supabase Auth remote connection failed, falling back to Dev Mode:", err?.message || err);
-    const cookieStore = await cookies();
-    cookieStore.set("awardos_dev_mode", "true", { path: "/" });
-    return redirect("/dashboard");
+    if (err?.digest?.startsWith("NEXT_REDIRECT")) {
+      throw err;
+    }
+    console.warn("Supabase auth sign up error:", err?.message || err);
+    errorMessage = err?.message || "Sign up failed";
+  }
+
+  if (errorMessage) {
+    return encodedRedirect("error", "/sign-up", errorMessage);
   }
 
   return redirect("/verify-email");
@@ -87,17 +105,17 @@ export const googleSignInAction = async (originUrl?: string) => {
       googleUrl = data.url;
     }
   } catch (err: any) {
+    if (err?.digest?.startsWith("NEXT_REDIRECT")) {
+      throw err;
+    }
     console.warn("Google auth initialization error:", err?.message || err);
   }
 
-  // If Google OAuth URL was generated, redirect to Google!
   if (googleUrl) {
     return redirect(googleUrl);
   }
 
-  // Fallback if Google OAuth is unconfigured
-  cookieStore.set("awardos_dev_mode", "true", { path: "/", maxAge: 60 * 60 * 24 * 7 });
-  return redirect("/dashboard");
+  return redirect("/sign-in?error=Google%20sign%20in%20unavailable");
 };
 
 export const enableDevBypassAction = async () => {
@@ -111,7 +129,7 @@ export const signOutAction = async () => {
     const supabase = await createClient();
     await supabase.auth.signOut();
   } catch (e) {
-    // Ignore signout error on local dev mode
+    // Ignore signout error
   }
   const cookieStore = await cookies();
   cookieStore.delete("awardos_dev_mode");
