@@ -2,63 +2,72 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
 export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({
-    request,
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
   });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return response;
+  }
+
+  try {
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
       cookies: {
         getAll() {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            request.cookies.set(name, value)
-          );
-          supabaseResponse = NextResponse.next({
-            request,
+          cookiesToSet.forEach(({ name, value, options }) => {
+            try {
+              request.cookies.set(name, value);
+            } catch (err) {
+              // Ignore read-only RequestCookies error in Next.js Edge Middleware
+            }
+            response.cookies.set(name, value, options);
           });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
         },
       },
+    });
+
+    // Refresh auth user session safely
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const isDevBypass = request.cookies.get("awardos_dev_mode")?.value === "true";
+
+    // Protected routes check
+    const isProtectedRoute =
+      request.nextUrl.pathname.startsWith("/dashboard") ||
+      request.nextUrl.pathname.startsWith("/events/") ||
+      request.nextUrl.pathname.startsWith("/team") ||
+      request.nextUrl.pathname.startsWith("/settings");
+
+    if (isProtectedRoute && !user && !isDevBypass) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/sign-in";
+      url.searchParams.set("redirect", request.nextUrl.pathname);
+      return NextResponse.redirect(url);
     }
-  );
 
-  // Refresh auth token
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    // Auth routes check
+    const isAuthRoute =
+      request.nextUrl.pathname.startsWith("/sign-in") ||
+      request.nextUrl.pathname.startsWith("/sign-up");
 
-  const isDevBypass = request.cookies.get("awardos_dev_mode")?.value === "true";
-
-  // Protected routes — redirect to sign-in if not authenticated (unless in dev bypass mode)
-  const isProtectedRoute =
-    request.nextUrl.pathname.startsWith("/dashboard") ||
-    request.nextUrl.pathname.startsWith("/events/") ||
-    request.nextUrl.pathname.startsWith("/settings");
-
-  if (isProtectedRoute && !user && !isDevBypass) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/sign-in";
-    url.searchParams.set("redirect", request.nextUrl.pathname);
-    return NextResponse.redirect(url);
+    if (isAuthRoute && user) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard";
+      return NextResponse.redirect(url);
+    }
+  } catch (err) {
+    console.warn("Middleware error handled safely:", err);
   }
 
-  // Auth routes — redirect to dashboard if already authenticated
-  const isAuthRoute =
-    request.nextUrl.pathname.startsWith("/sign-in") ||
-    request.nextUrl.pathname.startsWith("/sign-up");
-
-  if (isAuthRoute && user) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
-  }
-
-  return supabaseResponse;
+  return response;
 }
