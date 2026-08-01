@@ -245,7 +245,6 @@ export async function updateEventTimelineAction(
       .set({
         startsAt: update.startsAt ? new Date(update.startsAt) : null,
         endsAt: update.endsAt ? new Date(update.endsAt) : null,
-        updatedAt: new Date(),
       })
       .where(and(eq(workflowStages.id, update.stageId), eq(workflowStages.eventId, eventId)));
   }
