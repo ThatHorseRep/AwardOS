@@ -2,11 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
 export async function updateSession(request: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  });
+  let response = NextResponse.next();
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -24,11 +20,10 @@ export async function updateSession(request: NextRequest) {
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
             try {
-              request.cookies.set(name, value);
+              response.cookies.set(name, value, options);
             } catch (err) {
-              // Ignore read-only RequestCookies error in Next.js Edge Middleware
+              // Ignore cookie errors
             }
-            response.cookies.set(name, value, options);
           });
         },
       },
@@ -44,7 +39,7 @@ export async function updateSession(request: NextRequest) {
     // Protected routes check
     const isProtectedRoute =
       request.nextUrl.pathname.startsWith("/dashboard") ||
-      request.nextUrl.pathname.startsWith("/events/") ||
+      request.nextUrl.pathname.startsWith("/events") ||
       request.nextUrl.pathname.startsWith("/team") ||
       request.nextUrl.pathname.startsWith("/settings");
 
@@ -66,7 +61,8 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url);
     }
   } catch (err) {
-    console.warn("Middleware error handled safely:", err);
+    // Return standard response on any Edge exception
+    return response;
   }
 
   return response;
