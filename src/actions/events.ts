@@ -162,22 +162,32 @@ export async function getEventDetailsAction(eventId: string) {
 
   const event = eventList[0];
 
-  // Fetch categories with nomination counts
+  // Fetch categories with nomination counts, incoming nominations, and official nominees
   const eventCategories = await db
     .select()
     .from(categories)
     .where(eq(categories.eventId, event.id))
     .orderBy(categories.displayOrder);
 
-  const categoriesWithCounts = await Promise.all(
+  const categoriesWithDetails = await Promise.all(
     eventCategories.map(async (cat) => {
-      const nomCount = await db
-        .select({ val: count() })
+      const nomList = await db
+        .select()
         .from(nominations)
-        .where(eq(nominations.categoryId, cat.id));
+        .where(eq(nominations.categoryId, cat.id))
+        .orderBy(nominations.createdAt);
+
+      const nomineeList = await db
+        .select()
+        .from(nominees)
+        .where(eq(nominees.categoryId, cat.id))
+        .orderBy(nominees.displayOrder);
+
       return {
         ...cat,
-        count: nomCount[0]?.val || 0,
+        count: nomList.length,
+        incomingNominations: nomList,
+        nominees: nomineeList,
       };
     })
   );
@@ -212,12 +222,35 @@ export async function getEventDetailsAction(eventId: string) {
 
   return {
     ...event,
-    categories: categoriesWithCounts,
+    categories: categoriesWithDetails,
     stages,
     branding,
     nominationsCount,
     votesCount,
   };
+}
+
+export async function updateEventTimelineAction(
+  eventId: string,
+  stageUpdates: { stageId: string; startsAt?: string | null; endsAt?: string | null }[]
+) {
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  for (const update of stageUpdates) {
+    await db
+      .update(workflowStages)
+      .set({
+        startsAt: update.startsAt ? new Date(update.startsAt) : null,
+        endsAt: update.endsAt ? new Date(update.endsAt) : null,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(workflowStages.id, update.stageId), eq(workflowStages.eventId, eventId)));
+  }
+
+  return { success: true };
 }
 
 export async function deleteEventAction(eventId: string) {

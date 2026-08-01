@@ -26,11 +26,21 @@ import {
   Share2,
   Loader2,
   ShieldAlert,
+  ChevronDown,
+  ChevronUp,
+  Save,
+  Check,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getEventDetailsAction, updateEventBrandingAction, duplicateEventAction, updateWorkflowStageStatusAction } from "@/actions/events";
+import {
+  getEventDetailsAction,
+  updateEventBrandingAction,
+  duplicateEventAction,
+  updateWorkflowStageStatusAction,
+  updateEventTimelineAction,
+} from "@/actions/events";
 import { updateEventSettingsAction } from "@/actions/voting";
 import { BulkImportModal } from "@/components/import/bulk-import-modal";
 
@@ -43,6 +53,12 @@ export default function EventDetailPage() {
 
   const [event, setEvent] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState<{ [catId: string]: boolean }>({});
+
+  // Timeline / Schedule state
+  const [stageDates, setStageDates] = useState<{ [stageId: string]: { startsAt: string; endsAt: string } }>({});
+  const [updatingTimeline, setUpdatingTimeline] = useState(false);
+  const [timelineSuccess, setTimelineSuccess] = useState(false);
 
   // Settings tab form states
   const [visibility, setVisibility] = useState<"PUBLIC" | "UNLISTED" | "PRIVATE">("PRIVATE");
@@ -85,6 +101,18 @@ export default function EventDetailPage() {
           setPrimaryColor(data.branding?.primaryColor || "#2563eb");
           setSecondaryColor(data.branding?.secondaryColor || "#1d4ed8");
           setAccentColor(data.branding?.accentColor || "#f59e0b");
+
+          // Load timeline stage dates
+          if (data.stages) {
+            const datesMap: any = {};
+            data.stages.forEach((s: any) => {
+              datesMap[s.id] = {
+                startsAt: s.startsAt ? new Date(s.startsAt).toISOString().slice(0, 16) : "",
+                endsAt: s.endsAt ? new Date(s.endsAt).toISOString().slice(0, 16) : "",
+              };
+            });
+            setStageDates(datesMap);
+          }
         }
       } catch (err) {
         console.error("Failed to load event details:", err);
@@ -94,6 +122,42 @@ export default function EventDetailPage() {
     }
     loadData();
   }, [eventId]);
+
+  const toggleCategoryExpand = (catId: string) => {
+    setExpandedCategoryIds((prev) => ({ ...prev, [catId]: !prev[catId] }));
+  };
+
+  const handleStageDateChange = (stageId: string, field: "startsAt" | "endsAt", value: string) => {
+    setStageDates((prev) => ({
+      ...prev,
+      [stageId]: {
+        ...prev[stageId],
+        [field]: value,
+      },
+    }));
+  };
+
+  const handleSaveTimeline = async () => {
+    setUpdatingTimeline(true);
+    setTimelineSuccess(false);
+    try {
+      const updates = Object.entries(stageDates).map(([stageId, dates]) => ({
+        stageId,
+        startsAt: dates.startsAt || null,
+        endsAt: dates.endsAt || null,
+      }));
+      await updateEventTimelineAction(eventId, updates);
+      setTimelineSuccess(true);
+      setTimeout(() => setTimelineSuccess(false), 3000);
+      const updated = await getEventDetailsAction(eventId);
+      setEvent(updated);
+    } catch (err) {
+      console.error("Failed to update timeline:", err);
+      alert("Error updating stage timeline");
+    } finally {
+      setUpdatingTimeline(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -248,7 +312,7 @@ export default function EventDetailPage() {
         {[
           { id: "overview", label: "Overview", icon: Trophy },
           { id: "categories", label: `Categories (${event.categories.length})`, icon: Layers },
-          { id: "workflow", label: "Workflow Pipeline", icon: Sparkles },
+          { id: "workflow", label: "Workflow & Timeline", icon: Calendar },
           { id: "branding", label: "Branding Assets", icon: ImageIcon },
           { id: "settings", label: "Event Settings", icon: SettingsIcon },
         ].map((tab) => {
@@ -393,13 +457,15 @@ export default function EventDetailPage() {
         </div>
       )}
 
-      {/* Tab 2: Categories */}
+      {/* Tab 2: Categories with Live Submissions Feed */}
       {activeTab === "categories" && (
         <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 pb-4">
             <div>
-              <CardTitle className="text-base font-bold text-slate-900">Award Categories</CardTitle>
-              <CardDescription className="text-xs text-slate-600 font-medium">Manage the award categories for this event program.</CardDescription>
+              <CardTitle className="text-base font-bold text-slate-900">Award Categories & Live Incoming Submissions</CardTitle>
+              <CardDescription className="text-xs text-slate-600 font-medium">
+                View category definitions and monitor incoming live user nominations in real time as they arrive.
+              </CardDescription>
             </div>
             <div className="flex items-center gap-3">
               <Link href={`/events/${eventId}/suggested-categories`}>
@@ -415,120 +481,221 @@ export default function EventDetailPage() {
             </div>
           </CardHeader>
 
-          <CardContent className="space-y-3 pt-4">
-            {event.categories.map((cat: any, idx: number) => (
-              <div
-                key={cat.id}
-                className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-center justify-between gap-4"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 text-xs font-bold flex items-center justify-center border border-blue-200">
-                    {idx + 1}
-                  </span>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900">{cat.name}</h4>
-                    <p className="text-xs text-slate-600 font-medium">{cat.description}</p>
-                  </div>
-                </div>
+          <CardContent className="space-y-4 pt-4">
+            {event.categories.map((cat: any, idx: number) => {
+              const isExpanded = expandedCategoryIds[cat.id];
+              const incomingList = cat.incomingNominations || [];
 
-                <div className="flex items-center gap-3">
-                  <Badge variant="purple" size="sm">{cat.count} Nominees</Badge>
-                  <button className="p-2 text-slate-500 hover:text-slate-900 rounded-xl hover:bg-slate-200 transition-colors">
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button className="p-2 text-slate-500 hover:text-rose-600 rounded-xl hover:bg-rose-50 transition-colors">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+              return (
+                <div
+                  key={cat.id}
+                  className="rounded-3xl bg-slate-50 border border-slate-200/80 overflow-hidden space-y-0"
+                >
+                  <div className="p-4 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <span className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center border border-blue-200">
+                        {idx + 1}
+                      </span>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">{cat.name}</h4>
+                        <p className="text-xs text-slate-600 font-medium">{cat.description || "No category description"}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <Badge variant="purple" size="sm">{cat.count} Submissions</Badge>
+                      <button
+                        onClick={() => toggleCategoryExpand(cat.id)}
+                        className="px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1 hover:bg-slate-100 shadow-sm"
+                      >
+                        <span>{isExpanded ? "Hide Feed" : "View Live Feed"}</span>
+                        {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Expanded Live Incoming Feed */}
+                  {isExpanded && (
+                    <div className="p-4 bg-white border-t border-slate-200/80 space-y-3 animate-in fade-in duration-200">
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-900 border-b border-slate-100 pb-2">
+                        <span className="flex items-center gap-1.5 text-blue-600">
+                          <Users className="w-4 h-4" /> Incoming Live Submissions ({incomingList.length})
+                        </span>
+                        <Link href={`/events/${eventId}/ai-cleanup`}>
+                          <Button variant="ghost" size="sm" className="text-xs text-purple-600 font-bold hover:bg-purple-50 h-7">
+                            <Sparkles className="w-3.5 h-3.5 mr-1" /> Clean Up in AI Hub →
+                          </Button>
+                        </Link>
+                      </div>
+
+                      {incomingList.length === 0 ? (
+                        <div className="text-center text-slate-500 text-xs italic py-4 font-medium">
+                          No incoming nominations received for this category yet. Share the public nomination link to start collecting entries!
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                          {incomingList.map((nom: any, nIdx: number) => (
+                            <div
+                              key={nom.id || nIdx}
+                              className="p-3 rounded-2xl bg-slate-50 border border-slate-200/60 text-xs space-y-1 font-medium"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-slate-900 truncate">{nom.nomineeText}</span>
+                                <Badge variant="neutral" size="sm">{nom.status || "LOGGED"}</Badge>
+                              </div>
+                              <div className="text-[10px] text-slate-500 flex items-center justify-between font-mono">
+                                <span>Submitted</span>
+                                <span>{new Date(nom.createdAt).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
       )}
 
-      {/* Tab 3: Workflow Pipeline Control */}
+      {/* Tab 3: Workflow Pipeline & Timeline Editor */}
       {activeTab === "workflow" && (
         <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
-          <CardHeader className="border-b border-slate-100 pb-4">
-            <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Layers className="w-5 h-5 text-blue-600" /> Event Lifecycle Pipeline Control
-            </CardTitle>
-            <CardDescription className="text-xs text-slate-600 font-medium">
-              Manage stage transitions. Activating a stage automatically opens corresponding voter portals.
-            </CardDescription>
+          <CardHeader className="border-b border-slate-100 pb-4 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-blue-600" /> Event Schedule & Stage Timeline Editor
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-600 font-medium">
+                Adjust nomination and voting window durations, set opening/closing dates, or manually activate stages.
+              </CardDescription>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {timelineSuccess && (
+                <span className="text-xs text-emerald-600 font-bold animate-in fade-in duration-300">
+                  ✓ Timeline Updated!
+                </span>
+              )}
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={updatingTimeline}
+                onClick={handleSaveTimeline}
+                className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20 px-5"
+              >
+                {updatingTimeline ? <Loader2 className="animate-spin w-4 h-4 mr-1.5" /> : <Save className="w-4 h-4 mr-1.5" />}
+                <span>Save Timeline Schedule</span>
+              </Button>
+            </div>
           </CardHeader>
+
           <CardContent className="space-y-4 pt-4">
             {event.stages?.map((s: any, idx: number) => {
               const isActive = s.status === "ACTIVE";
               const isCompleted = s.status === "COMPLETED";
+              const currentDates = stageDates[s.id] || { startsAt: "", endsAt: "" };
 
               return (
                 <div
                   key={s.id}
-                  className={`p-4 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                  className={`p-4 rounded-3xl border transition-all space-y-3 ${
                     isActive
-                      ? "bg-blue-50 border-blue-300 shadow-sm"
+                      ? "bg-blue-50/60 border-blue-300 shadow-sm"
                       : isCompleted
                       ? "bg-slate-50 border-slate-200 opacity-90"
                       : "bg-slate-50/60 border-slate-200/60"
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-8 h-8 rounded-xl font-bold text-xs flex items-center justify-center ${
-                        isActive
-                          ? "bg-blue-600 text-white"
-                          : isCompleted
-                          ? "bg-emerald-100 text-emerald-700 border border-emerald-300"
-                          : "bg-slate-200 text-slate-600"
-                      }`}
-                    >
-                      {isCompleted ? "✓" : idx + 1}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-slate-900 text-sm">{s.displayName}</h4>
-                        <Badge
-                          variant={isActive ? "success" : isCompleted ? "purple" : "neutral"}
-                          size="sm"
-                        >
-                          {s.status}
-                        </Badge>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-8 h-8 rounded-xl font-bold text-xs flex items-center justify-center ${
+                          isActive
+                            ? "bg-blue-600 text-white"
+                            : isCompleted
+                            ? "bg-emerald-100 text-emerald-700 border border-emerald-300"
+                            : "bg-slate-200 text-slate-600"
+                        }`}
+                      >
+                        {isCompleted ? "✓" : idx + 1}
                       </div>
-                      <p className="text-xs text-slate-500 mt-0.5 font-mono font-medium">
-                        Type: {s.stageType}
-                      </p>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-slate-900 text-sm">{s.displayName}</h4>
+                          <Badge
+                            variant={isActive ? "success" : isCompleted ? "purple" : "neutral"}
+                            size="sm"
+                          >
+                            {s.status}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5 font-mono font-medium">
+                          Type: {s.stageType}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {!isActive && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={async () => {
+                            await updateWorkflowStageStatusAction(eventId, s.id, "ACTIVE");
+                            window.location.reload();
+                          }}
+                          className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-600/20"
+                        >
+                          Activate Stage Now
+                        </Button>
+                      )}
+                      {isActive && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={async () => {
+                            await updateWorkflowStageStatusAction(eventId, s.id, "COMPLETED");
+                            window.location.reload();
+                          }}
+                          className="rounded-full bg-slate-200 text-slate-800 hover:bg-slate-300 font-bold text-xs"
+                        >
+                          Mark Completed
+                        </Button>
+                      )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    {!isActive && (
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={async () => {
-                          await updateWorkflowStageStatusAction(eventId, s.id, "ACTIVE");
-                          window.location.reload();
-                        }}
-                        className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-600/20"
-                      >
-                        Activate Stage
-                      </Button>
-                    )}
-                    {isActive && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={async () => {
-                          await updateWorkflowStageStatusAction(eventId, s.id, "COMPLETED");
-                          window.location.reload();
-                        }}
-                        className="rounded-full bg-slate-200 text-slate-800 hover:bg-slate-300 font-bold text-xs"
-                      >
-                        Mark Completed
-                      </Button>
-                    )}
-                  </div>
+                  {/* Datetime Pickers for Stage Schedule */}
+                  {(s.stageType === "NOMINATIONS" || s.stageType === "VOTING" || s.stageType === "OFFICIAL_RESULTS") && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/60">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-slate-700 flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-blue-600" /> Start Date & Time
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={currentDates.startsAt}
+                          onChange={(e) => handleStageDateChange(s.id, "startsAt", e.target.value)}
+                          className="w-full bg-white text-slate-900 text-xs rounded-xl p-2 border border-slate-200 focus:outline-none font-medium"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-slate-700 flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-rose-600" /> End Date & Time (Deadline)
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={currentDates.endsAt}
+                          onChange={(e) => handleStageDateChange(s.id, "endsAt", e.target.value)}
+                          className="w-full bg-white text-slate-900 text-xs rounded-xl p-2 border border-slate-200 focus:outline-none font-medium"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}

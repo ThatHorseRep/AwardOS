@@ -216,16 +216,16 @@ export default function OrganizerExportsDashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="animate-spin rounded-full h-8 w-8 text-indigo-500" />
+        <Loader2 className="animate-spin rounded-full h-8 w-8 text-blue-600" />
       </div>
     );
   }
 
   if (!event) {
     return (
-      <div className="text-center py-12 text-slate-300 font-sans">
-        <h2 className="text-xl font-bold text-white">Event not found</h2>
-        <Link href="/dashboard/events" className="mt-4 inline-block text-indigo-400 hover:underline">
+      <div className="text-center py-12 font-sans select-none">
+        <h2 className="text-xl font-bold text-slate-900">Event not found</h2>
+        <Link href="/events" className="mt-4 inline-block text-blue-600 hover:underline font-bold">
           Back to Events
         </Link>
       </div>
@@ -233,22 +233,22 @@ export default function OrganizerExportsDashboardPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto font-sans pb-12">
+    <div className="space-y-6 max-w-4xl mx-auto font-sans select-none pb-16">
       {/* Header bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
           <Link href={`/events/${eventId}`}>
-            <Button variant="ghost" size="icon" className="mt-1">
+            <Button variant="ghost" size="icon" className="mt-1 text-slate-700 hover:bg-slate-200">
               <ArrowLeft className="w-4 h-4" />
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-              <FileSpreadsheet className="w-6 h-6 text-emerald-400" />
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              <FileSpreadsheet className="w-6 h-6 text-emerald-600" />
               <span>Data Export & Report Hub</span>
             </h1>
-            <p className="text-slate-400 text-xs mt-1">
-              Generate and download certified reports (CSV / JSON) of votes, tallies, and audit logs for <strong className="text-slate-300">{event.name}</strong>.
+            <p className="text-slate-600 text-xs mt-1 font-medium">
+              Generate and download certified reports (CSV / JSON) of votes, tallies, and audit logs for <strong className="text-slate-900">{event.name}</strong>.
             </p>
           </div>
         </div>
@@ -257,90 +257,90 @@ export default function OrganizerExportsDashboardPage() {
       {/* Grid of export choices */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Card 1: Raw ballots log */}
-        <Card className="border-slate-800 bg-slate-950/20 flex flex-col justify-between">
-          <CardHeader>
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mb-3">
+        <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm flex flex-col justify-between">
+          <CardHeader className="border-b border-slate-100 pb-4">
+            <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-2 border border-blue-200">
               <Layers className="w-5 h-5" />
             </div>
-            <CardTitle className="text-sm font-bold text-white">Raw Ballots Register</CardTitle>
-            <CardDescription className="text-xs">
+            <CardTitle className="text-sm font-bold text-slate-900">Raw Ballots Register</CardTitle>
+            <CardDescription className="text-xs text-slate-600 font-medium">
               Includes Vote Session ID, chosen nominee entries, client IPs, browser fingerprints, and validation timestamps.
             </CardDescription>
           </CardHeader>
-          <CardContent className="pt-2 space-y-2">
+          <CardContent className="pt-4 space-y-2">
             <Button
               variant="outline"
               disabled={exportingRaw}
               onClick={() => handleExportRawBallots("CSV")}
-              className="w-full border-slate-800 text-slate-200 hover:bg-slate-900/60 text-xs"
+              className="w-full bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 font-bold text-xs rounded-full"
             >
-              {exportingRaw ? <Loader2 className="animate-spin w-3.5 h-3.5 mr-2" /> : <Download className="w-3.5 h-3.5 mr-2" />}
+              {exportingRaw ? <Loader2 className="animate-spin w-3.5 h-3.5 mr-2 text-blue-600" /> : <Download className="w-3.5 h-3.5 mr-2 text-blue-600" />}
               <span>Download CSV</span>
             </Button>
             <Button
               variant="ghost"
               disabled={exportingRaw}
               onClick={() => handleExportRawBallots("JSON")}
-              className="w-full text-slate-400 hover:text-white text-xs"
+              className="w-full text-slate-600 hover:text-slate-900 text-xs font-bold"
             >
-              <FileCode className="w-3.5 h-3.5 mr-2 text-indigo-400" />
+              <FileCode className="w-3.5 h-3.5 mr-2 text-blue-600" />
               <span>Download JSON</span>
             </Button>
           </CardContent>
         </Card>
 
         {/* Card 2: Nominees Tally */}
-        <Card className="border-slate-800 bg-slate-950/20 flex flex-col justify-between">
-          <CardHeader>
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center mb-3">
+        <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm flex flex-col justify-between">
+          <CardHeader className="border-b border-slate-100 pb-4">
+            <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-2 border border-amber-200">
               <FileSpreadsheet className="w-5 h-5" />
             </div>
-            <CardTitle className="text-sm font-bold text-white">Nominees Tally Summary</CardTitle>
-            <CardDescription className="text-xs">
+            <CardTitle className="text-sm font-bold text-slate-900">Nominees Tally Summary</CardTitle>
+            <CardDescription className="text-xs text-slate-600 font-medium">
               Aggregated results sheet detailing categories, candidate rankings, total vote counts, and percentage share tallies.
             </CardDescription>
           </CardHeader>
-          <CardContent className="pt-2 space-y-2">
+          <CardContent className="pt-4 space-y-2">
             <Button
               variant="outline"
               disabled={exportingTally}
               onClick={() => handleExportNomineeTally("CSV")}
-              className="w-full border-slate-800 text-slate-200 hover:bg-slate-900/60 text-xs"
+              className="w-full bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 font-bold text-xs rounded-full"
             >
-              {exportingTally ? <Loader2 className="animate-spin w-3.5 h-3.5 mr-2" /> : <Download className="w-3.5 h-3.5 mr-2" />}
+              {exportingTally ? <Loader2 className="animate-spin w-3.5 h-3.5 mr-2 text-amber-600" /> : <Download className="w-3.5 h-3.5 mr-2 text-amber-600" />}
               <span>Download CSV</span>
             </Button>
             <Button
               variant="ghost"
               disabled={exportingTally}
               onClick={() => handleExportNomineeTally("JSON")}
-              className="w-full text-slate-400 hover:text-white text-xs"
+              className="w-full text-slate-600 hover:text-slate-900 text-xs font-bold"
             >
-              <FileCode className="w-3.5 h-3.5 mr-2 text-amber-400" />
+              <FileCode className="w-3.5 h-3.5 mr-2 text-amber-600" />
               <span>Download JSON</span>
             </Button>
           </CardContent>
         </Card>
 
         {/* Card 3: Voter Telemetry */}
-        <Card className="border-slate-800 bg-slate-950/20 flex flex-col justify-between">
-          <CardHeader>
-            <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center mb-3">
+        <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm flex flex-col justify-between">
+          <CardHeader className="border-b border-slate-100 pb-4">
+            <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center mb-2 border border-purple-200">
               <Users className="w-5 h-5" />
             </div>
-            <CardTitle className="text-sm font-bold text-white">Voter Verification Logs</CardTitle>
-            <CardDescription className="text-xs">
+            <CardTitle className="text-sm font-bold text-slate-900">Voter Verification Logs</CardTitle>
+            <CardDescription className="text-xs text-slate-600 font-medium">
               Credential security audit logs including whitelisted voter OTP deliveries, verified markers, and invitation code status logs.
             </CardDescription>
           </CardHeader>
-          <CardContent className="pt-2">
+          <CardContent className="pt-4">
             <Button
               variant="outline"
               disabled={exportingVoters}
               onClick={handleExportVoters}
-              className="w-full border-slate-800 text-slate-200 hover:bg-slate-900/60 text-xs"
+              className="w-full bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 font-bold text-xs rounded-full"
             >
-              {exportingVoters ? <Loader2 className="animate-spin w-3.5 h-3.5 mr-2" /> : <Download className="w-3.5 h-3.5 mr-2" />}
+              {exportingVoters ? <Loader2 className="animate-spin w-3.5 h-3.5 mr-2 text-purple-600" /> : <Download className="w-3.5 h-3.5 mr-2 text-purple-600" />}
               <span>Download CSV Logs</span>
             </Button>
           </CardContent>
@@ -349,22 +349,22 @@ export default function OrganizerExportsDashboardPage() {
 
       {/* History of Export Jobs */}
       {exportJobs.length > 0 && (
-        <Card className="border-slate-800 bg-slate-950/20">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-xs font-bold text-white flex items-center gap-2">
-              <History className="w-4 h-4 text-slate-400" /> Recent Export Jobs Log
+        <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
+          <CardHeader className="border-b border-slate-100 pb-3">
+            <CardTitle className="text-xs font-bold text-slate-900 flex items-center gap-2">
+              <History className="w-4 h-4 text-slate-600" /> Recent Export Jobs Log
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4">
             <div className="space-y-2">
               {exportJobs.slice(0, 10).map((job) => (
                 <div
                   key={job.id}
-                  className="p-3 rounded-xl bg-slate-900/40 border border-slate-800/80 flex items-center justify-between text-xs"
+                  className="p-3 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-center justify-between text-xs"
                 >
                   <div className="space-y-0.5">
-                    <span className="font-bold text-slate-200">{job.exportType} ({job.format})</span>
-                    <div className="text-[10px] text-slate-500 font-mono">
+                    <span className="font-bold text-slate-900">{job.exportType} ({job.format})</span>
+                    <div className="text-[10px] text-slate-500 font-mono font-medium">
                       Generated at: {new Date(job.createdAt).toLocaleString()}
                     </div>
                   </div>
