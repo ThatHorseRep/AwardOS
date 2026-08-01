@@ -9,7 +9,7 @@ import { getCurrentUser, ensureUserRecord, getOrCreateWorkspaceAction } from "./
 export async function createExportJobAction(
   eventId: string,
   type: "OFFICIAL_RESULTS" | "VOTE_TALLIES" | "AUDIT_TRAIL" | "INVITATION_CODES",
-  format: "CSV" | "JSON"
+  format: "CSV" | "JSON" | "PDF" | "XLSX"
 ) {
   const user = await getCurrentUser();
   if (!user) {

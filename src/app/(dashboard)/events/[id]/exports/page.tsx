@@ -235,7 +235,7 @@ export default function OrganizerExportsDashboardPage() {
         triggerDownload(csv, `${event?.slug}_raw_ballots_report.csv`, "text/csv;charset=utf-8;");
       }
 
-      await createExportJobAction(eventId, "VOTE_TALLIES", format === "EXCEL" ? "CSV" : format);
+      await createExportJobAction(eventId, "VOTE_TALLIES", format === "EXCEL" ? "XLSX" : format);
       await loadData();
     } catch (err) {
       console.error("Failed to export raw ballots:", err);
@@ -279,7 +279,7 @@ export default function OrganizerExportsDashboardPage() {
         triggerDownload(csv, `${event?.slug}_nominee_tally_report.csv`, "text/csv;charset=utf-8;");
       }
 
-      await createExportJobAction(eventId, "OFFICIAL_RESULTS", format === "EXCEL" ? "CSV" : format);
+      await createExportJobAction(eventId, "OFFICIAL_RESULTS", format === "EXCEL" ? "XLSX" : format);
       await loadData();
     } catch (err) {
       console.error("Failed to export nominee tally:", err);
@@ -334,7 +334,7 @@ export default function OrganizerExportsDashboardPage() {
         triggerDownload(csv, `${event?.slug}_voter_telemetry_logs.csv`, "text/csv;charset=utf-8;");
       }
 
-      await createExportJobAction(eventId, "INVITATION_CODES", format === "EXCEL" ? "CSV" : format);
+      await createExportJobAction(eventId, "INVITATION_CODES", format === "EXCEL" ? "XLSX" : format);
       await loadData();
     } catch (err) {
       console.error("Failed to export verification logs:", err);
