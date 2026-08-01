@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { getPublicEventDetailsAction } from "@/actions/events";
+import { ShareKitModal } from "@/components/sharing/share-kit-modal";
 
 export default function PublicEventPage() {
   const params = useParams();
@@ -84,15 +85,20 @@ export default function PublicEventPage() {
       })
     : "TBD";
 
-  const handleShareNominee = (nomineeName: string, catName: string) => {
-    const text = `Check out ${nomineeName} nominated for ${catName} in ${event.name}!`;
-    const url = window.location.href;
-    if (navigator.share) {
-      navigator.share({ title: event.name, text, url }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(`${text}\n${url}`);
-      alert("Nominee link copied to clipboard!");
-    }
+  const [shareModalState, setShareModalState] = useState<{
+    isOpen: boolean;
+    nomineeName?: string;
+    categoryName?: string;
+    nomineeId?: string;
+  }>({ isOpen: false });
+
+  const handleShareNominee = (nomineeName: string, catName: string, nomineeId?: string) => {
+    setShareModalState({
+      isOpen: true,
+      nomineeName,
+      categoryName: catName,
+      nomineeId,
+    });
   };
 
   return (
@@ -224,7 +230,7 @@ export default function PublicEventPage() {
                             </div>
 
                             <button
-                              onClick={() => handleShareNominee(nom.name, cat.name)}
+                              onClick={() => handleShareNominee(nom.name, cat.name, nom.id)}
                               className="text-slate-400 hover:text-slate-900 p-1.5 rounded-lg hover:bg-slate-200 transition-colors"
                               title="Share Candidate"
                             >
@@ -279,27 +285,37 @@ export default function PublicEventPage() {
             <div className="flex items-center gap-3">
               <Avatar name={selectedNomineeModal.nominee.name} size="lg" />
               <div>
-                <Badge variant="purple" size="sm">{selectedNomineeModal.categoryName}</Badge>
-                <h3 className="text-lg font-bold text-slate-900 mt-1">{selectedNomineeModal.nominee.name}</h3>
+                <h3 className="font-extrabold text-slate-900 text-base">
+                  {selectedNomineeModal.nominee.name}
+                </h3>
+                <Badge variant="purple" size="sm" className="mt-1">
+                  Category: {selectedNomineeModal.categoryName}
+                </Badge>
               </div>
             </div>
 
-            <div className="space-y-2 pt-2 border-t border-slate-100">
-              <span className="text-xs font-bold text-slate-900 block">Candidate Biography</span>
-              <p className="text-xs text-slate-600 leading-relaxed max-h-60 overflow-y-auto pr-1 font-medium">
-                {selectedNomineeModal.nominee.bio || "No biography details published for this candidate profile."}
+            {selectedNomineeModal.nominee.bio ? (
+              <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                {selectedNomineeModal.nominee.bio}
               </p>
-            </div>
+            ) : (
+              <p className="text-xs text-slate-500 italic">No biography provided for this nominee.</p>
+            )}
 
             <div className="flex items-center gap-3 pt-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handleShareNominee(selectedNomineeModal.nominee.name, selectedNomineeModal.categoryName)}
+                onClick={() => {
+                  const currentNom = selectedNomineeModal.nominee;
+                  const currentCat = selectedNomineeModal.categoryName;
+                  setSelectedNomineeModal(null);
+                  handleShareNominee(currentNom.name, currentCat, currentNom.id);
+                }}
                 className="flex-1 bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold rounded-full"
               >
                 <Share2 className="w-3.5 h-3.5 mr-1.5" />
-                <span>Share Profile</span>
+                <span>Share Profile & Embed</span>
               </Button>
 
               {isVotingActive && (
@@ -314,6 +330,17 @@ export default function PublicEventPage() {
           </div>
         </div>
       )}
+
+      {/* Share & Embed Kit Modal */}
+      <ShareKitModal
+        isOpen={shareModalState.isOpen}
+        onClose={() => setShareModalState({ isOpen: false })}
+        eventName={event.name}
+        eventSlug={event.slug}
+        nomineeName={shareModalState.nomineeName}
+        categoryName={shareModalState.categoryName}
+        nomineeId={shareModalState.nomineeId}
+      />
     </div>
   );
 }

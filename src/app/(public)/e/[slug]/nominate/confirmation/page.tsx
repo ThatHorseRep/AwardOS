@@ -1,25 +1,22 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Trophy, CheckCircle2, Share2, ArrowRight, Sparkles, Home } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ShareKitModal } from "@/components/sharing/share-kit-modal";
 
 export default function NominationConfirmationPage() {
   const params = useParams();
   const slug = params.slug as string;
+  const [shareModalOpen, setShareModalOpen] = useState(false);
 
   const eventTitle = slug
     .split("-")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
-
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(window.location.origin + `/e/${slug}`);
-    alert("Event link copied to clipboard!");
-  };
 
   return (
     <div className="max-w-md mx-auto py-8 text-center space-y-6 font-sans select-none pb-16">
@@ -49,19 +46,19 @@ export default function NominationConfirmationPage() {
 
         <CardContent className="space-y-3 pt-4">
           <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-center justify-between text-xs font-medium">
-            <span className="text-slate-600">Public Ballot Launch:</span>
-            <span className="font-bold text-blue-600">August 2026</span>
+            <span className="text-slate-600">Status:</span>
+            <span className="font-bold text-blue-600">Nomination Roster Logged</span>
           </div>
 
           <Button
             type="button"
             variant="outline"
             size="sm"
-            onClick={handleCopyLink}
-            className="w-full justify-center bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold shadow-sm rounded-full"
+            onClick={() => setShareModalOpen(true)}
+            className="w-full justify-center bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold shadow-sm rounded-full"
           >
-            <Share2 className="w-3.5 h-3.5 mr-1.5" />
-            <span>Share Event Link with Colleagues</span>
+            <Share2 className="w-3.5 h-3.5 mr-1.5 text-blue-600" />
+            <span>Share & Promote Event with Colleagues</span>
           </Button>
         </CardContent>
 
@@ -74,6 +71,13 @@ export default function NominationConfirmationPage() {
           </Link>
         </CardFooter>
       </Card>
+
+      <ShareKitModal
+        isOpen={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        eventName={eventTitle}
+        eventSlug={slug}
+      />
     </div>
   );
 }

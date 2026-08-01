@@ -20,6 +20,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { verifyBallotReceiptAction } from "@/actions/voting";
+import { ShareKitModal } from "@/components/sharing/share-kit-modal";
 
 export default function VotingThankYouPage() {
   const params = useParams();
@@ -27,6 +28,7 @@ export default function VotingThankYouPage() {
 
   const [receiptCode, setReceiptCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
 
   // Public Verification Tool state
   const [searchCode, setSearchCode] = useState("");
@@ -50,11 +52,6 @@ export default function VotingThankYouPage() {
     navigator.clipboard.writeText(receiptCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(window.location.origin + `/e/${slug}/vote`);
-    alert("Voting link copied to clipboard!");
   };
 
   const handleVerify = async (e: React.FormEvent) => {
@@ -180,11 +177,11 @@ export default function VotingThankYouPage() {
           type="button"
           variant="outline"
           size="md"
-          onClick={handleCopyLink}
+          onClick={() => setShareModalOpen(true)}
           className="w-full justify-center bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold rounded-full shadow-sm"
         >
-          <Share2 className="w-4 h-4 mr-2" />
-          <span>Invite Friends & Colleagues to Vote</span>
+          <Share2 className="w-4 h-4 mr-2 text-blue-600" />
+          <span>Invite Friends & Promote Candidates</span>
         </Button>
 
         <Link href={`/e/${slug}`} className="block">
@@ -194,6 +191,13 @@ export default function VotingThankYouPage() {
           </Button>
         </Link>
       </div>
+
+      <ShareKitModal
+        isOpen={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        eventName={eventTitle}
+        eventSlug={slug}
+      />
     </div>
   );
 }
