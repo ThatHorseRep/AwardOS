@@ -567,3 +567,35 @@ export async function updateWorkflowStageStatusAction(
     return { success: true };
   });
 }
+
+export async function updateBallotSettingsAction(input: {
+  eventId: string;
+  verificationLevel?: "STANDARD" | "ADVANCED";
+  visibility?: "PUBLIC" | "UNLISTED" | "PRIVATE";
+  liveResultsMode?: "FULL_LEADERBOARD" | "PERCENTAGES" | "VOTE_COUNTS" | "HIDDEN";
+  audienceType?: "PUBLIC" | "STUDENTS" | "FACULTY" | "ALUMNI" | "INVITE_ONLY" | "MEMBERS";
+}) {
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  const workspace = await getOrCreateWorkspaceAction();
+  if (!workspace) {
+    throw new Error("No active workspace");
+  }
+
+  await db
+    .update(events)
+    .set({
+      ...(input.verificationLevel && { verificationLevel: input.verificationLevel }),
+      ...(input.visibility && { visibility: input.visibility }),
+      ...(input.liveResultsMode && { liveResultsMode: input.liveResultsMode }),
+      ...(input.audienceType && { audienceType: input.audienceType }),
+      updatedAt: new Date(),
+    })
+    .where(and(eq(events.id, input.eventId), eq(events.workspaceId, workspace.id)));
+
+  return { success: true };
+}
+
