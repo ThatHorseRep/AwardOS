@@ -10,6 +10,7 @@ import {
   X,
   Download,
   MessageSquare,
+  Eye,
   Loader2,
   Inbox,
 } from "lucide-react";
@@ -108,6 +109,13 @@ export default function OrganizerNominationsPage() {
             <Download className="w-4 h-4 mr-1.5" />
             <span>Export CSV</span>
           </Button>
+
+          <Link href="/dashboard/voting">
+            <Button variant="outline" size="sm" className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm">
+              <Eye className="w-4 h-4 mr-1.5" />
+              <span>Open Voting Hub</span>
+            </Button>
+          </Link>
 
           <Link href="/cleanup">
             <Button variant="primary" size="sm" className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20">

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   Trophy,
   ArrowLeft,
@@ -30,6 +30,7 @@ import {
   ChevronUp,
   Save,
   Check,
+  MessageSquare,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,8 +48,10 @@ import { BulkImportModal } from "@/components/import/bulk-import-modal";
 export default function EventDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const eventId = params.id as string;
-  const [activeTab, setActiveTab] = useState<"overview" | "categories" | "workflow" | "branding" | "settings">("overview");
+  const initialTab = (searchParams.get("tab") as "overview" | "categories" | "workflow" | "branding" | "settings") || "overview";
+  const [activeTab, setActiveTab] = useState<"overview" | "categories" | "workflow" | "branding" | "settings">(initialTab);
   const [showBulkImportModal, setShowBulkImportModal] = useState(false);
 
   const [event, setEvent] = useState<any | null>(null);
@@ -122,6 +125,13 @@ export default function EventDetailPage() {
     }
     loadData();
   }, [eventId]);
+
+  useEffect(() => {
+    const tab = searchParams.get("tab") as "overview" | "categories" | "workflow" | "branding" | "settings" | null;
+    if (tab && tab !== activeTab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams, activeTab]);
 
   const toggleCategoryExpand = (catId: string) => {
     setExpandedCategoryIds((prev) => ({ ...prev, [catId]: !prev[catId] }));
@@ -292,6 +302,12 @@ export default function EventDetailPage() {
             <Upload className="w-4 h-4 mr-1.5" />
             <span>Bulk Import</span>
           </Button>
+          <Link href="/dashboard/nominations">
+            <Button variant="outline" size="sm" className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm">
+              <Users className="w-4 h-4 mr-1.5" />
+              <span>Review Nominations</span>
+            </Button>
+          </Link>
           <Link href={`/events/${eventId}/ai-cleanup`}>
             <Button variant="primary" size="sm" className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20">
               <Sparkles className="w-4 h-4 mr-1.5" />
@@ -321,7 +337,12 @@ export default function EventDetailPage() {
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => {
+                setActiveTab(tab.id as any);
+                const params = new URLSearchParams(searchParams.toString());
+                params.set("tab", tab.id);
+                router.replace(`${window.location.pathname}?${params.toString()}`, { scroll: false });
+              }}
               className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-t-2xl transition-all border-b-2 ${
                 isActive
                   ? "text-blue-600 border-blue-600 bg-blue-50"
@@ -369,6 +390,31 @@ export default function EventDetailPage() {
               </div>
             </div>
           </div>
+
+          <Card className="border-slate-200/80 bg-slate-50/90 rounded-3xl shadow-sm px-5 py-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <p className="text-sm font-bold text-slate-900">Continue the admin process</p>
+                <p className="text-xs text-slate-600 mt-1 max-w-xl">
+                  Keep the event workflow moving by reviewing nominees before opening the voting ballot, or jump directly to the ballot control center once the roster is ready.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Link href="/dashboard/nominations">
+                  <Button variant="secondary" size="sm" className="rounded-full bg-white text-slate-800 border border-slate-200 hover:bg-slate-100 font-bold">
+                    <MessageSquare className="w-4 h-4 mr-1.5" />
+                    <span>Review Nominees</span>
+                  </Button>
+                </Link>
+                <Link href="/dashboard/voting">
+                  <Button variant="primary" size="sm" className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold">
+                    <Vote className="w-4 h-4 mr-1.5" />
+                    <span>Open Voting Hub</span>
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </Card>
 
           <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
             <CardHeader className="border-b border-slate-100 pb-4">
