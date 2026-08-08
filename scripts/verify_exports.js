@@ -1,53 +1,78 @@
 #!/usr/bin/env node
 /*
-  Simple verifier: connects to the database (DATABASE_URL env) and checks
-  whether any votes for the given EVENT_ID are linked to vote_sessions
-  whose status != 'SUBMITTED'. Exit code 1 on failure.
+  Export integrity verifier.
+
+  Asserts that no ballot rows are linked to vote sessions that were never
+  submitted — i.e. that exports and tallies can only ever count real ballots.
+  A quarantined or abandoned session leaking into an export would silently
+  inflate a nominee's count, which is the failure mode this guards against.
 
   Usage:
-    DATABASE_URL=postgres://... EVENT_ID=<event id> node scripts/verify_exports.js
+    node scripts/verify_exports.js                 # checks every event
+    EVENT_ID=<uuid> node scripts/verify_exports.js # checks one event
 
-  If DATABASE_URL is not set, the script will exit with instructions.
+  Reads DATABASE_URL from .env.local, or the environment if already set.
+  Exit codes: 0 pass, 1 verification failed, 2 could not run.
 */
 
-const { Client } = require('postgres');
+require('dotenv').config({ path: '.env.local' });
+
+const postgres = require('postgres');
 
 async function main() {
   const databaseUrl = process.env.DATABASE_URL;
   const eventId = process.env.EVENT_ID;
 
   if (!databaseUrl) {
-    console.error('DATABASE_URL not set. Skipping DB verification.');
-    console.error('Provide a Postgres connection string to run this verifier.');
-    process.exit(0);
+    // Exit 2, not 0. A verification that could not run is not a pass — the old
+    // version exited 0 here, so a misconfigured CI job reported success.
+    console.error('DATABASE_URL is not set. Cannot verify.');
+    process.exit(2);
   }
 
-  if (!eventId) {
-    console.error('EVENT_ID not set. Please set EVENT_ID to run verification against an event.');
-    process.exit(1);
-  }
-
-  const sql = new Client(databaseUrl);
+  const sql = postgres(databaseUrl, { prepare: false, max: 1 });
 
   try {
-    await sql.connect();
+    const rows = eventId
+      ? await sql`
+          SELECT vs.event_id, count(*)::int AS bad_count
+          FROM votes v
+          JOIN vote_sessions vs ON v.vote_session_id = vs.id
+          WHERE vs.event_id = ${eventId} AND vs.status <> 'SUBMITTED'
+          GROUP BY vs.event_id
+        `
+      : await sql`
+          SELECT vs.event_id, count(*)::int AS bad_count
+          FROM votes v
+          JOIN vote_sessions vs ON v.vote_session_id = vs.id
+          WHERE vs.status <> 'SUBMITTED'
+          GROUP BY vs.event_id
+        `;
 
-    const query = `SELECT count(*) AS bad_count FROM votes v INNER JOIN vote_sessions vs ON v.vote_session_id = vs.id WHERE vs.event_id = $1 AND vs.status != 'SUBMITTED'`;
-    const res = await sql.query(query, [eventId]);
-    const bad = Number(res.rows[0].bad_count || 0);
+    const offenders = rows.filter((r) => Number(r.bad_count) > 0);
 
-    if (bad > 0) {
-      console.error(`Verification FAILED: ${bad} ballot rows are linked to non-SUBMITTED sessions for event ${eventId}.`);
+    if (offenders.length > 0) {
+      const total = offenders.reduce((n, r) => n + Number(r.bad_count), 0);
+      console.error(
+        `Verification FAILED: ${total} ballot row(s) linked to non-SUBMITTED sessions across ${offenders.length} event(s).`
+      );
+      for (const r of offenders) {
+        console.error(`  event ${r.event_id}: ${r.bad_count}`);
+      }
       process.exit(1);
-    } else {
-      console.log(`Verification PASSED: No ballots linked to non-SUBMITTED sessions for event ${eventId}.`);
-      process.exit(0);
     }
+
+    console.log(
+      eventId
+        ? `Verification PASSED for event ${eventId}.`
+        : 'Verification PASSED: no ballots linked to non-SUBMITTED sessions.'
+    );
+    process.exit(0);
   } catch (err) {
     console.error('Error running verification:', err);
     process.exit(2);
   } finally {
-    try { await sql.end(); } catch (e) {}
+    await sql.end({ timeout: 5 }).catch(() => {});
   }
 }
 
