@@ -17,6 +17,7 @@ import {
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/components/ui/toast";
 import {
   getWorkspaceNominationsAction,
   approveSuggestionAction,
@@ -24,6 +25,7 @@ import {
 } from "@/actions/nominations";
 
 export default function OrganizerNominationsPage() {
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [rawNominations, setRawNominations] = useState<any[]>([]);
   const [suggestedCategories, setSuggestedCategories] = useState<any[]>([]);
@@ -54,7 +56,7 @@ export default function OrganizerNominationsPage() {
       await loadData();
     } catch (err) {
       console.error("Failed to approve category:", err);
-      alert("Error approving category.");
+      toast.error("Error approving category.");
     } finally {
       setActioningId(null);
     }
@@ -67,7 +69,7 @@ export default function OrganizerNominationsPage() {
       await loadData();
     } catch (err) {
       console.error("Failed to reject suggestion:", err);
-      alert("Error rejecting suggestion.");
+      toast.error("Error rejecting suggestion.");
     } finally {
       setActioningId(null);
     }

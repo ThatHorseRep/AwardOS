@@ -24,7 +24,9 @@ import { Badge } from "@/components/ui/badge";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { getEventDetailsAction, updateEventBrandingAction } from "@/actions/events";
 
+import { useToast } from "@/components/ui/toast";
 export default function EventBrandingPage() {
+  const toast = useToast();
   const params = useParams();
   const eventId = params.id as string;
 
@@ -86,7 +88,7 @@ export default function EventBrandingPage() {
       setTimeout(() => setSavedSuccess(false), 2500);
     } catch (err) {
       console.error("Failed to save branding:", err);
-      alert("Error saving branding changes.");
+      toast.error("Error saving branding changes.");
     } finally {
       setSaving(false);
     }

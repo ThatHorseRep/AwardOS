@@ -45,7 +45,9 @@ import {
 import { updateEventSettingsAction } from "@/actions/voting";
 import { BulkImportModal } from "@/components/import/bulk-import-modal";
 
+import { useToast } from "@/components/ui/toast";
 export default function EventDetailPage() {
+  const toast = useToast();
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -163,7 +165,7 @@ export default function EventDetailPage() {
       setEvent(updated);
     } catch (err) {
       console.error("Failed to update timeline:", err);
-      alert("Error updating stage timeline");
+      toast.error("Error updating stage timeline");
     } finally {
       setUpdatingTimeline(false);
     }
@@ -220,7 +222,7 @@ export default function EventDetailPage() {
       setTimeout(() => setSettingsSuccess(false), 3000);
     } catch (err) {
       console.error("Failed to update event settings:", err);
-      alert("Error saving settings");
+      toast.error("Error saving settings");
     } finally {
       setUpdatingSettings(false);
     }
@@ -242,7 +244,7 @@ export default function EventDetailPage() {
       setTimeout(() => setBrandingSuccess(false), 3000);
     } catch (err) {
       console.error("Failed to save event branding:", err);
-      alert("Error saving branding assets settings.");
+      toast.error("Error saving branding assets settings.");
     } finally {
       setUpdatingBranding(false);
     }
@@ -251,17 +253,17 @@ export default function EventDetailPage() {
   const handleDuplicateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!dupName.trim() || !dupSlug.trim()) {
-      alert("Please enter a name and unique URL slug for the duplicated event.");
+      toast.error("Please enter a name and unique URL slug for the duplicated event.");
       return;
     }
     setDuplicating(true);
     try {
       const cloned = await duplicateEventAction(eventId, dupName.trim(), dupSlug.trim().toLowerCase());
-      alert(`Event duplicated successfully! Redirecting to new event draft...`);
+      toast.success(`Event duplicated successfully! Redirecting to new event draft...`);
       router.push(`/events/${cloned.id}`);
     } catch (err: any) {
       console.error("Duplication error:", err);
-      alert(err.message || "Failed to duplicate event.");
+      toast.error(err.message || "Failed to duplicate event.");
     } finally {
       setDuplicating(false);
     }

@@ -21,6 +21,7 @@ import {
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/components/ui/toast";
 import {
   getEventResultsAction,
   publishResultsAction,
@@ -32,6 +33,7 @@ import {
 } from "@/actions/results";
 
 export default function OrganizerResultsPage() {
+  const toast = useToast();
   const params = useParams();
   const eventId = params.id as string;
 
@@ -76,7 +78,7 @@ export default function OrganizerResultsPage() {
       await loadData();
     } catch (err) {
       console.error("Failed to publish results:", err);
-      alert("Error updating publish status.");
+      toast.error("Error updating publish status.");
     } finally {
       setPublishing(false);
     }
@@ -97,7 +99,7 @@ export default function OrganizerResultsPage() {
       await loadData();
     } catch (err) {
       console.error("Failed to toggle nominee status:", err);
-      alert("Error toggling candidate disqualification.");
+      toast.error("Error toggling candidate disqualification.");
     } finally {
       setDisqualifyingId(null);
     }
@@ -115,7 +117,7 @@ export default function OrganizerResultsPage() {
       await loadData();
     } catch (err) {
       console.error("Failed to create special award:", err);
-      alert("Error creating special award.");
+      toast.error("Error creating special award.");
     } finally {
       setSubmittingAward(false);
     }

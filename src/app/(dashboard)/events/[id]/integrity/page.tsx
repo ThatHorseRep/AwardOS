@@ -27,6 +27,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getEventDetailsAction } from "@/actions/events";
+import { useToast } from "@/components/ui/toast";
 import {
   triggerIntegrityScanAction,
   getIntegrityAlertsAction,
@@ -37,6 +38,7 @@ import {
 } from "@/actions/integrity";
 
 export default function VotingIntegrityDashboardPage() {
+  const toast = useToast();
   const params = useParams();
   const eventId = params.id as string;
 
@@ -101,7 +103,7 @@ export default function VotingIntegrityDashboardPage() {
       }
     } catch (err) {
       console.error("Failed to trigger audit scan:", err);
-      alert("Error executing integrity audit.");
+      toast.error("Error executing integrity audit.");
     } finally {
       setScanning(false);
     }
@@ -136,7 +138,7 @@ export default function VotingIntegrityDashboardPage() {
       await loadData();
     } catch (err) {
       console.error("Failed to resolve alert:", err);
-      alert("Error submitting resolution.");
+      toast.error("Error submitting resolution.");
     } finally {
       setSubmittingResolution(false);
     }
@@ -151,7 +153,7 @@ export default function VotingIntegrityDashboardPage() {
       await loadData();
     } catch (err) {
       console.error("Failed to flag session:", err);
-      alert("Error flagging vote session.");
+      toast.error("Error flagging vote session.");
     } finally {
       setProcessingSessionId(null);
       setSessionActionLoading(false);
@@ -167,7 +169,7 @@ export default function VotingIntegrityDashboardPage() {
       await loadData();
     } catch (err) {
       console.error("Failed to restore session:", err);
-      alert("Error restoring vote session.");
+      toast.error("Error restoring vote session.");
     } finally {
       setProcessingSessionId(null);
       setSessionActionLoading(false);
@@ -379,7 +381,7 @@ export default function VotingIntegrityDashboardPage() {
                                 await loadData();
                               } catch (err) {
                                 console.error("Failed to acknowledge alert:", err);
-                                alert("Error acknowledging alert.");
+                                toast.error("Error acknowledging alert.");
                               }
                             }}
                             className="text-slate-400 hover:text-white h-7 text-[11px] px-2.5"

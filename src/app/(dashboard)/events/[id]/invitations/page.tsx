@@ -31,7 +31,9 @@ import {
 import { getAppOrigin } from "@/lib/app-url";
 import { getEventDetailsAction } from "@/actions/events";
 
+import { useToast } from "@/components/ui/toast";
 export default function InvitationCodesPanelPage() {
+  const toast = useToast();
   const params = useParams();
   const eventId = params.id as string;
 
@@ -81,7 +83,7 @@ export default function InvitationCodesPanelPage() {
       }
     } catch (err) {
       console.error("Failed to generate codes:", err);
-      alert("Error generating invitation codes");
+      toast.error("Error generating invitation codes");
     } finally {
       setGenerating(false);
     }
@@ -97,7 +99,7 @@ export default function InvitationCodesPanelPage() {
       }
     } catch (err) {
       console.error("Failed to revoke code:", err);
-      alert("Error revoking code");
+      toast.error("Error revoking code");
     } finally {
       setRevokingId(null);
     }

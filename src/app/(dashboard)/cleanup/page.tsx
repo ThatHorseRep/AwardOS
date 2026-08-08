@@ -23,6 +23,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getEventsAction } from "@/actions/events";
+import { useToast } from "@/components/ui/toast";
 import {
   triggerAICleanupAction,
   getLatestCleanupTaskAction,
@@ -32,6 +33,7 @@ import {
 } from "@/actions/cleanup";
 
 export default function AICleanupReviewPage() {
+  const toast = useToast();
   const [eventsList, setEventsList] = useState<any[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [loading, setLoading] = useState(true);
@@ -94,7 +96,7 @@ export default function AICleanupReviewPage() {
       ]);
     } catch (err: any) {
       console.error("Error triggering AI cleanup:", err);
-      alert(err.message || "Failed to run AI cleanup scan.");
+      toast.error(err.message || "Failed to run AI cleanup scan.");
     } finally {
       setIsRunningCleanup(false);
     }
@@ -116,7 +118,7 @@ export default function AICleanupReviewPage() {
       ]);
     } catch (err: any) {
       console.error("Error approving merge:", err);
-      alert(err.message || "Failed to approve merge.");
+      toast.error(err.message || "Failed to approve merge.");
     } finally {
       setActionLoading(null);
     }
@@ -138,7 +140,7 @@ export default function AICleanupReviewPage() {
       ]);
     } catch (err: any) {
       console.error("Error rejecting merge:", err);
-      alert(err.message || "Failed to reject merge.");
+      toast.error(err.message || "Failed to reject merge.");
     } finally {
       setActionLoading(null);
     }
@@ -167,7 +169,7 @@ export default function AICleanupReviewPage() {
       ]);
     } catch (err: any) {
       console.error("Error bulk approving merges:", err);
-      alert(err.message || "Bulk approval failed.");
+      toast.error(err.message || "Bulk approval failed.");
     } finally {
       setIsRunningCleanup(false);
     }

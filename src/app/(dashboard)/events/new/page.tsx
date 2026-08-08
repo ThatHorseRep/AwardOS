@@ -25,7 +25,9 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
+import { useToast } from "@/components/ui/toast";
 export default function NewEventWizardPage() {
+  const toast = useToast();
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -103,11 +105,11 @@ export default function NewEventWizardPage() {
       if (response.success) {
         router.push(`/events/${response.eventId}`);
       } else {
-        alert("Failed to create event");
+        toast.error("Failed to create event");
       }
     } catch (err: any) {
       console.error(err);
-      alert(err.message || "Failed to create event");
+      toast.error(err.message || "Failed to create event");
     } finally {
       setIsSubmitting(false);
     }

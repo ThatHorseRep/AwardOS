@@ -34,7 +34,9 @@ import {
 } from "@/actions/cleanup";
 import { getEventDetailsAction } from "@/actions/events";
 
+import { useToast } from "@/components/ui/toast";
 export default function AICleanupDashboardPage() {
+  const toast = useToast();
   const params = useParams();
   const router = useRouter();
   const eventId = params.id as string;
@@ -78,7 +80,7 @@ export default function AICleanupDashboardPage() {
       }
     } catch (err: any) {
       console.error("Failed running AI cleanup task:", err);
-      alert(err?.message || "Error running AI cleanup.");
+      toast.error(err?.message || "Error running AI cleanup.");
     } finally {
       setRunningCleanup(false);
     }
@@ -94,7 +96,7 @@ export default function AICleanupDashboardPage() {
       }
     } catch (err) {
       console.error("Approve merge failed:", err);
-      alert("Error approving merge");
+      toast.error("Error approving merge");
     } finally {
       setActionLoading(null);
     }
@@ -109,7 +111,7 @@ export default function AICleanupDashboardPage() {
       }
     } catch (err) {
       console.error("Reject merge failed:", err);
-      alert("Error rejecting merge");
+      toast.error("Error rejecting merge");
     } finally {
       setActionLoading(null);
     }
@@ -124,7 +126,7 @@ export default function AICleanupDashboardPage() {
       }
     } catch (err) {
       console.error("Undo merge failed:", err);
-      alert("Error undoing merge");
+      toast.error("Error undoing merge");
     } finally {
       setActionLoading(null);
     }
@@ -141,7 +143,7 @@ export default function AICleanupDashboardPage() {
       }
     } catch (err) {
       console.error("Bulk approval failed:", err);
-      alert("Error during bulk approval");
+      toast.error("Error during bulk approval");
     } finally {
       setRunningCleanup(false);
     }

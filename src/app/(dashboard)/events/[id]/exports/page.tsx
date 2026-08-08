@@ -29,7 +29,9 @@ import {
 import { createExportJobAction, getExportJobsAction } from "@/actions/exports";
 import { escapeXml, sanitizeSpreadsheetCell } from "@/lib/sanitize";
 
+import { useToast } from "@/components/ui/toast";
 export default function OrganizerExportsDashboardPage() {
+  const toast = useToast();
   const params = useParams();
   const eventId = params.id as string;
 
@@ -212,7 +214,7 @@ export default function OrganizerExportsDashboardPage() {
     try {
       const data = await getRawBallotsExportAction(eventId);
       if (data.length === 0) {
-        alert("No votes logged yet.");
+        toast.error("No votes logged yet.");
         return;
       }
       const formatted = data.map((b) => ({
@@ -241,7 +243,7 @@ export default function OrganizerExportsDashboardPage() {
       await loadData();
     } catch (err) {
       console.error("Failed to export raw ballots:", err);
-      alert("Error generating raw ballots log.");
+      toast.error("Error generating raw ballots log.");
     } finally {
       setExportingRaw(false);
     }
@@ -267,7 +269,7 @@ export default function OrganizerExportsDashboardPage() {
       });
 
       if (rows.length === 0) {
-        alert("No nominee vote counts recorded yet.");
+        toast.error("No nominee vote counts recorded yet.");
         return;
       }
 
@@ -285,7 +287,7 @@ export default function OrganizerExportsDashboardPage() {
       await loadData();
     } catch (err) {
       console.error("Failed to export nominee tally:", err);
-      alert("Error generating nominee tally sheet.");
+      toast.error("Error generating nominee tally sheet.");
     } finally {
       setExportingTally(false);
     }
@@ -325,7 +327,7 @@ export default function OrganizerExportsDashboardPage() {
       }
 
       if (rows.length === 0) {
-        alert("No voter verification sessions recorded.");
+        toast.error("No voter verification sessions recorded.");
         return;
       }
 
@@ -343,7 +345,7 @@ export default function OrganizerExportsDashboardPage() {
       await loadData();
     } catch (err) {
       console.error("Failed to export verification logs:", err);
-      alert("Error generating verification telemetry logs.");
+      toast.error("Error generating verification telemetry logs.");
     } finally {
       setExportingVoters(false);
     }

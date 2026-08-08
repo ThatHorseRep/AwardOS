@@ -22,7 +22,9 @@ import {
 } from "@/actions/nominations";
 import { getEventDetailsAction } from "@/actions/events";
 
+import { useToast } from "@/components/ui/toast";
 export default function SuggestedCategoriesInboxPage() {
+  const toast = useToast();
   const params = useParams();
   const router = useRouter();
   const eventId = params.id as string;
@@ -70,7 +72,7 @@ export default function SuggestedCategoriesInboxPage() {
       }
     } catch (err) {
       console.error("Failed to approve suggestion:", err);
-      alert("Error approving suggestion");
+      toast.error("Error approving suggestion");
     } finally {
       setActionLoading(null);
     }
@@ -86,7 +88,7 @@ export default function SuggestedCategoriesInboxPage() {
       }
     } catch (err) {
       console.error("Failed to reject suggestion:", err);
-      alert("Error rejecting suggestion");
+      toast.error("Error rejecting suggestion");
     } finally {
       setActionLoading(null);
     }

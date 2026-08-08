@@ -5,6 +5,7 @@ import { Upload, X, Image as ImageIcon, Loader2, Sparkles, Check } from "lucide-
 import { compressImageFile, formatFileSize, CompressionResult } from "@/lib/image-compressor";
 import { Badge } from "@/components/ui/badge";
 
+import { useToast } from "@/components/ui/toast";
 export interface ImageUploadProps {
   value?: string | null;
   onChange: (dataUrl: string) => void;
@@ -28,6 +29,7 @@ export function ImageUpload({
   aspectRatio = "square",
   className = "",
 }: ImageUploadProps) {
+  const toast = useToast();
   const [compressing, setCompressing] = useState(false);
   const [stats, setStats] = useState<CompressionResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -45,7 +47,7 @@ export function ImageUpload({
       onChange(result.dataUrl);
     } catch (err) {
       console.error("Image compression error:", err);
-      alert("Failed to compress image file. Please try another image.");
+      toast.error("Failed to compress image file. Please try another image.");
     } finally {
       setCompressing(false);
       // Reset input value so re-selecting same file triggers change

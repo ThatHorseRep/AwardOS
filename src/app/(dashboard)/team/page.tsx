@@ -36,7 +36,9 @@ import {
 } from "@/actions/members";
 import { getAppOrigin } from "@/lib/app-url";
 
+import { useToast } from "@/components/ui/toast";
 export default function WorkspaceTeamPage() {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<"members" | "invites" | "roles">("members");
   const [loading, setLoading] = useState(true);
 
@@ -140,7 +142,7 @@ export default function WorkspaceTeamPage() {
       await loadData();
     } catch (err) {
       console.error("Failed to generate invite:", err);
-      alert("Error generating invitation link.");
+      toast.error("Error generating invitation link.");
     } finally {
       setGeneratingLink(false);
     }
@@ -173,7 +175,7 @@ export default function WorkspaceTeamPage() {
       await loadData();
     } catch (err: any) {
       console.error("Error removing member:", err);
-      alert(err.message || "Failed to remove member.");
+      toast.error(err.message || "Failed to remove member.");
     } finally {
       setSubmittingActionId(null);
     }
@@ -182,11 +184,11 @@ export default function WorkspaceTeamPage() {
   const handleCreateCustomRole = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newRoleName.trim()) {
-      alert("Please enter a role name.");
+      toast.error("Please enter a role name.");
       return;
     }
     if (selectedPerms.length === 0) {
-      alert("Please select at least one permission rule.");
+      toast.error("Please select at least one permission rule.");
       return;
     }
     setCreatingRole(true);

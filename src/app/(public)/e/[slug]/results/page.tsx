@@ -24,7 +24,9 @@ import { Avatar } from "@/components/ui/avatar";
 import { getPublicEventResultsAction } from "@/actions/results";
 import { LiveResultsListener } from "@/components/voting/live-results-listener";
 
+import { useToast } from "@/components/ui/toast";
 export default function PublicResultsPage() {
+  const toast = useToast();
   const params = useParams();
   const slug = params.slug as string;
 
@@ -48,7 +50,7 @@ export default function PublicResultsPage() {
 
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
-    alert("Results link copied to clipboard!");
+    toast.success("Results link copied to clipboard!");
   };
 
   if (loading) {

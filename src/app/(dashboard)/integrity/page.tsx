@@ -22,7 +22,9 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
+import { useToast } from "@/components/ui/toast";
 export default function IntegrityPage() {
+  const toast = useToast();
   const [securityLevel, setSecurityLevel] = useState<"STANDARD" | "STRICT" | "ENFORCED">("STRICT");
   const [threats, setThreats] = useState([
     {
@@ -62,11 +64,11 @@ export default function IntegrityPage() {
 
   const handlePurge = (id: string) => {
     setThreats(threats.filter((t) => t.id !== id));
-    alert("Flagged bot ballots purged successfully from active vote tallies.");
+    toast.success("Flagged bot ballots purged successfully from active vote tallies.");
   };
 
   const handleBanIP = (ip: string) => {
-    alert(`IP address ${ip} added to global workspace ban list.`);
+    toast.error(`IP address ${ip} added to global workspace ban list.`);
   };
 
   return (

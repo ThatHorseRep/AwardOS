@@ -25,10 +25,13 @@ import {
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
 import { getEventsAction, updateBallotSettingsAction } from "@/actions/events";
 
+import { useToast } from "@/components/ui/toast";
 export default function OrganizerVotingPage() {
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [eventList, setEventList] = useState<any[]>([]);
 
@@ -92,7 +95,7 @@ export default function OrganizerVotingPage() {
       }, 1500);
     } catch (err: any) {
       console.error("Failed to save ballot settings:", err);
-      alert(err.message || "Failed to update ballot settings.");
+      toast.error(err.message || "Failed to update ballot settings.");
     } finally {
       setSavingSettings(false);
     }
@@ -269,33 +272,13 @@ export default function OrganizerVotingPage() {
 
       {/* Ballot Settings Configurator Modal */}
       {selectedEventForSettings && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto font-sans">
-          <div className="relative w-full max-w-lg bg-white rounded-3xl p-6 sm:p-8 space-y-5 shadow-2xl border border-slate-200 my-auto max-h-[85vh] overflow-y-auto">
-            {/* Sticky Header inside modal */}
-            <div className="flex items-start justify-between pb-3 border-b border-slate-100 sticky top-0 bg-white z-10 pt-1">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-200 shrink-0">
-                  <Sliders className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 leading-snug">
-                    Ballot Settings
-                  </h3>
-                  <p className="text-xs text-slate-500 font-medium truncate max-w-xs">
-                    {selectedEventForSettings.name}
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setSelectedEventForSettings(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:text-slate-900 flex items-center justify-center transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
+        <Modal
+          open
+          onClose={() => setSelectedEventForSettings(null)}
+          title="Ballot Settings"
+          description={selectedEventForSettings.name}
+          size="md"
+        >
             <form onSubmit={handleSaveSettings} className="space-y-4 text-xs">
               {/* 1. Voter Authentication & Security Method */}
               <div className="space-y-1.5">
@@ -390,11 +373,11 @@ export default function OrganizerVotingPage() {
                 </div>
               )}
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+              <div className="flex justify-end gap-3 pt-3 border-t border-border-subtle">
                 <button
                   type="button"
                   onClick={() => setSelectedEventForSettings(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
+                  className="px-4 py-2 rounded-xl bg-surface-muted hover:bg-border-subtle text-content font-bold text-xs transition-colors"
                 >
                   Cancel
                 </button>
@@ -412,8 +395,7 @@ export default function OrganizerVotingPage() {
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );
