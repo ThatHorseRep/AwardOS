@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "node --max-http-header-size=65536 node_modules/next/dist/bin/next start",
     "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "verify:exports": "node scripts/verify_exports.js",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
@@ -33,6 +35,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -42,6 +45,7 @@
     "eslint": "^9",
     "eslint-config-next": "^15.1.7",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }
