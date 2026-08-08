@@ -207,10 +207,10 @@ export default function OrganizerResultsPage() {
         <CardHeader>
           <div className="flex items-center gap-2">
             <Trophy className="w-5 h-5 text-amber-400" />
-            <CardTitle className="text-sm font-bold text-white">Special Recognition & Judges' Awards</CardTitle>
+            <CardTitle className="text-sm font-bold text-white">Special Recognition &amp; Judges&apos; Awards</CardTitle>
           </div>
           <CardDescription className="text-xs">
-            Add discretionary non-voting awards (e.g. Organizer's Choice, Outstanding Contribution).
+            Add discretionary non-voting awards (e.g. Organizer&apos;s Choice, Outstanding Contribution).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

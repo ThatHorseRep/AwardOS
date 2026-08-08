@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { getAppOrigin } from "@/lib/app-url";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -17,7 +18,7 @@ export default function ForgotPasswordPage() {
 
     const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + "/api/auth/callback?next=/reset-password",
+      redirectTo: `${getAppOrigin()}/api/auth/callback?next=/reset-password`,
     });
 
     if (error) {
@@ -38,7 +39,7 @@ export default function ForgotPasswordPage() {
         <div className="space-y-2">
           <h1 className="text-3xl font-bold text-white tracking-tight">Check your email</h1>
           <p className="text-zinc-400">
-            We've sent a password reset link to <span className="text-white font-medium">{email}</span>.
+            We&apos;ve sent a password reset link to <span className="text-white font-medium">{email}</span>.
           </p>
         </div>
         <div className="pt-4">
@@ -54,7 +55,7 @@ export default function ForgotPasswordPage() {
     <div className="w-full max-w-md mx-auto space-y-6">
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold text-white tracking-tight">Reset your password</h1>
-        <p className="text-zinc-400">Enter your email and we'll send you a reset link</p>
+        <p className="text-zinc-400">Enter your email and we&apos;ll send you a reset link</p>
       </div>
 
       {error && (

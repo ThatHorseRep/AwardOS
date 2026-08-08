@@ -1,3 +1,5 @@
+import { escapeXml } from "@/lib/sanitize";
+
 export interface CertificateData {
   winnerName: string;
   categoryName: string;
@@ -10,7 +12,18 @@ export interface CertificateData {
 }
 
 export function generateCertificateSVG(data: CertificateData): string {
-  const { winnerName, categoryName, eventName, rankText, issueDate, certificateId, organizationName = "AwardOS Honors Committee" } = data;
+  // Every field below is interpolated into raw SVG markup, which is rendered
+  // through `dangerouslySetInnerHTML` and `document.write`. SVG permits
+  // `<script>`, so an unescaped nominee or event name is a live XSS sink — none
+  // of React's automatic escaping applies on this path. Escape at the point of
+  // interpolation rather than trusting the callers.
+  const winnerName = escapeXml(data.winnerName);
+  const categoryName = escapeXml(data.categoryName);
+  const eventName = escapeXml(data.eventName);
+  const rankText = escapeXml(data.rankText);
+  const issueDate = escapeXml(data.issueDate);
+  const certificateId = escapeXml(data.certificateId);
+  const organizationName = escapeXml(data.organizationName || "AwardOS Honors Committee");
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 850" width="100%" height="100%">
   <defs>

@@ -28,6 +28,7 @@ import {
   getInvitationCodesAction,
   revokeInvitationCodeAction,
 } from "@/actions/voting";
+import { getAppOrigin } from "@/lib/app-url";
 import { getEventDetailsAction } from "@/actions/events";
 
 export default function InvitationCodesPanelPage() {
@@ -104,7 +105,7 @@ export default function InvitationCodesPanelPage() {
 
   const handleExportCSV = () => {
     if (!event || codes.length === 0) return;
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const origin = getAppOrigin();
     const headers = ["Invitation Code", "Status", "Direct Voting Link", "Created At", "Expires At"];
 
     const rows = filteredCodes.map((c) => [

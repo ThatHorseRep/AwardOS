@@ -32,6 +32,8 @@ import {
   getIntegrityAlertsAction,
   getEventVoteSessionsAction,
   resolveAlertAction,
+  quarantineSessionsAction,
+  restoreSessionsAction,
 } from "@/actions/integrity";
 
 export default function VotingIntegrityDashboardPage() {
@@ -50,6 +52,9 @@ export default function VotingIntegrityDashboardPage() {
   const [resolutionAction, setResolutionAction] = useState<"RESOLVE" | "DISMISS">("RESOLVE");
   const [resolutionNote, setResolutionNote] = useState("");
   const [submittingResolution, setSubmittingResolution] = useState(false);
+
+  const [sessionActionLoading, setSessionActionLoading] = useState(false);
+  const [processingSessionId, setProcessingSessionId] = useState<string | null>(null);
 
   // UI State: track which alerts have expanded detail panels
   const [expandedAlerts, setExpandedAlerts] = useState<{ [alertId: string]: boolean }>({});
@@ -137,6 +142,38 @@ export default function VotingIntegrityDashboardPage() {
     }
   };
 
+  const handleFlagSession = async (sessionId: string) => {
+    setSessionActionLoading(true);
+    setProcessingSessionId(sessionId);
+
+    try {
+      await quarantineSessionsAction([sessionId]);
+      await loadData();
+    } catch (err) {
+      console.error("Failed to flag session:", err);
+      alert("Error flagging vote session.");
+    } finally {
+      setProcessingSessionId(null);
+      setSessionActionLoading(false);
+    }
+  };
+
+  const handleRestoreSession = async (sessionId: string) => {
+    setSessionActionLoading(true);
+    setProcessingSessionId(sessionId);
+
+    try {
+      await restoreSessionsAction([sessionId]);
+      await loadData();
+    } catch (err) {
+      console.error("Failed to restore session:", err);
+      alert("Error restoring vote session.");
+    } finally {
+      setProcessingSessionId(null);
+      setSessionActionLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -161,6 +198,7 @@ export default function VotingIntegrityDashboardPage() {
   const activeAlerts = alerts.filter((a) => a.status === "NEW");
   const activeAlertsCount = activeAlerts.length;
   const disqualifiedCount = sessions.filter((s) => s.status === "INVALIDATED").length;
+  const flaggedCount = sessions.filter((s) => s.status === "FLAGGED").length;
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto font-sans pb-12">
@@ -238,6 +276,13 @@ export default function VotingIntegrityDashboardPage() {
             <span className="text-[10px] text-slate-500 uppercase block font-semibold">Disqualified Ballots</span>
             <div className="text-2xl font-bold mt-1 text-slate-400">{disqualifiedCount}</div>
             <span className="text-[10px] text-slate-400 mt-1 block">Excluded from results calculations</span>
+          </CardContent>
+        </Card>
+        <Card className="border-slate-800 bg-slate-950/20">
+          <CardContent className="pt-6">
+            <span className="text-[10px] text-slate-500 uppercase block font-semibold">Flagged Sessions</span>
+            <div className="text-2xl font-bold mt-1 text-amber-300">{flaggedCount}</div>
+            <span className="text-[10px] text-slate-400 mt-1 block">Manually reviewed or suspicious vote sessions</span>
           </CardContent>
         </Card>
       </div>
@@ -323,6 +368,24 @@ export default function VotingIntegrityDashboardPage() {
                           >
                             Resolve Alert
                           </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={async () => {
+                              try {
+                                const note = window.prompt("Optional acknowledgement note:") || "";
+                                const { acknowledgeAlertAction } = await import("@/actions/integrity");
+                                await acknowledgeAlertAction(alert.id, note.trim());
+                                await loadData();
+                              } catch (err) {
+                                console.error("Failed to acknowledge alert:", err);
+                                alert("Error acknowledging alert.");
+                              }
+                            }}
+                            className="text-slate-400 hover:text-white h-7 text-[11px] px-2.5"
+                          >
+                            Acknowledge
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -391,7 +454,10 @@ export default function VotingIntegrityDashboardPage() {
                       <p className="text-[11px] text-slate-400">{alert.description}</p>
                       <div className="pt-2 border-t border-slate-800/60 text-[10px] text-slate-500 space-y-1">
                         <div>
-                          Resolved Note: <span className="text-slate-300 italic">"{alert.resolutionNote || "None"}"</span>
+                          Resolved Note: <span className="text-slate-300 italic">&quot;{alert.resolutionNote || "None"}&quot;</span>
+                        </div>
+                        <div>
+                          Resolved by: <span className="text-white">{alert.resolvedByName || "System"}</span>
                         </div>
                         <div>
                           Resolved at: <span>{alert.resolvedAt ? new Date(alert.resolvedAt).toLocaleString() : ""}</span>
@@ -417,9 +483,9 @@ export default function VotingIntegrityDashboardPage() {
               ) : (
                 <div className="space-y-3.5 max-h-[500px] overflow-y-auto pr-1">
                   {sessions.slice(0, 50).map((s) => (
-                    <div key={s.id} className="p-2.5 rounded-xl bg-slate-900/40 border border-slate-850 flex items-start justify-between gap-2 text-[11px]">
+                    <div key={s.id} className="p-2.5 rounded-xl bg-slate-900/40 border border-slate-850 flex flex-col gap-3 text-[11px] lg:flex-row lg:items-start lg:justify-between">
                       <div className="min-w-0 space-y-1">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <span className="font-mono text-slate-400 text-[10px]">{s.id.substring(0, 8)}...</span>
                           <Badge
                             variant={
@@ -427,6 +493,8 @@ export default function VotingIntegrityDashboardPage() {
                                 ? "success"
                                 : s.status === "INVALIDATED"
                                 ? "danger"
+                                : s.status === "FLAGGED"
+                                ? "warning"
                                 : "default"
                             }
                             size="sm"
@@ -445,9 +513,43 @@ export default function VotingIntegrityDashboardPage() {
                           IP: {s.ipAddress || "127.0.0.1"}
                         </div>
                       </div>
-                      <span className="text-[9px] text-slate-500 whitespace-nowrap">
-                        {s.submittedAt ? new Date(s.submittedAt).toLocaleTimeString() : ""}
-                      </span>
+                      <div className="flex flex-col items-start gap-2 sm:items-end">
+                        <span className="text-[9px] text-slate-500 whitespace-nowrap">
+                          {s.submittedAt ? new Date(s.submittedAt).toLocaleTimeString() : ""}
+                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          {s.status === "SUBMITTED" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleFlagSession(s.id)}
+                              disabled={sessionActionLoading && processingSessionId === s.id}
+                              className="h-7 px-2 text-[10px]"
+                            >
+                              {sessionActionLoading && processingSessionId === s.id ? (
+                                <Loader2 className="animate-spin w-3 h-3" />
+                              ) : (
+                                "Flag"
+                              )}
+                            </Button>
+                          )}
+                          {s.status === "FLAGGED" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleRestoreSession(s.id)}
+                              disabled={sessionActionLoading && processingSessionId === s.id}
+                              className="h-7 px-2 text-[10px]"
+                            >
+                              {sessionActionLoading && processingSessionId === s.id ? (
+                                <Loader2 className="animate-spin w-3 h-3" />
+                              ) : (
+                                "Restore"
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>

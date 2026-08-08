@@ -113,7 +113,7 @@ export default function AcceptInvitationPage() {
                 {inviteData.workspaceName}
               </h2>
               <p className="text-xs text-zinc-400 mt-1 font-medium">
-                You've been invited to collaborate on award programs and live ballot streams.
+                You&apos;ve been invited to collaborate on award programs and live ballot streams.
               </p>
             </div>
           </div>

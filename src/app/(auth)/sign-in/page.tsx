@@ -4,6 +4,7 @@ import { useState, useTransition, Suspense } from "react";
 import Link from "next/link";
 import { signInAction } from "@/actions/auth";
 import { createClient } from "@/lib/supabase/client";
+import { getAppOrigin } from "@/lib/app-url";
 import { useSearchParams } from "next/navigation";
 
 function SignInForm() {
@@ -21,7 +22,7 @@ function SignInForm() {
   const handleGoogleSignIn = async () => {
     try {
       const supabase = createClient();
-      const origin = typeof window !== "undefined" ? window.location.origin : "https://awardos-alpha.vercel.app";
+      const origin = getAppOrigin();
       await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -130,7 +131,7 @@ function SignInForm() {
       </button>
 
       <p className="text-center text-zinc-400 text-xs font-medium">
-        Don't have an account?{" "}
+        Don&apos;t have an account?{" "}
         <Link href="/sign-up" className="text-blue-400 hover:text-blue-300 transition-colors font-semibold">
           Sign up
         </Link>

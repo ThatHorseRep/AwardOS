@@ -30,7 +30,7 @@ export interface CleanupResult {
  */
 export function normalizeCapitalization(name: string): string {
   if (!name) return "";
-  let clean = name.trim().replace(/\s+/g, " ");
+  const clean = name.trim().replace(/\s+/g, " ");
 
   return clean
     .split(" ")
@@ -130,7 +130,7 @@ export async function runAINominationCleanup(
 
     if (uniqueNames.length < 2) continue;
 
-    let categorySuggestions: MergeSuggestion[] = [];
+    const categorySuggestions: MergeSuggestion[] = [];
 
     if (hasGeminiKey) {
       try {

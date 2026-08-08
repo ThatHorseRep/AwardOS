@@ -34,6 +34,7 @@ import {
   removeWorkspaceMemberAction,
   updateWorkspaceMemberRoleAction,
 } from "@/actions/members";
+import { getAppOrigin } from "@/lib/app-url";
 
 export default function WorkspaceTeamPage() {
   const [activeTab, setActiveTab] = useState<"members" | "invites" | "roles">("members");
@@ -129,7 +130,7 @@ export default function WorkspaceTeamPage() {
         domainRestrictions: domains,
       });
 
-      const origin = window.location.origin;
+      const origin = getAppOrigin();
       const url = `${origin}/invite/${invite.token}`;
 
       setGeneratedInviteResult({

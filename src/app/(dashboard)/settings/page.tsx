@@ -58,10 +58,10 @@ export default function SettingsPage() {
     },
     {
       title: "Danger Zone",
-      description: "Archive or delete workspace data",
+      description: "Delete your account and erase your personal data",
       icon: AlertTriangle,
       color: "text-rose-600 bg-rose-50",
-      href: "#",
+      href: "/settings/account",
     },
   ];
 
@@ -166,7 +166,7 @@ export default function SettingsPage() {
             {/* White-Labeling Toggle */}
             <div className="flex items-center justify-between pt-2 border-t border-slate-100">
               <div>
-                <span className="text-xs font-bold text-slate-900 block">Remove "Powered by AwardOS" Branding</span>
+                <span className="text-xs font-bold text-slate-900 block">Remove &quot;Powered by AwardOS&quot; Branding</span>
                 <span className="text-[11px] text-slate-500 font-medium">Hide footer attribution for fully custom enterprise portals</span>
               </div>
               <input

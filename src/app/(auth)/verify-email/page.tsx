@@ -13,7 +13,7 @@ export default function VerifyEmailPage() {
       <div className="space-y-2">
         <h1 className="text-3xl font-bold text-white tracking-tight">Check your email</h1>
         <p className="text-zinc-400 leading-relaxed">
-          We've sent you a verification link.<br />
+          We&apos;ve sent you a verification link.<br />
           Click it to activate your account.
         </p>
       </div>
