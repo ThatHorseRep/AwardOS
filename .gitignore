@@ -30,8 +30,11 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files (never commit real secrets)
 .env*
+# ...but the template must be tracked: it is the only setup documentation for
+# the environment contract, and `.env*` above would otherwise swallow it.
+!.env.example
 
 # vercel
 .vercel
@@ -40,4 +43,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-.vercel
+# local build artifacts
+build-output.log
+build-rc.txt
+
+# git worktrees (local scratch space, never committed)
+/awardos.worktrees/

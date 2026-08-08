@@ -35,7 +35,10 @@ export function getAvailableProviders(): Array<{ id: AIProvider; name: string; c
     {
       id: "google",
       name: "Google Gemini",
-      configured: Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY),
+      // Only GOOGLE_GENERATIVE_AI_API_KEY counts: it is the sole name
+      // `@ai-sdk/google` reads. Accepting GEMINI_API_KEY here reported the
+      // provider as configured while every actual call failed unauthenticated.
+      configured: Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY),
       defaultModel: "gemini-2.5-flash",
     },
     {

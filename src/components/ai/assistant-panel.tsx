@@ -108,7 +108,7 @@ export function AIAssistantPanel({ isOpen, onClose }: AIAssistantPanelProps) {
         const next = [...prev];
         next[next.length - 1] = {
           role: "assistant",
-          content: `🏆 **AwardOS Assistant Notice**:\nI'm ready to assist with your event! (To enable live generative responses, ensure GEMINI_API_KEY is configured in your environment settings).`,
+          content: `🏆 **AwardOS Assistant Notice**:\nI'm ready to assist with your event! (To enable live generative responses, ensure GOOGLE_GENERATIVE_AI_API_KEY is configured in your environment settings).`,
         };
         return next;
       });

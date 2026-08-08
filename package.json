@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node --max-http-header-size=65536 node_modules/next/dist/bin/next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node --max-http-header-size=65536 node_modules/next/dist/bin/next start",
     "lint": "eslint",
+    "verify:exports": "node scripts/verify_exports.js",
     "db:migrate": "node scripts/migrate.js"
   },
   "dependencies": {
@@ -21,9 +22,12 @@
     "drizzle-orm": "^0.45.2",
     "lucide-react": "^1.27.0",
     "next": "^15.1.7",
+    "postgres": "^3.4.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "resend": "^6.18.1",
     "tailwind-merge": "^3.6.0",
+    "xlsx": "^0.18.5",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -35,7 +39,6 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "^15.1.7",
-    "postgres": "^3.4.9",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

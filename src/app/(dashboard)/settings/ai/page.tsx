@@ -18,7 +18,7 @@ export default function AISettingsPage() {
       name: "Google Gemini",
       badge: "Default & Recommended",
       models: ["gemini-2.5-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
-      envKey: "GEMINI_API_KEY",
+      envKey: "GOOGLE_GENERATIVE_AI_API_KEY",
       desc: "High speed, low latency, and native support for deduplication and event scripts.",
     },
     {

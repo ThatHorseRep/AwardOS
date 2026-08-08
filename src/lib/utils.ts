@@ -88,14 +88,6 @@ export function generateInviteCode(): string {
   return code;
 }
 
-export function hashIP(ip: string, salt: string): string {
-  // Simple hash for IP anonymization — use crypto.subtle in production
-  let hash = 0;
-  const combined = ip + salt;
-  for (let i = 0; i < combined.length; i++) {
-    const char = combined.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash |= 0; // Convert to 32bit integer
-  }
-  return Math.abs(hash).toString(36);
-}
+// `hashIP` used to live here. It moved to `lib/hash.ts` because it needs
+// node:crypto, and this module exports `cn` — imported by nearly every client
+// component, which dragged a Node builtin toward the client bundle.
