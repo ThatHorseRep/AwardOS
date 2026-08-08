@@ -302,8 +302,11 @@ export default function OrganizerExportsDashboardPage() {
           rows.push({
             Type: "EMAIL_OTP",
             Identifier: o.email,
-            Security_Code: o.code,
+            // The code itself is stored hashed and never exported — a
+            // downloadable file of live OTPs would let anyone holding it cast
+            // those voters' ballots.
             Status: o.verified ? "VERIFIED" : "PENDING",
+            Issued_At: o.issuedAt || "",
             Expires_At: o.expiresAt ? new Date(o.expiresAt).toLocaleString() : "",
           });
         });

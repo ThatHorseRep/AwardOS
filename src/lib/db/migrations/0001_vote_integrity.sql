@@ -1,0 +1,4 @@
+ALTER TABLE "vote_sessions" DROP CONSTRAINT "vote_sessions_session_token_unique";--> statement-breakpoint
+CREATE UNIQUE INDEX "unq_vote_sessions_event_token" ON "vote_sessions" USING btree ("event_id","session_token");--> statement-breakpoint
+CREATE UNIQUE INDEX "unq_vote_sessions_event_email" ON "vote_sessions" USING btree ("event_id","verified_email") WHERE "vote_sessions"."verified_email" IS NOT NULL AND "vote_sessions"."status" = 'SUBMITTED';--> statement-breakpoint
+CREATE UNIQUE INDEX "unq_vote_sessions_event_fingerprint" ON "vote_sessions" USING btree ("event_id","device_fingerprint") WHERE "vote_sessions"."device_fingerprint" IS NOT NULL AND "vote_sessions"."status" = 'SUBMITTED';

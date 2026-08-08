@@ -27,6 +27,7 @@ import {
   verifyEmailOtpAction,
   verifyInvitationCodeAction,
 } from "@/actions/voting";
+import { INVITATION_CODE_LENGTH } from "@/lib/constants";
 
 export default function PublicBallotPage() {
   const params = useParams();
@@ -166,10 +167,17 @@ export default function PublicBallotPage() {
     setSubmitting(true);
 
     try {
-      let sessionId = localStorage.getItem("awardos_session_id");
+      // Keyed per event. A single shared key meant the same token was reused
+      // across events, and session_token used to be globally unique, so voting
+      // in a second event raised a unique violation the voter saw as a 500.
+      const sessionKey = `awardos_session_id_${slug}`;
+      let sessionId = localStorage.getItem(sessionKey);
       if (!sessionId) {
-        sessionId = `sess_${Math.random().toString(36).substring(2)}_${Date.now()}`;
-        localStorage.setItem("awardos_session_id", sessionId);
+        sessionId =
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? `sess_${crypto.randomUUID()}`
+            : `sess_${Math.random().toString(36).substring(2)}_${Date.now()}`;
+        localStorage.setItem(sessionKey, sessionId);
       }
 
       const votesPayload = event.categories.map((cat: any) => ({
@@ -400,16 +408,15 @@ export default function PublicBallotPage() {
               <input
                 type="text"
                 required
-                maxLength={8}
                 value={invitationCode}
                 onChange={(e) => setInvitationCode(e.target.value)}
-                placeholder="Enter Code (e.g. A8B9C7D6)"
+                placeholder="Enter your code"
                 className="w-full bg-slate-50 text-center text-slate-900 text-base tracking-widest rounded-2xl px-4 py-2.5 border border-slate-200 focus:outline-none focus:border-blue-500 font-mono font-extrabold uppercase"
               />
               <Button
                 type="submit"
                 variant="primary"
-                disabled={verifying || invitationCode.length < 8}
+                disabled={verifying || invitationCode.trim().length < INVITATION_CODE_LENGTH}
                 className="w-full rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20"
               >
                 {verifying ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : null}

@@ -250,9 +250,12 @@ export async function getVoterLogsExportAction(eventId: string) {
     .orderBy(desc(invitationCodes.createdAt));
 
   return {
+    // Codes are stored hashed and are deliberately not exported. This export
+    // previously carried live plaintext OTPs, so anyone who could download it
+    // could cast those voters' ballots. Status is what an auditor needs here.
     otps: otps.map(o => ({
       email: o.email,
-      code: o.code,
+      issuedAt: o.createdAt ? new Date(o.createdAt).toLocaleString() : "",
       expiresAt: o.expiresAt ? new Date(o.expiresAt).toLocaleString() : "",
       verified: o.verified ? "YES" : "NO"
     })),

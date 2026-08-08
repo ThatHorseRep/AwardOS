@@ -18,6 +18,16 @@ import {
   isCookieEnforcedMethod,
   resolveVotedBallot,
 } from "@/lib/voting-cookie";
+import {
+  generateOtpCode,
+  hashOtpCode,
+  otpHashMatches,
+  OTP_MAX_ATTEMPTS,
+  OTP_TTL_MS,
+} from "@/lib/otp";
+import { escapeXml } from "@/lib/sanitize";
+import { INVITATION_CODE_LENGTH } from "@/lib/constants";
+import { randomInt } from "crypto";
 
 export async function updateEventSettingsAction(
   eventId: string,
@@ -66,9 +76,13 @@ export async function generateInvitationCodesAction(
     : null;
 
   for (let i = 0; i < count; i++) {
+    // 10 characters of a 32-character alphabet is ~50 bits, up from ~30 at the
+    // previous 6. And randomInt is the CSPRNG: with Math.random() an attacker
+    // who sees a handful of issued codes can recover the generator state and
+    // derive the rest, which for a bearer ballot credential is fatal.
     let randomPart = "";
-    for (let j = 0; j < 6; j++) {
-      randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
+    for (let j = 0; j < INVITATION_CODE_LENGTH; j++) {
+      randomPart += chars.charAt(randomInt(0, chars.length));
     }
     const code = prefix ? `${prefix}-${randomPart}` : randomPart;
 
@@ -168,36 +182,38 @@ export async function sendEmailOtpAction(eventId: string, email: string) {
     throw new Error("Too many verification attempts. Please wait a few minutes before requesting a new code.");
   }
 
-  // 4. Generate 6-digit code
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min expiry
+  // 4. Generate code with the CSPRNG and store only its digest
+  const code = generateOtpCode();
+  const expiresAt = new Date(Date.now() + OTP_TTL_MS);
 
-  // 5. Save to DB
   const otpRecords = await db
     .insert(voterOtps)
     .values({
       eventId,
       email: cleanEmail,
-      code,
+      codeHash: hashOtpCode(code),
       expiresAt,
       verified: false,
     })
     .returning({ id: voterOtps.id });
 
-  // 6. Send email via Resend (with dev fallback)
+  // 5. Deliver it
   const resendApiKey = process.env.RESEND_API_KEY;
+
   if (resendApiKey) {
     try {
       const { Resend } = await import("resend");
       const resend = new Resend(resendApiKey);
       await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL || "AwardOS <noreply@awardos.app>",
+        from: process.env.RESEND_FROM_EMAIL || "AwardOS <onboarding@resend.dev>",
         to: cleanEmail,
-        subject: `Your ${event.name} voter access code: ${code}`,
+        // The code is deliberately not in the subject: subject lines appear in
+        // lock-screen notifications, mail-client previews and relay logs.
+        subject: `Your ${event.name} voter access code`,
         html: `
           <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
             <h2 style="color: #1e293b; font-size: 20px; margin-bottom: 8px;">Your Voter Access Code</h2>
-            <p style="color: #64748b; font-size: 14px; margin-bottom: 24px;">Use the code below to verify your identity and cast your ballot for <strong>${event.name}</strong>.</p>
+            <p style="color: #64748b; font-size: 14px; margin-bottom: 24px;">Use the code below to verify your identity and cast your ballot for <strong>${escapeXml(event.name)}</strong>.</p>
             <div style="background: #f1f5f9; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px;">
               <span style="font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #1e293b; font-family: monospace;">${code}</span>
             </div>
@@ -206,13 +222,25 @@ export async function sendEmailOtpAction(eventId: string, email: string) {
         `,
       });
     } catch (emailErr) {
-      console.warn("[OTP] Email send failed, code stored in DB:", (emailErr as any)?.message);
+      // Previously this was swallowed and the action still returned success, so
+      // the voter advanced to the code screen for a code that never arrived.
+      // Drop the unusable code rather than leaving it live.
+      await db.delete(voterOtps).where(eq(voterOtps.id, otpRecords[0].id));
+      console.error("[OTP] Email send failed:", (emailErr as Error)?.message);
+      throw new Error(
+        "We could not send your verification code. Please try again in a moment."
+      );
     }
+  } else if (process.env.NODE_ENV === "production") {
+    // Failing loudly beats a voting page that silently cannot verify anyone.
+    await db.delete(voterOtps).where(eq(voterOtps.id, otpRecords[0].id));
+    throw new Error(
+      "Email verification is unavailable for this event. Please contact the organizer."
+    );
   } else {
-    // Dev-only: log to console when no Resend key configured
-    if (process.env.NODE_ENV !== "production") {
-      console.log(`[DEV OTP] Code for ${cleanEmail.split("@")[1]} domain: ${code} (expires ${expiresAt.toLocaleTimeString()})`);
-    }
+    console.log(
+      `[DEV OTP] ${cleanEmail} -> ${code} (expires ${expiresAt.toLocaleTimeString()})`
+    );
   }
 
   return {
@@ -224,7 +252,11 @@ export async function sendEmailOtpAction(eventId: string, email: string) {
 // Public OTP: Verify Action
 export async function verifyEmailOtpAction(eventId: string, email: string, code: string) {
   const cleanEmail = email.trim().toLowerCase();
+  const cleanCode = code.trim();
 
+  // Fetch by identity only. The code is compared in constant time below, since
+  // matching on it in SQL would leak validity through query behaviour and makes
+  // an attempt counter impossible (a wrong guess would return no row at all).
   const otpList = await db
     .select()
     .from(voterOtps)
@@ -232,23 +264,37 @@ export async function verifyEmailOtpAction(eventId: string, email: string, code:
       and(
         eq(voterOtps.eventId, eventId),
         eq(voterOtps.email, cleanEmail),
-        eq(voterOtps.code, code.trim())
+        eq(voterOtps.verified, false),
+        gt(voterOtps.expiresAt, new Date())
       )
     )
     .orderBy(desc(voterOtps.createdAt))
     .limit(1);
 
+  // Deliberately identical to a wrong code: distinguishing "no code issued" from
+  // "wrong code" tells an attacker which addresses are eligible to vote.
   if (otpList.length === 0) {
-    throw new Error("Invalid verification code.");
+    throw new Error("Invalid or expired verification code.");
   }
 
   const otp = otpList[0];
 
-  if (new Date() > new Date(otp.expiresAt)) {
-    throw new Error("Verification code has expired.");
+  // A 6-digit code is 10^6 possibilities — searchable in minutes without this.
+  if (otp.attempts >= OTP_MAX_ATTEMPTS) {
+    throw new Error(
+      "Too many incorrect attempts. Please request a new verification code."
+    );
   }
 
-  // Mark verified
+  if (!otpHashMatches(hashOtpCode(cleanCode), otp.codeHash)) {
+    await db
+      .update(voterOtps)
+      .set({ attempts: otp.attempts + 1 })
+      .where(eq(voterOtps.id, otp.id));
+
+    throw new Error("Invalid or expired verification code.");
+  }
+
   await db
     .update(voterOtps)
     .set({ verified: true })

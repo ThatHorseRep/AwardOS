@@ -8,6 +8,27 @@
       "when": 1786183883852,
       "tag": "0000_baseline",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786186206772,
+      "tag": "0001_vote_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786203289209,
+      "tag": "0002_otp_add_hash",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786203401974,
+      "tag": "0003_otp_drop_plaintext",
+      "breakpoints": true
     }
   ]
 }

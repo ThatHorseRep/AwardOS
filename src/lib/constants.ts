@@ -179,6 +179,18 @@ export const LIMITS = {
   EXPORT_ASYNC_THRESHOLD_ROWS: 10_000,
 } as const;
 
+/**
+ * Length of the random portion of an invitation code.
+ *
+ * Shared by the generator and the ballot UI's input. They previously disagreed
+ * — the generator emitted 6 characters while the input required 8 before it
+ * would enable submit — so no generated code could ever be entered and
+ * invitation-code voting was unusable end to end.
+ *
+ * 10 characters of the 32-character unambiguous alphabet is ~50 bits.
+ */
+export const INVITATION_CODE_LENGTH = 10;
+
 // -------------------------------------------
 // Supabase Storage Buckets
 // -------------------------------------------

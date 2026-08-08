@@ -15,24 +15,38 @@ import path from "path";
  */
 export type TestDb = PGlite;
 
-const MIGRATION = path.join(
-  process.cwd(),
-  "src/lib/db/migrations/0000_baseline.sql"
-);
+const MIGRATIONS_DIR = path.join(process.cwd(), "src/lib/db/migrations");
+
+/**
+ * Applies every migration in journal order — not just the baseline. Reading the
+ * journal rather than globbing the directory means the test database is built
+ * exactly the way production was, so a constraint added in a later migration is
+ * present here too.
+ */
+function migrationFiles(): string[] {
+  const journal = JSON.parse(
+    fs.readFileSync(path.join(MIGRATIONS_DIR, "meta/_journal.json"), "utf8")
+  ) as { entries: Array<{ tag: string }> };
+
+  return journal.entries.map((e) => path.join(MIGRATIONS_DIR, `${e.tag}.sql`));
+}
 
 export async function createTestDb(): Promise<TestDb> {
   const db = new PGlite();
-  const sql = fs.readFileSync(MIGRATION, "utf8");
 
-  // drizzle separates statements with this marker rather than plain `;`,
-  // which would split mid-function-body.
-  const statements = sql
-    .split("--> statement-breakpoint")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  for (const file of migrationFiles()) {
+    const sql = fs.readFileSync(file, "utf8");
 
-  for (const statement of statements) {
-    await db.exec(statement);
+    // drizzle separates statements with this marker rather than plain `;`,
+    // which would split mid-function-body.
+    const statements = sql
+      .split("--> statement-breakpoint")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    for (const statement of statements) {
+      await db.exec(statement);
+    }
   }
 
   return db;

@@ -11,8 +11,10 @@ import {
   nominees,
 } from "@/lib/db/schema";
 import { eq, and, isNull, inArray, gt } from "drizzle-orm";
+import { randomUUID } from "crypto";
 import { submitVotesSchema } from "@/lib/validators";
 import { hashIP } from "@/lib/hash";
+import { getClientIp } from "@/lib/request-ip";
 import {
   votedCookieName,
   votedCookieOptions,
@@ -39,12 +41,16 @@ export async function POST(
     }
 
     const { votes, sessionId, verificationSession } = parseResult.data;
-    const sessionToken = sessionId?.trim() || `sess_${Math.random().toString(36).substring(2)}_${Date.now()}`;
+    const sessionToken = sessionId?.trim() || `sess_${randomUUID()}`;
     const ballotId = `ballot-${sessionToken}`;
-    const forwardedFor = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "";
-    const ipAddress = forwardedFor.split(",")[0].trim() || "127.0.0.1";
+    const ipAddress = getClientIp(request.headers);
     const userAgent = request.headers.get("user-agent") || "";
-    const deviceFingerprint = hashIP(`${ipAddress}|${userAgent}`, slug);
+    // Deliberately excludes the User-Agent. It is client-supplied, so including
+    // it let a voter mint a fresh identity — and a second ballot — by altering a
+    // single byte of the header. The IP alone is coarse (it groups a household
+    // or an office), which is why the database unique index, not this value, is
+    // what actually enforces one-ballot-per-voter.
+    const deviceFingerprint = hashIP(ipAddress, slug);
     const providedMethod = (verificationSession?.method || "NONE") as string;
 
     // 1. Verify event exists and voting stage is active
@@ -60,19 +66,51 @@ export async function POST(
 
     const event = eventList[0];
 
-    // Verify stage status
+    // A private or unlisted event must not accept ballots from someone who
+    // merely guessed the slug.
+    if (event.visibility && event.visibility !== "PUBLIC") {
+      return NextResponse.json({ error: "Event not found." }, { status: 404 });
+    }
+
+    // Both gates have to hold. Previously an ACTIVE voting stage was taken as
+    // sufficient on its own, which meant a DRAFT, PAUSED, or COMPLETED event
+    // still accepted ballots as long as a stage row said ACTIVE.
+    if (event.status !== "ACTIVE") {
+      return NextResponse.json(
+        { error: "Voting is not currently open for this event." },
+        { status: 403 }
+      );
+    }
+
     const stages = await db
       .select()
       .from(workflowStages)
       .where(eq(workflowStages.eventId, event.id));
     const votingStage = stages.find((s) => s.stageType === "VOTING");
-    const isVotingActive = votingStage ? votingStage.status === "ACTIVE" : event.status === "ACTIVE";
 
-    if (!isVotingActive) {
-      return NextResponse.json(
-        { error: "Voting is not currently active for this event program." },
-        { status: 403 }
-      );
+    if (votingStage) {
+      if (votingStage.status !== "ACTIVE") {
+        return NextResponse.json(
+          { error: "Voting is not currently open for this event." },
+          { status: 403 }
+        );
+      }
+
+      // startsAt/endsAt were stored and configured by admins but never checked,
+      // so a schedule window had no effect on who could vote.
+      const now = Date.now();
+      if (votingStage.startsAt && now < new Date(votingStage.startsAt).getTime()) {
+        return NextResponse.json(
+          { error: "Voting has not opened yet for this event." },
+          { status: 403 }
+        );
+      }
+      if (votingStage.endsAt && now > new Date(votingStage.endsAt).getTime()) {
+        return NextResponse.json(
+          { error: "Voting has closed for this event." },
+          { status: 403 }
+        );
+      }
     }
 
     const verificationConfig = (event.verificationConfig as any) || {};
@@ -133,6 +171,16 @@ export async function POST(
       }
     }
 
+    // An entirely empty ballot expresses no preference, yet it still consumed
+    // the voter's one allowed submission — burning their invitation code or
+    // fingerprint and locking them out of voting for real.
+    if (votes.every((vote) => !vote.nomineeId)) {
+      return NextResponse.json(
+        { error: "Select at least one nominee before submitting your ballot." },
+        { status: 400 }
+      );
+    }
+
     const selectedNomineeIds = votes.filter((vote) => vote.nomineeId).map((vote) => vote.nomineeId as string);
     let nomineeRecords: Array<{ id: string; categoryId: string; status: string }> = [];
 
@@ -180,17 +228,31 @@ export async function POST(
               eq(voterOtps.id, verificationSession.otpId),
               eq(voterOtps.eventId, event.id),
               eq(voterOtps.email, verificationSession.email.trim().toLowerCase()),
-              eq(voterOtps.verified, true)
+              eq(voterOtps.verified, true),
+              // Expiry was checked when the code was verified but not again
+              // here, so a verified otpId stayed valid indefinitely — a
+              // permanent bearer token for that voter's ballot.
+              gt(voterOtps.expiresAt, new Date())
             )
           )
           .limit(1);
 
         if (otpList.length === 0) {
-          throw new Error("Verification session invalid or unverified.");
+          throw new Error("Verification session invalid or expired.");
         }
 
         verifiedEmail = verificationSession.email.trim().toLowerCase();
 
+        // Consume it. Nothing previously invalidated a used OTP, so the same
+        // one could be replayed. The unique index below is the real guard, but
+        // a spent credential should not stay spendable.
+        await tx
+          .delete(voterOtps)
+          .where(eq(voterOtps.id, verificationSession.otpId));
+
+        // Kept as a fast, friendly rejection ahead of the database constraint;
+        // the unique index on (event_id, verified_email) is what makes it safe
+        // under concurrency.
         const existingVoteSession = await tx
           .select()
           .from(voteSessions)
@@ -387,10 +449,39 @@ export async function POST(
     successResponse.cookies.set(votedCookieName(slug), ballotId, votedCookieOptions);
 
     return successResponse;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    // The unique indexes on vote_sessions are what actually stop a double
+    // ballot, including two genuinely concurrent ones. Reaching here with 23505
+    // means the constraint did its job, so this is a conflict, not a fault.
+    const pgCode = (error as { code?: string })?.code;
+    if (pgCode === "23505") {
+      const constraint = (error as { constraint_name?: string })?.constraint_name ?? "";
+      const message = constraint.includes("event_email")
+        ? "A ballot has already been submitted with this email address."
+        : constraint.includes("event_fingerprint")
+        ? "A ballot from this device has already been submitted for this event."
+        : "You have already cast a ballot for this event.";
+      return NextResponse.json({ error: message }, { status: 409 });
+    }
+
+    const message =
+      error instanceof Error ? error.message : "Unable to submit ballot.";
+
+    // Rejections raised inside the transaction are voter-facing rules, not
+    // server faults, and were previously all reported as HTTP 500 — which read
+    // to the voter as "the site is broken" rather than "you already voted".
+    const isConflict = /already/i.test(message);
+    const isRateLimited = /too many/i.test(message);
+    const isRuleViolation =
+      /required|invalid|expired|not eligible|at least one|no longer/i.test(message);
+
+    if (isConflict) return NextResponse.json({ error: message }, { status: 409 });
+    if (isRateLimited) return NextResponse.json({ error: message }, { status: 429 });
+    if (isRuleViolation) return NextResponse.json({ error: message }, { status: 400 });
+
     console.error("Submit Ballot error:", error);
     return NextResponse.json(
-      { error: error?.message || "Internal server error submitting ballot." },
+      { error: "Internal server error submitting ballot." },
       { status: 500 }
     );
   }

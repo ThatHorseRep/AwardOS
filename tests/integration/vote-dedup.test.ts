@@ -3,12 +3,13 @@ import { createTestDb, truncateAll, seedVotingFixture, type TestDb } from "../he
 import { hashIP } from "@/lib/hash";
 
 /**
- * Vote deduplication.
+ * Vote deduplication — one ballot per voter per event.
  *
- * These tests describe the guarantee the product actually needs — one ballot
- * per voter per event — rather than the behaviour the code currently has.
- * Several are expected to FAIL until the Phase 2 fixes land; each one names the
- * defect it pins down so a future reader knows why it exists.
+ * Every test here was written failing first, against the behaviour the code had
+ * at the time, and each names the defect it pins down. They are regression
+ * guards now: the enforcement lives in partial unique indexes on vote_sessions,
+ * so if someone drops those constraints these fail rather than silently
+ * accepting duplicate ballots.
  */
 describe("vote deduplication", () => {
   let db: TestDb;
@@ -21,9 +22,12 @@ describe("vote deduplication", () => {
     await truncateAll(db);
   });
 
-  /** Mirrors the route's fingerprint derivation at votes/route.ts:47. */
-  const currentFingerprint = (ip: string, userAgent: string, slug: string) =>
-    hashIP(`${ip}|${userAgent}`, slug);
+  /**
+   * Mirrors the route's fingerprint derivation. The User-Agent is deliberately
+   * not an input — see the first test.
+   */
+  const fingerprintFor = (ip: string, _userAgent: string, slug: string) =>
+    hashIP(ip, slug);
 
   async function castBallot(
     eventId: string,
@@ -64,22 +68,22 @@ describe("vote deduplication", () => {
   };
 
   it("changing only the User-Agent must not create a new voter identity", async () => {
-    // Defect: votes/route.ts:47 hashes `${ip}|${userAgent}`. The User-Agent is
+    // Was: votes/route.ts hashed `${ip}|${userAgent}`. The User-Agent is
     // attacker-supplied, so one altered byte yields a fresh fingerprint and a
     // second ballot. The fingerprint must not depend on client-controlled input.
     const fx = await seedVotingFixture(db);
 
-    const a = currentFingerprint("203.0.113.5", "Mozilla/5.0 (Chrome)", fx.slug);
-    const b = currentFingerprint("203.0.113.5", "Mozilla/5.0 (Chrome!)", fx.slug);
+    const a = fingerprintFor("203.0.113.5", "Mozilla/5.0 (Chrome)", fx.slug);
+    const b = fingerprintFor("203.0.113.5", "Mozilla/5.0 (Chrome!)", fx.slug);
 
     expect(b).toBe(a);
   });
 
   it("rejects a second ballot from the same device fingerprint", async () => {
-    // Defect: dedup is a read-then-write application check with no database
-    // constraint behind it, so nothing structurally prevents a duplicate.
+    // Was: dedup was a read-then-write application check with no database
+    // constraint behind it, so nothing structurally prevented a duplicate.
     const fx = await seedVotingFixture(db);
-    const fp = currentFingerprint("203.0.113.5", "UA", fx.slug);
+    const fp = fingerprintFor("203.0.113.5", "UA", fx.slug);
 
     await castBallot(fx.eventId, fx.categoryId, fx.nomineeId, {
       fingerprint: fp,
@@ -97,18 +101,18 @@ describe("vote deduplication", () => {
   });
 
   it("rejects a second ballot from the same verified email", async () => {
-    // Defect: no unique index on (event_id, verified_email).
+    // Was: no unique index on (event_id, verified_email).
     const fx = await seedVotingFixture(db, { verificationMethod: "EMAIL_OTP" });
 
     await castBallot(fx.eventId, fx.categoryId, fx.nomineeId, {
-      fingerprint: currentFingerprint("198.51.100.1", "UA-1", fx.slug),
+      fingerprint: fingerprintFor("198.51.100.1", "UA-1", fx.slug),
       ip: "198.51.100.1",
       email: "voter@example.com",
     });
 
     await expect(
       castBallot(fx.eventId, fx.categoryId, fx.nomineeId, {
-        fingerprint: currentFingerprint("198.51.100.9", "UA-2", fx.slug),
+        fingerprint: fingerprintFor("198.51.100.9", "UA-2", fx.slug),
         ip: "198.51.100.9",
         email: "voter@example.com",
       })
@@ -118,14 +122,14 @@ describe("vote deduplication", () => {
   });
 
   it("survives two concurrent submissions from the same voter", async () => {
-    // Defect: under READ COMMITTED both transactions read "no prior ballot"
+    // Was: under READ COMMITTED both transactions read "no prior ballot"
     // before either commits, so both are accepted. Only a unique index (or a
     // row lock) makes this safe — wrapping it in a transaction does not.
     const fx = await seedVotingFixture(db, { verificationMethod: "EMAIL_OTP" });
 
     const attempt = () =>
       castBallot(fx.eventId, fx.categoryId, fx.nomineeId, {
-        fingerprint: currentFingerprint("198.51.100.7", "UA", fx.slug),
+        fingerprint: fingerprintFor("198.51.100.7", "UA", fx.slug),
         ip: "198.51.100.7",
         email: "racer@example.com",
       });
@@ -142,13 +146,13 @@ describe("vote deduplication", () => {
     const fx = await seedVotingFixture(db, { verificationMethod: "EMAIL_OTP" });
 
     await castBallot(fx.eventId, fx.categoryId, fx.nomineeId, {
-      fingerprint: currentFingerprint("203.0.113.1", "UA", fx.slug),
+      fingerprint: fingerprintFor("203.0.113.1", "UA", fx.slug),
       ip: "203.0.113.1",
       email: "alice@example.com",
     });
 
     await castBallot(fx.eventId, fx.categoryId, fx.nomineeId, {
-      fingerprint: currentFingerprint("203.0.113.2", "UA", fx.slug),
+      fingerprint: fingerprintFor("203.0.113.2", "UA", fx.slug),
       ip: "203.0.113.2",
       email: "bob@example.com",
     });
@@ -157,7 +161,7 @@ describe("vote deduplication", () => {
   });
 
   it("permits the same person to vote in two different events", async () => {
-    // Defect: vote_sessions.session_token is globally UNIQUE and the client
+    // Was: vote_sessions.session_token was globally UNIQUE and the client
     // stores one localStorage key for all events, so voting in a second event
     // raises a unique violation surfaced as an HTTP 500. Uniqueness should be
     // scoped to (event_id, session_token).
@@ -167,14 +171,14 @@ describe("vote deduplication", () => {
     const sharedToken = "sess_shared_across_events";
 
     await castBallot(a.eventId, a.categoryId, a.nomineeId, {
-      fingerprint: currentFingerprint("203.0.113.3", "UA", a.slug),
+      fingerprint: fingerprintFor("203.0.113.3", "UA", a.slug),
       ip: "203.0.113.3",
       token: sharedToken,
     });
 
     await expect(
       castBallot(b.eventId, b.categoryId, b.nomineeId, {
-        fingerprint: currentFingerprint("203.0.113.3", "UA", b.slug),
+        fingerprint: fingerprintFor("203.0.113.3", "UA", b.slug),
         ip: "203.0.113.3",
         token: sharedToken,
       })
@@ -187,7 +191,7 @@ describe("vote deduplication", () => {
     const fx = await seedVotingFixture(db);
 
     const sessionId = await castBallot(fx.eventId, fx.categoryId, fx.nomineeId, {
-      fingerprint: currentFingerprint("203.0.113.8", "UA", fx.slug),
+      fingerprint: fingerprintFor("203.0.113.8", "UA", fx.slug),
       ip: "203.0.113.8",
     });
 
