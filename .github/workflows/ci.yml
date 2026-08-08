@@ -8,7 +8,7 @@ on:
 
 jobs:
   verify:
-    name: Typecheck, lint, build
+    name: Typecheck, lint, test, build
     runs-on: ubuntu-latest
 
     steps:
@@ -27,6 +27,11 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      # Integration tests run Postgres in-process via PGlite, applying the real
+      # migrations — no database service, no secrets, nothing to configure.
+      - name: Test
+        run: npm test
 
       # The build needs DATABASE_URL at module scope (src/lib/db/index.ts throws
       # without it) and Supabase keys for the auth client, but it never connects
