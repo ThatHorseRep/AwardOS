@@ -5,7 +5,7 @@ import { events, categories, nominees, workflowStages, eventBranding, nomination
 import { getOrCreateWorkspaceAction } from "./workspaces";
 import { requireWorkspaceRole, requireEventAccess, EVENT_ADMINS, WORKSPACE_ADMINS } from "./_rbac";
 import { eq, and, isNull, count, sql, lt } from "drizzle-orm";
-import { ensureNomineesForRawNominationsAction } from "./nominations";
+import { syncNomineesForEvent } from "@/lib/nominations/sync";
 import { redirect } from "next/navigation";
 
 export interface CreateEventInput {
@@ -147,7 +147,15 @@ export async function getEventDetailsAction(eventId: string) {
   const eventList = await db
     .select()
     .from(events)
-    .where(and(eq(events.id, eventId), eq(events.workspaceId, workspace.id)))
+    // isNull(deletedAt) mirrors requireEventAccess: a soft-deleted event is not
+    // addressable, and without it a deleted event stayed fully readable by id.
+    .where(
+      and(
+        eq(events.id, eventId),
+        eq(events.workspaceId, workspace.id),
+        isNull(events.deletedAt)
+      )
+    )
     .limit(1);
 
   if (eventList.length === 0) {
@@ -267,6 +275,12 @@ export async function getPublicEventDetailsAction(slug: string) {
 
   const event = eventList[0];
 
+  // A PRIVATE event is not addressable by slug — treat it as absent rather than
+  // confirming it exists to anyone who guesses the URL.
+  if (event.visibility === "PRIVATE") {
+    return null;
+  }
+
   // Fetch categories & nominees for public view
   const eventCategories = await db
     .select()
@@ -274,7 +288,12 @@ export async function getPublicEventDetailsAction(slug: string) {
     .where(and(eq(categories.eventId, event.id), eq(categories.isActive, true)))
     .orderBy(categories.displayOrder);
 
-  await ensureNomineesForRawNominationsAction(event.id);
+  // Was `ensureNomineesForRawNominationsAction`, which calls
+  // requireWorkspaceRole and therefore threw for every signed-out visitor —
+  // breaking the public event and nomination pages for exactly the people they
+  // exist for. syncNomineesForEvent is the unguarded library function the
+  // nominations route already uses for this.
+  await syncNomineesForEvent(event.id);
 
   const categoriesWithNominees = await Promise.all(
     eventCategories.map(async (cat) => {
@@ -330,7 +349,11 @@ export interface UpdateEventBrandingInput {
 }
 
 export async function updateEventBrandingAction(input: UpdateEventBrandingInput) {
-  await requireWorkspaceRole(EVENT_ADMINS);
+  // requireWorkspaceRole alone proved the caller holds a role in *their own*
+  // workspace, then this wrote keyed only on the caller-supplied eventId — so
+  // any event manager could rewrite the logo, banner and colours of any event
+  // in any workspace. requireEventAccess binds the id to the caller's workspace.
+  await requireEventAccess(input.eventId, EVENT_ADMINS);
 
   const existing = await db
     .select()
@@ -365,20 +388,11 @@ export async function updateEventBrandingAction(input: UpdateEventBrandingInput)
 }
 
 export async function duplicateEventAction(eventId: string, newName: string, newSlug: string) {
-  const { user } = await requireWorkspaceRole(EVENT_ADMINS);
-
-  // 1. Fetch parent event details
-  const parentEventList = await db
-    .select()
-    .from(events)
-    .where(eq(events.id, eventId))
-    .limit(1);
-
-  if (parentEventList.length === 0) {
-    throw new Error("Parent event not found");
-  }
-
-  const parent = parentEventList[0];
+  // Was scoped only by role, while the parent was fetched by bare id — so this
+  // cloned another workspace's event, wrote the copy into *their* workspace,
+  // and returned their row (description, visibility, verification and audience
+  // config) to the caller.
+  const { user, event: parent } = await requireEventAccess(eventId, EVENT_ADMINS);
 
   // 2. Perform deep duplication in a transaction
   const newEvent = await db.transaction(async (tx) => {

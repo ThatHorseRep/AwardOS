@@ -9,6 +9,7 @@ import {
   users,
 } from "@/lib/db/schema";
 import { eq, and, sql, isNull, ne, desc } from "drizzle-orm";
+import { randomBytes } from "crypto";
 import { getOrCreateWorkspaceAction, getCurrentUser } from "./workspaces";
 import { requireWorkspaceRole, WORKSPACE_ADMINS } from "./_rbac";
 
@@ -90,7 +91,31 @@ export async function generateWorkspaceInviteAction(input: {
     throw new Error("Unauthorized: only an OWNER can grant the OWNER role");
   }
 
-  const token = `inv_${Math.random().toString(36).substring(2)}_${Date.now()}`;
+  // Same check updateWorkspaceMemberRoleAction already performs. Without it a
+  // caller could attach another workspace's custom role to this invite and pull
+  // that workspace's permission set in with it.
+  if (input.customRoleId) {
+    const [customRole] = await db
+      .select({ id: customRoles.id })
+      .from(customRoles)
+      .where(
+        and(
+          eq(customRoles.id, input.customRoleId),
+          eq(customRoles.workspaceId, workspace.id)
+        )
+      )
+      .limit(1);
+
+    if (!customRole) {
+      throw new Error("Custom role not found in this workspace");
+    }
+  }
+
+  // The token is the entire credential for joining a workspace, so it comes
+  // from the CSPRNG. Math.random() is a deterministic PRNG whose state can be
+  // recovered from observed output, which would let an attacker derive other
+  // workspaces' invite tokens.
+  const token = `inv_${randomBytes(24).toString("base64url")}`;
   let expiresAt: Date | null = null;
   if (input.expiresDays && input.expiresDays > 0) {
     expiresAt = new Date();
@@ -173,6 +198,7 @@ export async function getInviteDetailsAction(token: string) {
       domainRestrictions: workspaceInvites.domainRestrictions,
       workspaceId: workspaceInvites.workspaceId,
       workspaceName: workspaces.name,
+      customRoleId: workspaceInvites.customRoleId,
       customRoleName: customRoles.name,
     })
     .from(workspaceInvites)
@@ -217,6 +243,13 @@ export async function acceptWorkspaceInviteAction(token: string) {
 
   const inv = inviteRes.invite;
 
+  // An invite minted for a specific address was claimable by anyone holding the
+  // link — forwarding the email was enough to join a workspace you were never
+  // invited to. An untargeted invite (email null) stays open by design.
+  if (inv.email && inv.email.toLowerCase() !== user.email.toLowerCase()) {
+    throw new Error("This invitation was issued to a different email address.");
+  }
+
   // Domain restriction check if any
   const domainRestrictions = (inv.domainRestrictions as string[]) || [];
   if (domainRestrictions.length > 0) {
@@ -227,6 +260,26 @@ export async function acceptWorkspaceInviteAction(token: string) {
     }
   }
 
+  // Claim a use first, conditionally. The counter used to be incremented in a
+  // separate unguarded statement after the member was added, so concurrent
+  // redemptions of a maxUses=1 link could all pass the earlier check and every
+  // one of them would join. Updating only when a use remains makes the database
+  // the arbiter: exactly one concurrent caller gets a row back.
+  const claimed = await db
+    .update(workspaceInvites)
+    .set({ usesCount: sql`${workspaceInvites.usesCount} + 1` })
+    .where(
+      and(
+        eq(workspaceInvites.id, inv.id),
+        sql`${workspaceInvites.usesCount} < ${workspaceInvites.maxUses}`
+      )
+    )
+    .returning({ id: workspaceInvites.id });
+
+  if (claimed.length === 0) {
+    throw new Error("This invitation has already been used.");
+  }
+
   // Add user as workspace member
   await db
     .insert(workspaceMembers)
@@ -234,6 +287,9 @@ export async function acceptWorkspaceInviteAction(token: string) {
       workspaceId: inv.workspaceId,
       userId: user.id,
       role: inv.role,
+      // Was dropped on acceptance, so a member invited with a custom role
+      // silently landed on the base role instead.
+      customRoleId: inv.customRoleId || null,
       status: "ACTIVE",
       acceptedAt: new Date(),
     })
@@ -241,18 +297,11 @@ export async function acceptWorkspaceInviteAction(token: string) {
       target: [workspaceMembers.workspaceId, workspaceMembers.userId],
       set: {
         role: inv.role,
+        customRoleId: inv.customRoleId || null,
         status: "ACTIVE",
         acceptedAt: new Date(),
       },
     });
-
-  // Increment uses count
-  await db
-    .update(workspaceInvites)
-    .set({
-      usesCount: sql`${workspaceInvites.usesCount} + 1`,
-    })
-    .where(eq(workspaceInvites.id, inv.id));
 
   return { success: true, workspaceName: inv.workspaceName };
 }
@@ -391,6 +440,47 @@ export async function updateWorkspaceMemberRoleAction(
   // Only an OWNER may promote another member to OWNER.
   if (role === "OWNER" && actor.role !== "OWNER") {
     throw new Error("Unauthorized: only an OWNER can grant the OWNER role");
+  }
+
+  // The guard above is one-directional: it blocked *granting* OWNER but not
+  // *removing* it, so an ADMIN could demote the sole OWNER to VOLUNTEER and
+  // take the workspace over. removeWorkspaceMemberAction protects the last
+  // OWNER already — the same invariant has to hold on this path.
+  const [target] = await db
+    .select({ id: workspaceMembers.id, role: workspaceMembers.role })
+    .from(workspaceMembers)
+    .where(
+      and(
+        eq(workspaceMembers.id, memberId),
+        eq(workspaceMembers.workspaceId, workspace.id),
+        ne(workspaceMembers.status, "REMOVED")
+      )
+    )
+    .limit(1);
+
+  if (!target) {
+    throw new Error("Member not found in this workspace");
+  }
+
+  if (target.role === "OWNER" && role !== "OWNER") {
+    if (actor.role !== "OWNER") {
+      throw new Error("Unauthorized: only an OWNER can change another OWNER's role");
+    }
+
+    const owners = await db
+      .select({ id: workspaceMembers.id })
+      .from(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, workspace.id),
+          eq(workspaceMembers.role, "OWNER"),
+          ne(workspaceMembers.status, "REMOVED")
+        )
+      );
+
+    if (owners.length <= 1) {
+      throw new Error("Cannot demote the last workspace OWNER.");
+    }
   }
 
   // A custom role from another workspace would leak its permission set into

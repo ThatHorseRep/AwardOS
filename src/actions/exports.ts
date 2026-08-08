@@ -4,7 +4,8 @@ import { db } from "@/lib/db";
 import { exportJobs, auditLogs } from "@/lib/db/schema/exports";
 import { events, categories, nominees, votes, voteSessions, invitationCodes } from "@/lib/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
-import { getCurrentUser, ensureUserRecord, getOrCreateWorkspaceAction } from "./workspaces";
+import { getCurrentUser, getOrCreateWorkspaceAction } from "./workspaces";
+import { ensureUserRecord } from "@/lib/ensure-user";
 import { requireEventAccess, EVENT_ADMINS, CONTENT_MODERATORS } from "./_rbac";
 
 export async function createExportJobAction(

@@ -1,11 +1,16 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { getFallbackHost } from "@/lib/app-url";
 import { redirect } from "next/navigation";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
+import { DEV_BYPASS_COOKIE } from "@/lib/dev-mode";
 
-export const encodedRedirect = async (
+/**
+ * Not exported: every export of a `"use server"` module is a callable POST
+ * endpoint, and this one takes the redirect target as an argument. Exported, it
+ * was an open redirect that anyone could invoke.
+ */
+const encodedRedirect = async (
   type: "error" | "success",
   path: string,
   message: string,
@@ -82,49 +87,6 @@ export const signUpAction = async (formData: FormData) => {
   return redirect("/verify-email");
 };
 
-export const googleSignInAction = async (originUrl?: string) => {
-  const cookieStore = await cookies();
-  const headerList = await headers();
-  const host = headerList.get("x-forwarded-host") || headerList.get("host") || getFallbackHost();
-  const protocol = host.includes("localhost") ? "http" : "https";
-  const callbackUrl = `${protocol}://${host}/api/auth/callback`;
-
-  let googleUrl: string | null = null;
-
-  try {
-    const supabase = await createClient();
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: callbackUrl,
-      },
-    });
-
-    if (error) {
-      console.warn("Supabase Google OAuth error:", error.message);
-    } else if (data?.url) {
-      googleUrl = data.url;
-    }
-  } catch (err: any) {
-    if (err?.digest?.startsWith("NEXT_REDIRECT")) {
-      throw err;
-    }
-    console.warn("Google auth initialization error:", err?.message || err);
-  }
-
-  if (googleUrl) {
-    return redirect(googleUrl);
-  }
-
-  return redirect("/sign-in?error=Google%20sign%20in%20unavailable");
-};
-
-export const enableDevBypassAction = async () => {
-  const cookieStore = await cookies();
-  cookieStore.set("awardos_dev_mode", "true", { path: "/", maxAge: 60 * 60 * 24 * 7 });
-  return redirect("/dashboard");
-};
-
 export const signOutAction = async () => {
   try {
     const supabase = await createClient();
@@ -133,6 +95,6 @@ export const signOutAction = async () => {
     // Ignore signout error
   }
   const cookieStore = await cookies();
-  cookieStore.delete("awardos_dev_mode");
+  cookieStore.delete(DEV_BYPASS_COOKIE);
   return redirect("/");
 };

@@ -9,7 +9,8 @@ import {
   nominees,
 } from "@/lib/db/schema";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
-import { getCurrentUser, ensureUserRecord, getOrCreateWorkspaceAction } from "./workspaces";
+import { getCurrentUser, getOrCreateWorkspaceAction } from "./workspaces";
+import { ensureUserRecord } from "@/lib/ensure-user";
 import { requireWorkspaceRole, requireEventAccess, CONTENT_MODERATORS, EVENT_ADMINS } from "./_rbac";
 import { runAINominationCleanup } from "@/lib/ai/cleanup";
 

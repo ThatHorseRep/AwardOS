@@ -7,6 +7,7 @@ import { eq, and } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { cache } from "react";
 import { DEV_BYPASS_COOKIE, DEV_BYPASS_USER_ID, isDevBypassActive } from "@/lib/dev-mode";
+import { ensureUserRecord } from "@/lib/ensure-user";
 
 export const getCurrentUser = cache(async function _getCurrentUser() {
   try {
@@ -73,26 +74,6 @@ export const getCurrentUser = cache(async function _getCurrentUser() {
 
   return null;
 });
-
-export async function ensureUserRecord(userId: string, email: string, displayName: string) {
-  try {
-    const existing = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-    if (existing.length === 0) {
-      await db
-        .insert(users)
-        .values({
-          id: userId,
-          email: email,
-          displayName: displayName,
-          authProvider: userId === "00000000-0000-0000-0000-000000000000" ? "EMAIL" : "GOOGLE",
-          emailVerified: true,
-        })
-        .onConflictDoNothing();
-    }
-  } catch (err) {
-    console.warn("Failed to ensure user record in DB:", err);
-  }
-}
 
 export const getOrCreateWorkspaceAction = cache(async function _getOrCreateWorkspaceAction() {
   try {

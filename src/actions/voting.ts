@@ -9,7 +9,7 @@ import {
   nominees,
   voteSessions,
 } from "@/lib/db/schema";
-import { eq, and, desc, sql, isNull, gt } from "drizzle-orm";
+import { eq, and, desc, sql, isNull, gt, inArray } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { getOrCreateWorkspaceAction } from "./workspaces";
 import { requireWorkspaceRole, requireEventAccess, EVENT_ADMINS, WORKSPACE_ADMINS } from "./_rbac";
@@ -318,6 +318,12 @@ export async function getPublicBallotDetailsAction(slug: string) {
   }
 
   const event = eventList[0];
+
+  // A PRIVATE event should not serve its ballot to anyone holding the slug.
+  if (event.visibility === "PRIVATE") {
+    return null;
+  }
+
   const verificationConfig = (event.verificationConfig as any) || {};
 
   // Server-side "already voted" check. Reads the HTTP-only cookie the votes route set
@@ -342,20 +348,38 @@ export async function getPublicBallotDetailsAction(slug: string) {
     .where(and(eq(categories.eventId, event.id), eq(categories.isActive, true)))
     .orderBy(categories.displayOrder);
 
-  // For each category, fetch active nominees
-  const categoriesWithNominees = [];
-  for (const cat of eventCategories) {
-    const nomineeList = await db
-      .select()
-      .from(nominees)
-      .where(and(eq(nominees.categoryId, cat.id), eq(nominees.status, "ACTIVE")))
-      .orderBy(nominees.displayOrder);
+  // One query for every nominee on the ballot instead of one per category.
+  // This runs on every ballot page load, so the old per-category loop scaled
+  // linearly with category count on the hottest public path in the app.
+  const categoryIds = eventCategories.map((c) => c.id);
+  const allNominees = categoryIds.length
+    ? await db
+        .select()
+        .from(nominees)
+        .where(
+          and(
+            eq(nominees.eventId, event.id),
+            inArray(nominees.categoryId, categoryIds),
+            eq(nominees.status, "ACTIVE")
+          )
+        )
+        .orderBy(nominees.displayOrder)
+    : [];
 
-    categoriesWithNominees.push({
-      ...cat,
-      nominees: nomineeList,
-    });
+  const nomineesByCategory = new Map<string, typeof allNominees>();
+  for (const nominee of allNominees) {
+    const list = nomineesByCategory.get(nominee.categoryId);
+    if (list) {
+      list.push(nominee);
+    } else {
+      nomineesByCategory.set(nominee.categoryId, [nominee]);
+    }
   }
+
+  const categoriesWithNominees = eventCategories.map((cat) => ({
+    ...cat,
+    nominees: nomineesByCategory.get(cat.id) ?? [],
+  }));
 
   return {
     id: event.id,
@@ -363,8 +387,10 @@ export async function getPublicBallotDetailsAction(slug: string) {
     slug: event.slug,
     status: event.status,
     description: event.description,
-    verificationConfig,
-    audienceConfig: (event.audienceConfig as any) || {},
+    // Only the method is public. The full verificationConfig and audienceConfig
+    // carry whitelistEmails and whitelistDomains — the organiser's voter roster,
+    // previously handed to any anonymous caller who loaded the ballot.
+    verificationConfig: { method: verificationConfig.method || "NONE" },
     categories: categoriesWithNominees,
     hasVoted,
   };
