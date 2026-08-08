@@ -4,6 +4,7 @@ import { useState, useTransition, Suspense } from "react";
 import Link from "next/link";
 import { signUpAction } from "@/actions/auth";
 import { createClient } from "@/lib/supabase/client";
+import { getAppOrigin } from "@/lib/app-url";
 import { useSearchParams } from "next/navigation";
 
 function SignUpForm() {
@@ -21,7 +22,7 @@ function SignUpForm() {
   const handleGoogleSignIn = async () => {
     try {
       const supabase = createClient();
-      const origin = typeof window !== "undefined" ? window.location.origin : "https://awardos-alpha.vercel.app";
+      const origin = getAppOrigin();
       await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {

@@ -53,17 +53,15 @@ export default function PublicBallotPage() {
   const [verificationSession, setVerificationSession] = useState<any | null>(null);
 
   useEffect(() => {
-    // Check if voter already cast ballot locally
-    const previous = localStorage.getItem(`awardos_voted_${slug}`);
-    if (previous) {
-      setHasVoted(true);
-    }
-
     async function loadData() {
       try {
         const data = await getPublicBallotDetailsAction(slug);
         if (!data) return;
         setEvent(data);
+
+        // "Already voted" is decided server-side from the HTTP-only ballot cookie.
+        // localStorage is not consulted: it is readable and clearable by the voter.
+        setHasVoted(Boolean(data.hasVoted));
 
         // Determine verification step based on configuration
         const method = data.verificationConfig?.method || "NONE";
@@ -174,11 +172,17 @@ export default function PublicBallotPage() {
         localStorage.setItem("awardos_session_id", sessionId);
       }
 
+      const votesPayload = event.categories.map((cat: any) => ({
+        categoryId: cat.id,
+        nomineeId: selectedVotes[cat.id] || null,
+        skipped: !selectedVotes[cat.id],
+      }));
+
       const response = await fetch(`/api/public/events/${slug}/votes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          votes: selectedVotes,
+          votes: votesPayload,
           sessionId,
           verificationSession,
         }),
@@ -190,11 +194,13 @@ export default function PublicBallotPage() {
         throw new Error(data.error || "Failed to submit ballot.");
       }
 
-      localStorage.setItem(`awardos_voted_${slug}`, JSON.stringify(selectedVotes));
+      // No localStorage marker: the votes route set an HTTP-only cookie as the
+      // authoritative record, which survives incognito exits and storage clears.
+      setHasVoted(true);
       router.push(`/e/${slug}/vote/thank-you`);
     } catch (err: any) {
       setError(err?.message || "An error occurred submitting your ballot.");
-      setShowReviewModal(false);
+      // Keep modal open so the voter can see the error and retry
     } finally {
       setSubmitting(false);
     }
@@ -551,6 +557,12 @@ export default function PublicBallotPage() {
             <p className="text-xs text-slate-600 leading-relaxed font-medium">
               Please confirm your vote selections for <strong className="text-slate-900">{event.name}</strong>. Once submitted, your ballot is permanent and cannot be changed.
             </p>
+
+            {error && (
+              <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold animate-in fade-in duration-200">
+                {error}
+              </div>
+            )}
 
             <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
               {event.categories.map((cat: any) => {

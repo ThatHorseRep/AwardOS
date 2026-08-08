@@ -8,8 +8,9 @@ import {
   customRoles,
   users,
 } from "@/lib/db/schema";
-import { eq, and, sql, isNull, desc } from "drizzle-orm";
+import { eq, and, sql, isNull, ne, desc } from "drizzle-orm";
 import { getOrCreateWorkspaceAction, getCurrentUser } from "./workspaces";
+import { requireWorkspaceRole, WORKSPACE_ADMINS } from "./_rbac";
 
 // 1. Fetch workspace members list
 export async function getWorkspaceMembersAction() {
@@ -33,7 +34,14 @@ export async function getWorkspaceMembersAction() {
     .from(workspaceMembers)
     .innerJoin(users, eq(workspaceMembers.userId, users.id))
     .leftJoin(customRoles, eq(workspaceMembers.customRoleId, customRoles.id))
-    .where(eq(workspaceMembers.workspaceId, workspace.id))
+    // Removals are soft (status REMOVED) so the audit trail keeps its context.
+    // Those rows are not members any more and must not surface in the roster.
+    .where(
+      and(
+        eq(workspaceMembers.workspaceId, workspace.id),
+        ne(workspaceMembers.status, "REMOVED")
+      )
+    )
     .orderBy(desc(workspaceMembers.invitedAt));
 
   return membersList;
@@ -41,10 +49,8 @@ export async function getWorkspaceMembersAction() {
 
 // 2. Fetch invite links logs
 export async function getWorkspaceInvitesAction() {
-  const workspace = await getOrCreateWorkspaceAction();
-  if (!workspace) {
-    throw new Error("No active workspace found");
-  }
+  // Invite rows carry join tokens — admins only.
+  const { workspace } = await requireWorkspaceRole(WORKSPACE_ADMINS);
 
   const invitesList = await db
     .select({
@@ -77,14 +83,11 @@ export async function generateWorkspaceInviteAction(input: {
   expiresDays?: number;
   domainRestrictions?: string[];
 }) {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
+  const { user, workspace, member } = await requireWorkspaceRole(WORKSPACE_ADMINS);
 
-  const workspace = await getOrCreateWorkspaceAction();
-  if (!workspace) {
-    throw new Error("No active workspace");
+  // Only an OWNER may mint an invite that confers OWNER.
+  if (input.role === "OWNER" && member.role !== "OWNER") {
+    throw new Error("Unauthorized: only an OWNER can grant the OWNER role");
   }
 
   const token = `inv_${Math.random().toString(36).substring(2)}_${Date.now()}`;
@@ -256,9 +259,18 @@ export async function acceptWorkspaceInviteAction(token: string) {
 
 // 6. Revoke active invite link
 export async function revokeWorkspaceInviteAction(inviteId: string) {
+  const { workspace } = await requireWorkspaceRole(WORKSPACE_ADMINS);
+
+  // Scope the delete to the caller's workspace — the role check alone would let
+  // an admin in one workspace revoke another workspace's invites by id.
   await db
     .delete(workspaceInvites)
-    .where(eq(workspaceInvites.id, inviteId));
+    .where(
+      and(
+        eq(workspaceInvites.id, inviteId),
+        eq(workspaceInvites.workspaceId, workspace.id)
+      )
+    );
 
   return { success: true };
 }
@@ -279,15 +291,7 @@ export async function getCustomRolesAction() {
 
 // 8. Create custom permission role
 export async function createCustomRoleAction(name: string, permissions: string[]) {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
-
-  const workspace = await getOrCreateWorkspaceAction();
-  if (!workspace) {
-    throw new Error("No active workspace");
-  }
+  const { user, workspace } = await requireWorkspaceRole(WORKSPACE_ADMINS);
 
   const [role] = await db
     .insert(customRoles)
@@ -304,51 +308,74 @@ export async function createCustomRoleAction(name: string, permissions: string[]
 
 // 9. Delete custom role
 export async function deleteCustomRoleAction(roleId: string) {
+  const { workspace } = await requireWorkspaceRole(WORKSPACE_ADMINS);
+
   await db
     .delete(customRoles)
-    .where(eq(customRoles.id, roleId));
+    .where(and(eq(customRoles.id, roleId), eq(customRoles.workspaceId, workspace.id)));
 
   return { success: true };
 }
 
 // 10. Remove workspace member
 export async function removeWorkspaceMemberAction(memberId: string) {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
-
-  const workspace = await getOrCreateWorkspaceAction();
-  if (!workspace) {
-    throw new Error("No active workspace");
-  }
+  const { user, workspace } = await requireWorkspaceRole(WORKSPACE_ADMINS);
 
   // Prevent deleting oneself
   const [member] = await db
     .select()
     .from(workspaceMembers)
-    .where(eq(workspaceMembers.id, memberId))
+    .where(
+      and(
+        eq(workspaceMembers.id, memberId),
+        // Scope the lookup, not just the checks below — resolving the row
+        // unscoped let an admin remove members of another workspace.
+        eq(workspaceMembers.workspaceId, workspace.id),
+        // An already-removed row is not a member, so removing it again is a
+        // no-op that should read as "not found" rather than succeed silently.
+        ne(workspaceMembers.status, "REMOVED")
+      )
+    )
     .limit(1);
 
-  if (member && member.userId === user.id) {
+  if (!member) {
+    throw new Error("Member not found in this workspace");
+  }
+
+  if (member.userId === user.id) {
     throw new Error("You cannot remove yourself from the workspace.");
   }
 
   // Prevent removing owner unless other owners exist
-  if (member && member.role === "OWNER") {
+  if (member.role === "OWNER") {
     const owners = await db
       .select()
       .from(workspaceMembers)
-      .where(and(eq(workspaceMembers.workspaceId, workspace.id), eq(workspaceMembers.role, "OWNER")));
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, workspace.id),
+          eq(workspaceMembers.role, "OWNER"),
+          // Removed owners still hold their OWNER role on the row. Counting
+          // them would let this guard pass on a workspace whose only real
+          // owner is the one being removed, orphaning it.
+          ne(workspaceMembers.status, "REMOVED")
+        )
+      );
 
     if (owners.length <= 1) {
       throw new Error("Cannot remove the last workspace OWNER.");
     }
   }
 
+  // Soft delete. A hard DELETE dropped the invitedBy/invitedAt trail and any
+  // audit context pointing at the row; flipping status revokes access just as
+  // completely, because `requireRole` admits ACTIVE members only.
   await db
-    .delete(workspaceMembers)
-    .where(eq(workspaceMembers.id, memberId));
+    .update(workspaceMembers)
+    .set({ status: "REMOVED" })
+    .where(
+      and(eq(workspaceMembers.id, memberId), eq(workspaceMembers.workspaceId, workspace.id))
+    );
 
   return { success: true };
 }
@@ -359,14 +386,51 @@ export async function updateWorkspaceMemberRoleAction(
   role: "OWNER" | "ADMIN" | "EVENT_MANAGER" | "JUDGE" | "REVIEWER" | "SECRETARY" | "PRO" | "VOLUNTEER",
   customRoleId?: string | null
 ) {
-  await db
+  const { workspace, member: actor } = await requireWorkspaceRole(WORKSPACE_ADMINS);
+
+  // Only an OWNER may promote another member to OWNER.
+  if (role === "OWNER" && actor.role !== "OWNER") {
+    throw new Error("Unauthorized: only an OWNER can grant the OWNER role");
+  }
+
+  // A custom role from another workspace would leak its permission set into
+  // this one, so pin it to the caller's workspace before attaching it.
+  if (customRoleId) {
+    const [customRole] = await db
+      .select({ id: customRoles.id })
+      .from(customRoles)
+      .where(
+        and(eq(customRoles.id, customRoleId), eq(customRoles.workspaceId, workspace.id))
+      )
+      .limit(1);
+
+    if (!customRole) {
+      throw new Error("Custom role not found in this workspace");
+    }
+  }
+
+  const updated = await db
     .update(workspaceMembers)
     .set({
       role,
       customRoleId: customRoleId || null,
       acceptedAt: new Date(),
     })
-    .where(eq(workspaceMembers.id, memberId));
+    // Without the workspace predicate an admin here could rewrite roles — up to
+    // and including OWNER — for members of any other workspace.
+    .where(
+      and(
+        eq(workspaceMembers.id, memberId),
+        eq(workspaceMembers.workspaceId, workspace.id),
+        // Removed rows are kept for history, not for editing.
+        ne(workspaceMembers.status, "REMOVED")
+      )
+    )
+    .returning({ id: workspaceMembers.id });
+
+  if (updated.length === 0) {
+    throw new Error("Member not found in this workspace");
+  }
 
   return { success: true };
 }

@@ -9,8 +9,15 @@ import {
   nominees,
   voteSessions,
 } from "@/lib/db/schema";
-import { eq, and, desc, sql, isNull } from "drizzle-orm";
+import { eq, and, desc, sql, isNull, gt } from "drizzle-orm";
+import { cookies } from "next/headers";
 import { getOrCreateWorkspaceAction } from "./workspaces";
+import { requireWorkspaceRole, requireEventAccess, EVENT_ADMINS, WORKSPACE_ADMINS } from "./_rbac";
+import {
+  votedCookieName,
+  isCookieEnforcedMethod,
+  resolveVotedBallot,
+} from "@/lib/voting-cookie";
 
 export async function updateEventSettingsAction(
   eventId: string,
@@ -22,10 +29,8 @@ export async function updateEventSettingsAction(
     whitelistEmails: string[];
   }
 ) {
-  const workspace = await getOrCreateWorkspaceAction();
-  if (!workspace) {
-    throw new Error("Unauthorized");
-  }
+  // Verification method and whitelists gate who may vote — admins only.
+  const { workspace } = await requireWorkspaceRole(WORKSPACE_ADMINS);
 
   await db
     .update(events)
@@ -51,10 +56,7 @@ export async function generateInvitationCodesAction(
   count: number,
   options?: { prefix?: string; expiresDays?: number }
 ) {
-  const workspace = await getOrCreateWorkspaceAction();
-  if (!workspace) {
-    throw new Error("Unauthorized");
-  }
+  await requireEventAccess(eventId, EVENT_ADMINS);
 
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Removed ambiguous O,0,I,1
   const insertValues = [];
@@ -84,10 +86,8 @@ export async function generateInvitationCodesAction(
 }
 
 export async function getInvitationCodesAction(eventId: string) {
-  const workspace = await getOrCreateWorkspaceAction();
-  if (!workspace) {
-    throw new Error("Unauthorized");
-  }
+  // Codes are bearer credentials for casting a ballot — admins only.
+  await requireEventAccess(eventId, EVENT_ADMINS);
 
   return await db
     .select()
@@ -97,10 +97,19 @@ export async function getInvitationCodesAction(eventId: string) {
 }
 
 export async function revokeInvitationCodeAction(codeId: string) {
-  const workspace = await getOrCreateWorkspaceAction();
-  if (!workspace) {
-    throw new Error("Unauthorized");
+  // Resolve the owning event from the code before authorizing — otherwise any
+  // event admin could revoke ballot credentials for another workspace's event.
+  const [owner] = await db
+    .select({ eventId: invitationCodes.eventId })
+    .from(invitationCodes)
+    .where(eq(invitationCodes.id, codeId))
+    .limit(1);
+
+  if (!owner) {
+    throw new Error("Invitation code not found");
   }
+
+  await requireEventAccess(owner.eventId, EVENT_ADMINS);
 
   await db
     .update(invitationCodes)
@@ -112,7 +121,7 @@ export async function revokeInvitationCodeAction(codeId: string) {
   return { success: true };
 }
 
-// Public OTP: Send Action (generate & print to logs)
+// Public OTP: Send Action
 export async function sendEmailOtpAction(eventId: string, email: string) {
   const cleanEmail = email.trim().toLowerCase();
   
@@ -143,11 +152,27 @@ export async function sendEmailOtpAction(eventId: string, email: string) {
     }
   }
 
-  // 3. Generate 6-digit code
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 min expiry
+  // 3. Rate limit: max 3 active (non-expired) OTPs per email per event
+  const recentOtps = await db
+    .select({ id: voterOtps.id })
+    .from(voterOtps)
+    .where(
+      and(
+        eq(voterOtps.eventId, eventId),
+        eq(voterOtps.email, cleanEmail),
+        gt(voterOtps.expiresAt, new Date())
+      )
+    );
 
-  // 4. Save to DB
+  if (recentOtps.length >= 3) {
+    throw new Error("Too many verification attempts. Please wait a few minutes before requesting a new code.");
+  }
+
+  // 4. Generate 6-digit code
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min expiry
+
+  // 5. Save to DB
   const otpRecords = await db
     .insert(voterOtps)
     .values({
@@ -159,11 +184,36 @@ export async function sendEmailOtpAction(eventId: string, email: string) {
     })
     .returning({ id: voterOtps.id });
 
-  // 5. DEV OTP LOG to console
-  console.log(`\n--- [OTP DEV LOG] ---`);
-  console.log(`Sent verification OTP: ${code} to ${cleanEmail}`);
-  console.log(`Expires at: ${expiresAt.toLocaleTimeString()}`);
-  console.log(`---------------------\n`);
+  // 6. Send email via Resend (with dev fallback)
+  const resendApiKey = process.env.RESEND_API_KEY;
+  if (resendApiKey) {
+    try {
+      const { Resend } = await import("resend");
+      const resend = new Resend(resendApiKey);
+      await resend.emails.send({
+        from: process.env.RESEND_FROM_EMAIL || "AwardOS <noreply@awardos.app>",
+        to: cleanEmail,
+        subject: `Your ${event.name} voter access code: ${code}`,
+        html: `
+          <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
+            <h2 style="color: #1e293b; font-size: 20px; margin-bottom: 8px;">Your Voter Access Code</h2>
+            <p style="color: #64748b; font-size: 14px; margin-bottom: 24px;">Use the code below to verify your identity and cast your ballot for <strong>${event.name}</strong>.</p>
+            <div style="background: #f1f5f9; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px;">
+              <span style="font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #1e293b; font-family: monospace;">${code}</span>
+            </div>
+            <p style="color: #94a3b8; font-size: 12px;">This code expires in 10 minutes. If you did not request this, please ignore this email.</p>
+          </div>
+        `,
+      });
+    } catch (emailErr) {
+      console.warn("[OTP] Email send failed, code stored in DB:", (emailErr as any)?.message);
+    }
+  } else {
+    // Dev-only: log to console when no Resend key configured
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[DEV OTP] Code for ${cleanEmail.split("@")[1]} domain: ${code} (expires ${expiresAt.toLocaleTimeString()})`);
+    }
+  }
 
   return {
     success: true,
@@ -222,6 +272,22 @@ export async function getPublicBallotDetailsAction(slug: string) {
   }
 
   const event = eventList[0];
+  const verificationConfig = (event.verificationConfig as any) || {};
+
+  // Server-side "already voted" check. Reads the HTTP-only cookie the votes route set
+  // (page scripts cannot see or fake it) and confirms it maps to a real submitted
+  // ballot before gating the UI, so a stale cookie never blocks a legitimate voter.
+  let hasVoted = false;
+  if (isCookieEnforcedMethod(verificationConfig.method)) {
+    const cookieStore = await cookies();
+    const votedCookie = cookieStore.get(votedCookieName(slug))?.value;
+    if (votedCookie) {
+      hasVoted = (await resolveVotedBallot(event.id, votedCookie)) !== null;
+    }
+  }
+
+  // Fetch active nominees directly (write-sync is done at nomination submission time)
+  // Do NOT call ensureNomineesForRawNominationsAction here - it's a write op in a read path
 
   // Fetch active categories
   const eventCategories = await db
@@ -251,41 +317,50 @@ export async function getPublicBallotDetailsAction(slug: string) {
     slug: event.slug,
     status: event.status,
     description: event.description,
-    verificationConfig: (event.verificationConfig as any) || {},
+    verificationConfig,
     audienceConfig: (event.audienceConfig as any) || {},
     categories: categoriesWithNominees,
+    hasVoted,
   };
 }
 
+// Pre-ballot check only. FOR UPDATE cannot reserve the code across the later ballot
+// request — the lock releases when this transaction commits — but it does serialise
+// against an in-flight claim, so this never reports a code as available while another
+// submission is part-way through claiming it. The authoritative gate is the FOR UPDATE
+// claim inside the ballot submission transaction.
 export async function verifyInvitationCodeAction(eventId: string, code: string) {
   const cleanCode = code.trim().toUpperCase();
 
-  const codeList = await db
-    .select()
-    .from(invitationCodes)
-    .where(
-      and(
-        eq(invitationCodes.eventId, eventId),
-        eq(invitationCodes.code, cleanCode)
+  return await db.transaction(async (tx) => {
+    const codeList = await tx
+      .select()
+      .from(invitationCodes)
+      .where(
+        and(
+          eq(invitationCodes.eventId, eventId),
+          eq(invitationCodes.code, cleanCode)
+        )
       )
-    )
-    .limit(1);
+      .limit(1)
+      .for("update");
 
-  if (codeList.length === 0) {
-    throw new Error("Invalid invitation code.");
-  }
+    if (codeList.length === 0) {
+      throw new Error("Invalid invitation code.");
+    }
 
-  const invitation = codeList[0];
+    const invitation = codeList[0];
 
-  if (invitation.status !== "UNUSED") {
-    throw new Error(`This invitation code has already been ${invitation.status.toLowerCase()}.`);
-  }
+    if (invitation.status !== "UNUSED") {
+      throw new Error(`This invitation code has already been ${invitation.status.toLowerCase()}.`);
+    }
 
-  if (invitation.expiresAt && new Date() > new Date(invitation.expiresAt)) {
-    throw new Error("This invitation code has expired.");
-  }
+    if (invitation.expiresAt && new Date() > new Date(invitation.expiresAt)) {
+      throw new Error("This invitation code has expired.");
+    }
 
-  return { success: true };
+    return { success: true };
+  });
 }
 
 export async function verifyBallotReceiptAction(slug: string, receiptCode: string) {

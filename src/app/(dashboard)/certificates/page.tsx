@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { generateCertificateSVG } from "@/lib/certificates/template";
+import { escapeXml } from "@/lib/sanitize";
 
 export default function CertificatesPage() {
   const [winnerName, setWinnerName] = useState("Alexandre Kwame Mensah");
@@ -44,7 +45,7 @@ export default function CertificatesPage() {
         <!DOCTYPE html>
         <html>
           <head>
-            <title>Print Certificate - ${winnerName}</title>
+            <title>Print Certificate - ${escapeXml(winnerName)}</title>
             <style>
               body { margin: 0; padding: 0; background: #090d16; display: flex; align-items: center; justify-content: center; height: 100vh; }
               svg { max-width: 100%; max-height: 100vh; }

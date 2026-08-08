@@ -1,8 +1,9 @@
-import { pgTable, uuid, varchar, timestamp, integer, jsonb, index } from 'drizzle-orm/pg-core';
-import { exportType, exportFormat, exportStatus } from './enums';
+import { pgTable, uuid, varchar, timestamp, integer, jsonb, index, text } from 'drizzle-orm/pg-core';
+import { exportType, exportFormat, exportStatus, notificationType, notificationStatus } from './enums';
 import { users } from './users';
 import { events } from './events';
 import { workspaces } from './workspaces';
+import { integrityAlerts } from './integrity';
 
 export const exportJobs = pgTable('export_jobs', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -33,4 +34,19 @@ export const auditLogs = pgTable('audit_logs', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
   idxWorkspaceCreatedAt: index('idx_audit_logs_workspace_created').on(table.workspaceId, table.createdAt), // DESC usually requires sorting in query but this helps
+}));
+
+export const notificationEvents = pgTable('notification_events', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  alertId: uuid('alert_id').references(() => integrityAlerts.id, { onDelete: 'cascade' }),
+  eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  notificationType: notificationType('notification_type').notNull(),
+  destinationType: varchar('destination_type', { length: 50 }).notNull(),
+  status: notificationStatus('status').notNull(),
+  responseCode: integer('response_code'),
+  responseBody: jsonb('response_body'),
+  errorMessage: text('error_message'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  idxNotificationEvent: index('idx_notification_events_event_created').on(table.eventId, table.createdAt),
 }));

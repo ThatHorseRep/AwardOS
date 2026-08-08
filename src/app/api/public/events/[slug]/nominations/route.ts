@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { events, nominations as nominationsTable, suggestedCategories } from "@/lib/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
+import { syncNomineesForEvent } from "@/lib/nominations/sync";
+import {
+  sanitizePlainText,
+  MAX_NOMINEE_TEXT_LENGTH,
+  MAX_SUGGESTION_TEXT_LENGTH,
+} from "@/lib/sanitize";
 
 export async function POST(
   request: NextRequest,
@@ -34,32 +40,54 @@ export async function POST(
     const userAgent = request.headers.get("user-agent") || "";
 
     // 3. Save to database in a transaction
+    let hasNominations = false;
     await db.transaction(async (tx) => {
       // Save nominations
       if (nominations && Array.isArray(nominations) && nominations.length > 0) {
         for (const nom of nominations) {
-          if (!nom.categoryId || !nom.nomineeText?.trim()) continue;
+          // This endpoint is public and unauthenticated, so the text is cleaned
+          // at the boundary rather than at each of the places it is later
+          // rendered — exports, certificates and AI prompts all read the stored
+          // value, and only the React views escape it for themselves.
+          const nomineeText = sanitizePlainText(nom?.nomineeText, MAX_NOMINEE_TEXT_LENGTH);
+          if (!nom?.categoryId || !nomineeText) continue;
           await tx.insert(nominationsTable).values({
             eventId: event.id,
             categoryId: nom.categoryId,
-            nomineeText: nom.nomineeText.trim(),
+            nomineeText,
             sessionId: actualSessionId,
             ipAddress,
             userAgent,
           });
+          hasNominations = true;
         }
       }
 
       // Save suggested category if present
-      if (suggestedCategory && suggestedCategory.trim()) {
+      const suggestionText = sanitizePlainText(suggestedCategory, MAX_SUGGESTION_TEXT_LENGTH);
+      if (suggestionText) {
         await tx.insert(suggestedCategories).values({
           eventId: event.id,
-          suggestionText: suggestedCategory.trim(),
+          suggestionText,
           status: "PENDING",
           sessionId: actualSessionId,
         });
       }
     });
+
+    // 4. Sync raw nominations → nominees after submission (not on ballot page load)
+    if (hasNominations) {
+      try {
+        // Called directly rather than through the server action: this request is
+        // anonymous by design, and the action's workspace guard would reject it.
+        // `event` above is already resolved from the slug and confirmed live, so
+        // the id handed over here is never caller-supplied.
+        await syncNomineesForEvent(event.id);
+      } catch (syncErr) {
+        // Non-fatal: nominations saved, nominee sync will retry on next AI cleanup
+        console.warn("[Nominations] Post-submit nominee sync failed:", (syncErr as any)?.message);
+      }
+    }
 
     return NextResponse.json({
       success: true,

@@ -28,3 +28,5 @@ export const aiMessageRole = pgEnum('ai_message_role', ['USER', 'ASSISTANT', 'SY
 export const exportType = pgEnum('export_type', ['NOMINATIONS_RAW', 'NOMINATIONS_CLEAN', 'VOTES_RAW', 'OFFICIAL_RESULTS', 'ANALYTICS', 'FULL_REPORT']);
 export const exportFormat = pgEnum('export_format', ['XLSX', 'CSV', 'PDF']);
 export const exportStatus = pgEnum('export_status', ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED']);
+export const notificationType = pgEnum('notification_type', ['SLACK', 'CONSOLE', 'EMAIL', 'WEBHOOK']);
+export const notificationStatus = pgEnum('notification_status', ['SENT', 'FAILED', 'SKIPPED']);

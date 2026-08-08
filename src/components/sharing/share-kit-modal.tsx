@@ -16,6 +16,7 @@ import {
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { getAppOrigin } from "@/lib/app-url";
 
 // Custom SVG Social Icons
 const TwitterIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -61,13 +62,9 @@ export function ShareKitModal({
 
   if (!isOpen) return null;
 
-  const targetUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/e/${eventSlug}${nomineeId ? `?candidate=${nomineeId}` : ""}`
-    : `https://awardos-alpha.vercel.app/e/${eventSlug}`;
+  const targetUrl = `${getAppOrigin()}/e/${eventSlug}${nomineeId ? `?candidate=${nomineeId}` : ""}`;
 
-  const embedUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/embed/nominee/${nomineeId || "sample"}`
-    : `https://awardos-alpha.vercel.app/embed/nominee/${nomineeId || "sample"}`;
+  const embedUrl = `${getAppOrigin()}/embed/nominee/${nomineeId || "sample"}`;
 
   const embedSnippet = `<iframe src="${embedUrl}" width="320" height="140" frameborder="0" style="border-radius: 16px; overflow: hidden;" title="Vote for ${nomineeName || eventName} on AwardOS"></iframe>`;
 

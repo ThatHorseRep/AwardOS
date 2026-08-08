@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { streamText } from "ai";
 import { getAIModel } from "@/lib/ai/provider";
+import { requireWorkspaceRole, ALL_MEMBERS } from "@/actions/_rbac";
 
 export async function POST(req: NextRequest) {
   try {
+    // This route bills tokens to the workspace's own AI keys, so it has to be
+    // seated-member-only. Unauthenticated it was an open LLM gateway that
+    // anyone on the internet could point at any model via the body below.
+    try {
+      await requireWorkspaceRole(ALL_MEMBERS);
+    } catch {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { messages, provider, model } = await req.json();
 
     if (!messages || !Array.isArray(messages)) {

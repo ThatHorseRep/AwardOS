@@ -150,14 +150,53 @@ export const submitNominationSchema = z.object({
 // Vote Validators (Public)
 // -------------------------------------------
 export const submitVotesSchema = z.object({
-  votes: z.array(
-    z.object({
-      categoryId: z.string().uuid(),
-      nomineeId: z.string().uuid().nullable(), // null = skipped
-      skipped: z.boolean(),
+  sessionId: z.string().min(8, "Session ID is required for ballot integrity").optional(),
+  verificationSession: z
+    .object({
+      method: z.enum(["EMAIL_OTP", "INVITATION_CODE", "NONE"]).optional(),
+      email: z.string().email().optional(),
+      otpId: z.string().uuid().optional(),
+      code: z.string().optional(),
     })
-  ),
-  verificationToken: z.string().optional(),
+    .optional(),
+  votes: z
+    .array(
+      z.object({
+        categoryId: z.string().uuid(),
+        nomineeId: z.string().uuid().nullable(),
+        skipped: z.boolean(),
+      })
+    )
+    .min(1, "At least one ballot selection or skip entry is required")
+    .superRefine((votes, ctx) => {
+      const seenCategories = new Set<string>();
+      for (const [index, vote] of votes.entries()) {
+        if (seenCategories.has(vote.categoryId)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["votes", index, "categoryId"],
+            message: "Duplicate category entries are not allowed.",
+          });
+        }
+        seenCategories.add(vote.categoryId);
+
+        if (vote.nomineeId === null && vote.skipped === false) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["votes", index, "skipped"],
+            message: "Skipped ballots must be marked as skipped.",
+          });
+        }
+
+        if (vote.nomineeId !== null && vote.skipped === true) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["votes", index, "skipped"],
+            message: "Selected nominees cannot be marked as skipped.",
+          });
+        }
+      }
+    }),
 });
 
 // -------------------------------------------

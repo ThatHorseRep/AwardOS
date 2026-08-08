@@ -3,9 +3,14 @@
 import { db } from "@/lib/db";
 import { events, categories, nominees, votes, voteSessions, voterOtps, invitationCodes, specialAwards, officialResults } from "@/lib/db/schema";
 import { eq, and, sql, isNull, not, desc } from "drizzle-orm";
+import { requireEventAccess, RESULTS_MANAGERS, EVENT_ADMINS, ALL_MEMBERS } from "./_rbac";
 
-// Retrieve tabulated event results (excl. invalidated sessions)
-export async function getEventResultsAction(eventId: string) {
+/**
+ * Tabulation core. Takes an event id that has ALREADY been authorized — either
+ * by an exported action that called `requireEventAccess`, or by resolving a
+ * public slug. Never export this: it applies no access control of its own.
+ */
+async function tabulateEventResults(eventId: string) {
   // 1. Fetch event config
   const eventList = await db
     .select()
@@ -113,8 +118,16 @@ export async function getEventResultsAction(eventId: string) {
   };
 }
 
+// Retrieve tabulated event results (excl. invalidated sessions)
+export async function getEventResultsAction(eventId: string) {
+  await requireEventAccess(eventId, ALL_MEMBERS);
+  return await tabulateEventResults(eventId);
+}
+
 // Publish/unpublish results settings
 export async function publishResultsAction(eventId: string, publish: boolean) {
+  await requireEventAccess(eventId, RESULTS_MANAGERS);
+
   await db
     .update(events)
     .set({
@@ -128,6 +141,21 @@ export async function publishResultsAction(eventId: string, publish: boolean) {
 
 // Disqualify / restore nominee
 export async function disqualifyNomineeAction(nomineeId: string, status: "ACTIVE" | "DISQUALIFIED") {
+  // The caller supplies a nominee id, not an event id. Resolve the owning event
+  // first so the workspace check has something to check against — otherwise any
+  // authenticated member could disqualify a nominee in someone else's election.
+  const [owner] = await db
+    .select({ eventId: nominees.eventId })
+    .from(nominees)
+    .where(eq(nominees.id, nomineeId))
+    .limit(1);
+
+  if (!owner) {
+    throw new Error("Nominee not found");
+  }
+
+  await requireEventAccess(owner.eventId, RESULTS_MANAGERS);
+
   await db
     .update(nominees)
     .set({
@@ -163,8 +191,10 @@ export async function getPublicEventResultsAction(slug: string) {
     };
   }
 
-  const results = await getEventResultsAction(event.id);
-  const awards = await getSpecialAwardsAction(event.id);
+  // Deliberately the unguarded cores: this path is authorized by the public
+  // slug plus the `liveResultsMode` check above, not by workspace membership.
+  const results = await tabulateEventResults(event.id);
+  const awards = await listSpecialAwards(event.id);
 
   return {
     ...results,
@@ -175,6 +205,10 @@ export async function getPublicEventResultsAction(slug: string) {
 
 // Export raw ballots log
 export async function getRawBallotsExportAction(eventId: string) {
+  // Rows carry voter emails, invitation codes, IPs and user agents — same tier
+  // as the audit-log export in exports.ts.
+  await requireEventAccess(eventId, EVENT_ADMINS);
+
   return await db
     .select({
       sessionId: voteSessions.id,
@@ -192,12 +226,17 @@ export async function getRawBallotsExportAction(eventId: string) {
     .innerJoin(voteSessions, eq(votes.voteSessionId, voteSessions.id))
     .innerJoin(categories, eq(votes.categoryId, categories.id))
     .leftJoin(nominees, eq(votes.nomineeId, nominees.id))
-    .where(eq(votes.eventId, eventId))
+    // Only include ballots from sessions that are fully submitted (exclude FLAGGED/INVALIDATED)
+    .where(and(eq(votes.eventId, eventId), eq(voteSessions.status, "SUBMITTED")))
     .orderBy(desc(voteSessions.submittedAt));
 }
 
 // Export voter logs
 export async function getVoterLogsExportAction(eventId: string) {
+  // Emails paired with live OTP codes and unredeemed invitation codes: leaking
+  // this hands over the ability to vote as someone else.
+  await requireEventAccess(eventId, EVENT_ADMINS);
+
   const otps = await db
     .select()
     .from(voterOtps)
@@ -232,10 +271,7 @@ export async function createSpecialAwardAction(
   recipientName: string,
   description?: string
 ) {
-  const userList = await db.select().from(events).where(eq(events.id, eventId)).limit(1);
-  if (userList.length === 0) throw new Error("Event not found");
-
-  const createdBy = userList[0].createdBy || "00000000-0000-0000-0000-000000000000";
+  const { user } = await requireEventAccess(eventId, RESULTS_MANAGERS);
 
   const [award] = await db
     .insert(specialAwards)
@@ -245,14 +281,21 @@ export async function createSpecialAwardAction(
       recipientName: recipientName.trim(),
       description: description?.trim() || "",
       displayOrder: 1,
-      createdBy,
+      // Attribute to whoever actually created it. This used to copy the event's
+      // creator (falling back to the all-zero dev id), which made the audit
+      // trail lie about who added the award.
+      createdBy: user.id,
     })
     .returning();
 
   return { success: true, award };
 }
 
-export async function getSpecialAwardsAction(eventId: string) {
+/**
+ * Listing core — no access control. Guarded by `getSpecialAwardsAction` for
+ * dashboard callers; reached directly only from the public results path.
+ */
+async function listSpecialAwards(eventId: string) {
   return await db
     .select()
     .from(specialAwards)
@@ -260,7 +303,25 @@ export async function getSpecialAwardsAction(eventId: string) {
     .orderBy(desc(specialAwards.createdAt));
 }
 
+export async function getSpecialAwardsAction(eventId: string) {
+  await requireEventAccess(eventId, ALL_MEMBERS);
+  return await listSpecialAwards(eventId);
+}
+
 export async function deleteSpecialAwardAction(awardId: string) {
+  // Award id in, event id out — see disqualifyNomineeAction for why.
+  const [owner] = await db
+    .select({ eventId: specialAwards.eventId })
+    .from(specialAwards)
+    .where(eq(specialAwards.id, awardId))
+    .limit(1);
+
+  if (!owner) {
+    throw new Error("Special award not found");
+  }
+
+  await requireEventAccess(owner.eventId, RESULTS_MANAGERS);
+
   await db.delete(specialAwards).where(eq(specialAwards.id, awardId));
   return { success: true };
 }
@@ -271,6 +332,27 @@ export async function updateNomineeJudgeScoreAction(
   nomineeId: string,
   judgeScore: number
 ) {
+  await requireEventAccess(eventId, RESULTS_MANAGERS);
+
+  // The event is ours, but categoryId/nomineeId are still caller-supplied and
+  // are written straight into official_results. Confirm the nominee sits in
+  // this event *and* this category before scoring it.
+  const [nominee] = await db
+    .select({ id: nominees.id })
+    .from(nominees)
+    .where(
+      and(
+        eq(nominees.id, nomineeId),
+        eq(nominees.eventId, eventId),
+        eq(nominees.categoryId, categoryId)
+      )
+    )
+    .limit(1);
+
+  if (!nominee) {
+    throw new Error("Nominee not found in this event category");
+  }
+
   const cleanScore = Math.max(0, Math.min(100, judgeScore));
 
   const existing = await db

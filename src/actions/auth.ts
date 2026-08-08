@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getFallbackHost } from "@/lib/app-url";
 import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 
@@ -84,7 +85,7 @@ export const signUpAction = async (formData: FormData) => {
 export const googleSignInAction = async (originUrl?: string) => {
   const cookieStore = await cookies();
   const headerList = await headers();
-  const host = headerList.get("x-forwarded-host") || headerList.get("host") || "awardos-alpha.vercel.app";
+  const host = headerList.get("x-forwarded-host") || headerList.get("host") || getFallbackHost();
   const protocol = host.includes("localhost") ? "http" : "https";
   const callbackUrl = `${protocol}://${host}/api/auth/callback`;
 

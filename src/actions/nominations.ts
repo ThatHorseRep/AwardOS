@@ -1,15 +1,42 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { suggestedCategories, categories, nominations, events } from "@/lib/db/schema";
-import { eq, and, count, desc, sql, isNull } from "drizzle-orm";
+import { suggestedCategories, categories, nominations, events, nominees } from "@/lib/db/schema";
+import { eq, and, count, desc, sql, isNull, inArray } from "drizzle-orm";
 import { getOrCreateWorkspaceAction } from "./workspaces";
+import { requireWorkspaceRole, CONTENT_MODERATORS } from "./_rbac";
+import { normalizeCapitalization } from "@/lib/ai/cleanup";
+import { syncNomineesForEvent } from "@/lib/nominations/sync";
+
+/**
+ * Asserts the caller is a content moderator AND that `eventId` belongs to the
+ * caller's workspace. `requireWorkspaceRole` alone only proves the former, so
+ * without this an eventId from another workspace would be accepted verbatim.
+ */
+async function requireEventInWorkspace(eventId: string) {
+  const { workspace } = await requireWorkspaceRole(CONTENT_MODERATORS);
+
+  const [event] = await db
+    .select({ id: events.id })
+    .from(events)
+    .where(
+      and(
+        eq(events.id, eventId),
+        eq(events.workspaceId, workspace.id),
+        isNull(events.deletedAt)
+      )
+    )
+    .limit(1);
+
+  if (!event) {
+    throw new Error("Event not found in this workspace");
+  }
+
+  return { workspace, event };
+}
 
 export async function getSuggestedCategoriesAction(eventId: string) {
-  const workspace = await getOrCreateWorkspaceAction();
-  if (!workspace) {
-    throw new Error("Unauthorized");
-  }
+  await requireEventInWorkspace(eventId);
 
   // Group by suggestionText, count frequency, return status = PENDING suggestions
   const suggestions = await db
@@ -32,10 +59,7 @@ export async function getSuggestedCategoriesAction(eventId: string) {
 }
 
 export async function approveSuggestionAction(eventId: string, suggestionText: string, approvedName: string) {
-  const workspace = await getOrCreateWorkspaceAction();
-  if (!workspace) {
-    throw new Error("Unauthorized");
-  }
+  await requireEventInWorkspace(eventId);
 
   return await db.transaction(async (tx) => {
     // Get max display order of categories in the event
@@ -68,10 +92,7 @@ export async function approveSuggestionAction(eventId: string, suggestionText: s
 }
 
 export async function rejectSuggestionAction(eventId: string, suggestionText: string) {
-  const workspace = await getOrCreateWorkspaceAction();
-  if (!workspace) {
-    throw new Error("Unauthorized");
-  }
+  await requireEventInWorkspace(eventId);
 
   await db
     .update(suggestedCategories)
@@ -84,11 +105,19 @@ export async function rejectSuggestionAction(eventId: string, suggestionText: st
   return { success: true };
 }
 
+/**
+ * Guarded entry point for the nominee sync. The work itself lives in
+ * `@/lib/nominations/sync` because the public nomination endpoint has to run it
+ * for anonymous visitors; this wrapper is what dashboard callers use, and it
+ * keeps the workspace check they need.
+ */
+export async function ensureNomineesForRawNominationsAction(eventId: string) {
+  await requireEventInWorkspace(eventId);
+  return await syncNomineesForEvent(eventId);
+}
+
 export async function getWorkspaceNominationsAction() {
-  const workspace = await getOrCreateWorkspaceAction();
-  if (!workspace) {
-    throw new Error("Unauthorized");
-  }
+  const { workspace } = await requireWorkspaceRole(CONTENT_MODERATORS);
 
   // Query nominations across workspace events
   const rawNomList = await db

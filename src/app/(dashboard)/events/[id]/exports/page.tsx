@@ -27,6 +27,7 @@ import {
   getEventResultsAction,
 } from "@/actions/results";
 import { createExportJobAction, getExportJobsAction } from "@/actions/exports";
+import { escapeXml, sanitizeSpreadsheetCell } from "@/lib/sanitize";
 
 export default function OrganizerExportsDashboardPage() {
   const params = useParams();
@@ -59,6 +60,12 @@ export default function OrganizerExportsDashboardPage() {
     loadData();
   }, [eventId]);
 
+  // Every row rendered by the three helpers below carries values a voter typed:
+  // nominee names, and `User_Agent`, which is a request header the client sets
+  // freely. None of these paths go through JSX, so nothing escapes them for us.
+  const cellText = (value: unknown) =>
+    value === null || value === undefined ? "" : String(value);
+
   const convertToCSV = (objArray: any[]) => {
     if (objArray.length === 0) return "";
     const headers = Object.keys(objArray[0]);
@@ -68,7 +75,9 @@ export default function OrganizerExportsDashboardPage() {
       let line = "";
       for (let j = 0; j < headers.length; j++) {
         const key = headers[j];
-        let val = objArray[i][key] === null || objArray[i][key] === undefined ? "" : String(objArray[i][key]);
+        // Quoting alone does not stop Excel evaluating a cell that begins with
+        // `=`, `+`, `-` or `@`, so neutralise the formula trigger first.
+        let val = sanitizeSpreadsheetCell(cellText(objArray[i][key]));
         val = val.replace(/"/g, '""');
         if (val.search(/("|,|\n)/g) >= 0) {
           val = `"${val}"`;
@@ -83,9 +92,13 @@ export default function OrganizerExportsDashboardPage() {
   const convertToExcel = (title: string, rows: any[]) => {
     if (rows.length === 0) return "";
     const headers = Object.keys(rows[0]);
-    let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+    // This ".xls" is really an HTML document that Excel parses, so raw cell text
+    // is markup. Escape it, then apply the same formula guard as the CSV path.
+    const cell = (value: unknown) => escapeXml(sanitizeSpreadsheetCell(cellText(value)));
+    const safeTitle = escapeXml(title);
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
 <head>
-<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>${title}</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>${safeTitle}</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
 <style>
   th { background-color: #2563eb; color: #ffffff; font-weight: bold; font-family: Arial, sans-serif; font-size: 12px; text-align: left; padding: 8px; }
   td { font-family: Arial, sans-serif; font-size: 11px; padding: 6px; border: 1px solid #e2e8f0; }
@@ -93,24 +106,14 @@ export default function OrganizerExportsDashboardPage() {
 </style>
 </head>
 <body>
-<h2>${title} — ${event?.name || 'AwardOS Event'}</h2>
+<h2>${safeTitle} — ${escapeXml(event?.name || "AwardOS Event")}</h2>
 <table>
   <thead>
-    <tr>${headers.map((h) => `<th>${h.replace(/_/g, " ")}</th>`).join("")}</tr>
+    <tr>${headers.map((h) => `<th>${escapeXml(h.replace(/_/g, " "))}</th>`).join("")}</tr>
   </thead>
   <tbody>
     ${rows
-      .map(
-        (row) =>
-          `<tr>${headers
-            .map(
-              (h) =>
-                `<td>${
-                  row[h] !== null && row[h] !== undefined ? String(row[h]) : ""
-                }</td>`
-            )
-            .join("")}</tr>`
-      )
+      .map((row) => `<tr>${headers.map((h) => `<td>${cell(row[h])}</td>`).join("")}</tr>`)
       .join("")}
   </tbody>
 </table>
@@ -125,10 +128,16 @@ export default function OrganizerExportsDashboardPage() {
     const printWin = window.open("", "_blank");
     if (!printWin) return;
 
+    // `document.write` into a same-origin window executes any markup it is
+    // handed, so a nominee name or user-agent string containing a <script> tag
+    // would run in the organiser's session. Escape every interpolated value.
+    const safeTitle = escapeXml(reportTitle);
+    const safeEventName = escapeXml(event?.name || "AwardOS Event");
+
     const html = `<!DOCTYPE html>
 <html>
 <head>
-  <title>${reportTitle} - ${event?.name}</title>
+  <title>${safeTitle} - ${safeEventName}</title>
   <style>
     body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; padding: 32px; color: #0f172a; }
     .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #2563eb; padding-bottom: 16px; margin-bottom: 24px; }
@@ -150,29 +159,22 @@ export default function OrganizerExportsDashboardPage() {
       <div class="meta">Certified Official Event Report & Telemetry Register</div>
     </div>
     <div style="text-align: right;">
-      <strong style="font-size: 14px;">${event?.name}</strong>
+      <strong style="font-size: 14px;">${safeEventName}</strong>
       <div class="meta">Generated: ${new Date().toLocaleString()}</div>
     </div>
   </div>
 
-  <h2>${reportTitle}</h2>
+  <h2>${safeTitle}</h2>
 
   <table>
     <thead>
-      <tr>${headers.map((h) => `<th>${h.replace(/_/g, " ")}</th>`).join("")}</tr>
+      <tr>${headers.map((h) => `<th>${escapeXml(h.replace(/_/g, " "))}</th>`).join("")}</tr>
     </thead>
     <tbody>
       ${rows
         .map(
           (row) =>
-            `<tr>${headers
-              .map(
-                (h) =>
-                  `<td>${
-                    row[h] !== null && row[h] !== undefined ? String(row[h]) : ""
-                  }</td>`
-              )
-              .join("")}</tr>`
+            `<tr>${headers.map((h) => `<td>${escapeXml(cellText(row[h]))}</td>`).join("")}</tr>`
         )
         .join("")}
     </tbody>
@@ -535,9 +537,19 @@ export default function OrganizerExportsDashboardPage() {
                       Generated at: {new Date(job.createdAt).toLocaleString()}
                     </div>
                   </div>
-                  <Badge variant="success" size="sm">
-                    {job.status} ({job.rowCount || 0} rows)
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="success" size="sm">
+                      {job.status} ({job.rowCount || 0} rows)
+                    </Badge>
+                    <a
+                      href={`/api/exports/${job.id}/download`}
+                      download
+                      className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-800 border border-blue-200 bg-blue-50 rounded-full px-2 py-1 transition-colors"
+                    >
+                      <Download className="w-3 h-3" />
+                      Re-download
+                    </a>
+                  </div>
                 </div>
               ))}
             </div>

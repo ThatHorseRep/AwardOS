@@ -5,8 +5,10 @@ import { workspaces, workspaceMembers, users } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
 import { eq, and } from "drizzle-orm";
 import { cookies } from "next/headers";
+import { cache } from "react";
+import { DEV_BYPASS_COOKIE, DEV_BYPASS_USER_ID, isDevBypassActive } from "@/lib/dev-mode";
 
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async function _getCurrentUser() {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -15,15 +17,25 @@ export async function getCurrentUser() {
       let avatarUrl = user.user_metadata?.avatar_url || null;
       let displayName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "User";
 
+      let deletionRequestedAt: Date | null = null;
+
       try {
         const records = await db
-          .select({ avatarUrl: users.avatarUrl, displayName: users.displayName })
+          .select({
+            avatarUrl: users.avatarUrl,
+            displayName: users.displayName,
+            deletionRequestedAt: users.deletionRequestedAt,
+            deletedAt: users.deletedAt,
+          })
           .from(users)
           .where(eq(users.id, user.id))
           .limit(1);
         if (records.length > 0) {
           if (records[0].avatarUrl) avatarUrl = records[0].avatarUrl;
           if (records[0].displayName) displayName = records[0].displayName;
+          // A purged account keeps an anonymized row; nobody may sign back into it.
+          if (records[0].deletedAt) return null;
+          deletionRequestedAt = records[0].deletionRequestedAt;
         }
       } catch (err) {
         // Fallback to metadata
@@ -34,23 +46,25 @@ export async function getCurrentUser() {
         email: user.email || "",
         displayName,
         avatarUrl,
+        deletionRequestedAt,
       };
     }
   } catch (err) {
     console.warn("Supabase auth user check warning:", err);
   }
 
-  // Check dev mode bypass
+  // Check dev mode bypass (development builds only)
   try {
     const cookieStore = await cookies();
-    const isDevBypass = cookieStore.get("awardos_dev_mode")?.value === "true";
-    
+    const isDevBypass = isDevBypassActive(cookieStore.get(DEV_BYPASS_COOKIE)?.value);
+
     if (isDevBypass) {
       return {
-        id: "00000000-0000-0000-0000-000000000000",
+        id: DEV_BYPASS_USER_ID,
         email: "dev@awardos.local",
         displayName: "Development User",
         avatarUrl: null,
+        deletionRequestedAt: null,
       };
     }
   } catch (err) {
@@ -58,7 +72,7 @@ export async function getCurrentUser() {
   }
 
   return null;
-}
+});
 
 export async function ensureUserRecord(userId: string, email: string, displayName: string) {
   try {
@@ -80,10 +94,16 @@ export async function ensureUserRecord(userId: string, email: string, displayNam
   }
 }
 
-export async function getOrCreateWorkspaceAction() {
+export const getOrCreateWorkspaceAction = cache(async function _getOrCreateWorkspaceAction() {
   try {
     const user = await getCurrentUser();
     if (!user) {
+      return null;
+    }
+
+    // An account inside its deletion grace window keeps no working workspace —
+    // and must never have a fresh personal one auto-created underneath it.
+    if (user.deletionRequestedAt) {
       return null;
     }
 
@@ -118,7 +138,19 @@ export async function getOrCreateWorkspaceAction() {
           role: "OWNER",
           status: "ACTIVE",
         })
-        .onConflictDoNothing();
+        // The slug is derived from this user's own id, so the workspace is
+        // theirs by construction and re-seating them as OWNER is correct.
+        // `onConflictDoNothing` would leave a REMOVED row in place and hand
+        // back a workspace `requireRole` then refuses — locking the user out
+        // of their own workspace on every request, with no way to recover.
+        .onConflictDoUpdate({
+          target: [workspaceMembers.workspaceId, workspaceMembers.userId],
+          set: {
+            role: "OWNER",
+            status: "ACTIVE",
+            acceptedAt: new Date(),
+          },
+        });
       return existingWs[0];
     }
 
@@ -148,4 +180,4 @@ export async function getOrCreateWorkspaceAction() {
     console.error("getOrCreateWorkspaceAction error handled:", err);
     return null;
   }
-}
+});

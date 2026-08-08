@@ -2,11 +2,80 @@
 
 import { db } from "@/lib/db";
 import { integrityAlerts } from "@/lib/db/schema/integrity";
+import { users } from "@/lib/db/schema/users";
 import { voteSessions } from "@/lib/db/schema/voting";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { requireEventAccess, CONTENT_MODERATORS, EVENT_ADMINS } from "./_rbac";
+import { eq, and, desc, inArray, sql } from "drizzle-orm";
+import { sendAlertNotifications } from "@/lib/notifier";
+
+/**
+ * Resolve the event that owns `alertId` and authorize against it.
+ * Alerts are addressed by their own id, so the event has to be looked up before
+ * the workspace check has anything to compare.
+ */
+async function requireAlertAccess(alertId: string, allowedRoles: Parameters<typeof requireEventAccess>[1]) {
+  const [alert] = await db
+    .select({ eventId: integrityAlerts.eventId })
+    .from(integrityAlerts)
+    .where(eq(integrityAlerts.id, alertId))
+    .limit(1);
+
+  if (!alert) {
+    throw new Error("Alert not found");
+  }
+
+  return await requireEventAccess(alert.eventId, allowedRoles);
+}
+
+/**
+ * Authorize a batch of vote-session ids.
+ *
+ * Every session must belong to a single event that the caller may administer.
+ * A mixed batch is rejected outright rather than partially applied — silently
+ * dropping the foreign ids would let an attacker probe which ones exist.
+ */
+async function requireSessionAccess(
+  sessionIds: string[],
+  allowedRoles: Parameters<typeof requireEventAccess>[1]
+) {
+  // Dedupe so a repeated id can't make the count check below disagree with the
+  // number of rows that actually matched.
+  const ids = [...new Set(sessionIds)];
+
+  const owners = await db
+    .selectDistinct({ eventId: voteSessions.eventId })
+    .from(voteSessions)
+    .where(inArray(voteSessions.id, ids));
+
+  if (owners.length !== 1) {
+    throw new Error("Vote sessions not found in a single event");
+  }
+
+  const access = await requireEventAccess(owners[0].eventId, allowedRoles);
+
+  // The distinct query proves the ids share one event, but not that every id
+  // resolved — a nonexistent id contributes no row. Count to be sure.
+  const [{ found }] = await db
+    .select({ found: sql<number>`count(*)::int` })
+    .from(voteSessions)
+    .where(
+      and(
+        inArray(voteSessions.id, ids),
+        eq(voteSessions.eventId, access.event.id)
+      )
+    );
+
+  if (found !== ids.length) {
+    throw new Error("Vote sessions not found in a single event");
+  }
+
+  return access;
+}
 
 // Trigger integrity audit check
 export async function triggerIntegrityScanAction(eventId: string) {
+  await requireEventAccess(eventId, EVENT_ADMINS);
+
   // 1. Get all submitted vote sessions for this event
   const sessions = await db
     .select()
@@ -122,9 +191,44 @@ export async function triggerIntegrityScanAction(eventId: string) {
     }
   });
 
-  // 3. Batch insert the new alerts
+  // --- DETECTOR 4: Bot-like IP + browser patterns ---
+  const browserAgentMap: { [key: string]: string[] } = {};
+  sessions.forEach((s) => {
+    if (s.ipAddress && s.userAgent) {
+      const key = `${s.ipAddress}|${s.userAgent}`;
+      if (!browserAgentMap[key]) {
+        browserAgentMap[key] = [];
+      }
+      browserAgentMap[key].push(s.id);
+    }
+  });
+
+  Object.entries(browserAgentMap).forEach(([key, sessionIds]) => {
+    if (sessionIds.length > 5) {
+      const [ip] = key.split("|");
+      pendingAlerts.push({
+        eventId,
+        alertType: "BOT_BEHAVIOR",
+        severity: "WARNING",
+        title: `Repeated Sessions from Same IP/Browser`,
+        description: `Detected ${sessionIds.length} ballots from the same IP/browser combination. This may indicate scripted submissions or shared device abuse.`,
+        affectedVotes: { ip, count: sessionIds.length, sessionIds },
+        recommendation: `Inspect browser fingerprint data and consider blocking or challenging this traffic.`,
+        status: "NEW",
+      });
+    }
+  });
+
+  // 3. Batch insert the new alerts and notify on critical ones.
   if (pendingAlerts.length > 0) {
-    await db.insert(integrityAlerts).values(pendingAlerts);
+    const insertedAlerts = await db.insert(integrityAlerts).values(pendingAlerts).returning();
+
+    try {
+      const critical = insertedAlerts.filter((p) => p.severity === "CRITICAL");
+      await sendAlertNotifications(critical);
+    } catch (err) {
+      console.error("Failed to send alert notifications:", err);
+    }
   }
 
   return {
@@ -136,15 +240,36 @@ export async function triggerIntegrityScanAction(eventId: string) {
 
 // Get all integrity alerts for event dashboard
 export async function getIntegrityAlertsAction(eventId: string) {
+  await requireEventAccess(eventId, CONTENT_MODERATORS);
+
   return await db
-    .select()
+    .select({
+      id: integrityAlerts.id,
+      eventId: integrityAlerts.eventId,
+      alertType: integrityAlerts.alertType,
+      severity: integrityAlerts.severity,
+      title: integrityAlerts.title,
+      description: integrityAlerts.description,
+      affectedVotes: integrityAlerts.affectedVotes,
+      recommendation: integrityAlerts.recommendation,
+      status: integrityAlerts.status,
+      resolvedBy: integrityAlerts.resolvedBy,
+      resolvedAt: integrityAlerts.resolvedAt,
+      resolutionNote: integrityAlerts.resolutionNote,
+      createdAt: integrityAlerts.createdAt,
+      resolvedByName: users.displayName,
+    })
     .from(integrityAlerts)
+    .leftJoin(users, eq(integrityAlerts.resolvedBy, users.id))
     .where(eq(integrityAlerts.eventId, eventId))
     .orderBy(desc(integrityAlerts.createdAt));
 }
 
 // Get event vote sessions with statuses
 export async function getEventVoteSessionsAction(eventId: string) {
+  // Session rows carry voter PII (email, IP, fingerprint) — moderators only.
+  await requireEventAccess(eventId, CONTENT_MODERATORS);
+
   return await db
     .select()
     .from(voteSessions)
@@ -162,6 +287,20 @@ export async function resolveAlertAction(
   }
 ) {
   const { status, note, disqualifySessions } = options;
+  const { user, event } = await requireAlertAccess(alertId, EVENT_ADMINS);
+
+  // `disqualifySessions` invalidates ballots by raw id. Authorizing the alert
+  // says nothing about those ids, so confirm they belong to the same event
+  // before any of them is touched.
+  if (disqualifySessions && disqualifySessions.length > 0) {
+    const { event: sessionEvent } = await requireSessionAccess(
+      disqualifySessions,
+      EVENT_ADMINS
+    );
+    if (sessionEvent.id !== event.id) {
+      throw new Error("Vote sessions do not belong to this alert's event");
+    }
+  }
 
   await db.transaction(async (tx) => {
     // 1. Update alert resolution metadata
@@ -171,6 +310,7 @@ export async function resolveAlertAction(
         status,
         resolutionNote: note,
         resolvedAt: new Date(),
+        resolvedBy: user?.id || null,
       })
       .where(eq(integrityAlerts.id, alertId));
 
@@ -188,12 +328,31 @@ export async function resolveAlertAction(
   return { success: true };
 }
 
+// Acknowledge an alert (mark as seen by an admin)
+export async function acknowledgeAlertAction(alertId: string, note?: string) {
+  const { user } = await requireAlertAccess(alertId, EVENT_ADMINS);
+
+  await db
+    .update(integrityAlerts)
+    .set({
+      status: "ACKNOWLEDGED",
+      resolutionNote: note || null,
+      resolvedAt: new Date(),
+      resolvedBy: user?.id || null,
+    })
+    .where(eq(integrityAlerts.id, alertId));
+
+  return { success: true };
+}
+
 // Quarantine vote sessions for manual review
 export async function quarantineSessionsAction(sessionIds: string[]) {
   if (!sessionIds || sessionIds.length === 0) return { success: true };
+  await requireSessionAccess(sessionIds, EVENT_ADMINS);
+
   await db
     .update(voteSessions)
-    .set({ status: "QUARANTINED" as any })
+    .set({ status: "FLAGGED" as any })
     .where(inArray(voteSessions.id, sessionIds));
   return { success: true };
 }
@@ -201,6 +360,8 @@ export async function quarantineSessionsAction(sessionIds: string[]) {
 // Restore invalidated or quarantined vote sessions back to SUBMITTED
 export async function restoreSessionsAction(sessionIds: string[]) {
   if (!sessionIds || sessionIds.length === 0) return { success: true };
+  await requireSessionAccess(sessionIds, EVENT_ADMINS);
+
   await db
     .update(voteSessions)
     .set({ status: "SUBMITTED" })

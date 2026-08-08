@@ -2,8 +2,10 @@
 
 import { db } from "@/lib/db";
 import { events, categories, nominees, workflowStages, eventBranding, nominations, votes } from "@/lib/db/schema";
-import { getOrCreateWorkspaceAction, getCurrentUser } from "./workspaces";
+import { getOrCreateWorkspaceAction } from "./workspaces";
+import { requireWorkspaceRole, requireEventAccess, EVENT_ADMINS, WORKSPACE_ADMINS } from "./_rbac";
 import { eq, and, isNull, count, sql, lt } from "drizzle-orm";
+import { ensureNomineesForRawNominationsAction } from "./nominations";
 import { redirect } from "next/navigation";
 
 export interface CreateEventInput {
@@ -21,15 +23,7 @@ export interface CreateEventInput {
 }
 
 export async function createEventAction(input: CreateEventInput) {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
-
-  const workspace = await getOrCreateWorkspaceAction();
-  if (!workspace) {
-    throw new Error("No workspace found");
-  }
+  const { user, workspace } = await requireWorkspaceRole(EVENT_ADMINS);
 
   const newEventId = await db.transaction(async (tx) => {
     // 1. Insert Event
@@ -234,10 +228,7 @@ export async function updateEventTimelineAction(
   eventId: string,
   stageUpdates: { stageId: string; startsAt?: string | null; endsAt?: string | null }[]
 ) {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
+  await requireEventAccess(eventId, EVENT_ADMINS);
 
   for (const update of stageUpdates) {
     await db
@@ -253,10 +244,7 @@ export async function updateEventTimelineAction(
 }
 
 export async function deleteEventAction(eventId: string) {
-  const workspace = await getOrCreateWorkspaceAction();
-  if (!workspace) {
-    throw new Error("No active workspace");
-  }
+  const { workspace } = await requireWorkspaceRole(EVENT_ADMINS);
 
   await db
     .update(events)
@@ -285,6 +273,8 @@ export async function getPublicEventDetailsAction(slug: string) {
     .from(categories)
     .where(and(eq(categories.eventId, event.id), eq(categories.isActive, true)))
     .orderBy(categories.displayOrder);
+
+  await ensureNomineesForRawNominationsAction(event.id);
 
   const categoriesWithNominees = await Promise.all(
     eventCategories.map(async (cat) => {
@@ -340,6 +330,8 @@ export interface UpdateEventBrandingInput {
 }
 
 export async function updateEventBrandingAction(input: UpdateEventBrandingInput) {
+  await requireWorkspaceRole(EVENT_ADMINS);
+
   const existing = await db
     .select()
     .from(eventBranding)
@@ -373,10 +365,7 @@ export async function updateEventBrandingAction(input: UpdateEventBrandingInput)
 }
 
 export async function duplicateEventAction(eventId: string, newName: string, newSlug: string) {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
+  const { user } = await requireWorkspaceRole(EVENT_ADMINS);
 
   // 1. Fetch parent event details
   const parentEventList = await db
@@ -510,10 +499,7 @@ export async function updateWorkflowStageStatusAction(
   stageId: string,
   newStatus: "PENDING" | "ACTIVE" | "COMPLETED" | "SKIPPED"
 ) {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
+  await requireEventAccess(eventId, EVENT_ADMINS);
 
   return await db.transaction(async (tx) => {
     // 1. Get target stage
@@ -570,20 +556,14 @@ export async function updateWorkflowStageStatusAction(
 
 export async function updateBallotSettingsAction(input: {
   eventId: string;
+  verificationMethod?: "NONE" | "EMAIL_OTP" | "INVITATION_CODE";
   verificationLevel?: "STANDARD" | "ADVANCED";
   visibility?: "PUBLIC" | "UNLISTED" | "PRIVATE";
   liveResultsMode?: "FULL_LEADERBOARD" | "PERCENTAGES" | "VOTE_COUNTS" | "HIDDEN";
   audienceType?: "PUBLIC" | "STUDENTS" | "FACULTY" | "ALUMNI" | "INVITE_ONLY" | "MEMBERS";
 }) {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
-
-  const workspace = await getOrCreateWorkspaceAction();
-  if (!workspace) {
-    throw new Error("No active workspace");
-  }
+  // Ballot configuration governs who may vote — workspace admins only.
+  const { workspace } = await requireWorkspaceRole(WORKSPACE_ADMINS);
 
   await db
     .update(events)
@@ -592,6 +572,11 @@ export async function updateBallotSettingsAction(input: {
       ...(input.visibility && { visibility: input.visibility }),
       ...(input.liveResultsMode && { liveResultsMode: input.liveResultsMode }),
       ...(input.audienceType && { audienceType: input.audienceType }),
+      ...(input.verificationMethod && {
+        verificationConfig: {
+          method: input.verificationMethod,
+        },
+      }),
       updatedAt: new Date(),
     })
     .where(and(eq(events.id, input.eventId), eq(events.workspaceId, workspace.id)));

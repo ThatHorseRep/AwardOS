@@ -10,13 +10,33 @@ import {
 } from "@/lib/db/schema";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { getCurrentUser, ensureUserRecord, getOrCreateWorkspaceAction } from "./workspaces";
+import { requireWorkspaceRole, requireEventAccess, CONTENT_MODERATORS, EVENT_ADMINS } from "./_rbac";
 import { runAINominationCleanup } from "@/lib/ai/cleanup";
 
-export async function triggerAICleanupAction(eventId: string) {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("Unauthorized");
+/**
+ * Resolve the event owning `suggestionId` and authorize against it. Merge
+ * suggestions are addressed by their own id, so without this a moderator in one
+ * workspace could approve merges that rewrite another workspace's nominees.
+ */
+async function requireSuggestionAccess(
+  suggestionId: string,
+  allowedRoles: Parameters<typeof requireEventAccess>[1]
+) {
+  const [suggestion] = await db
+    .select({ eventId: aiMergeSuggestions.eventId })
+    .from(aiMergeSuggestions)
+    .where(eq(aiMergeSuggestions.id, suggestionId))
+    .limit(1);
+
+  if (!suggestion) {
+    throw new Error("Merge suggestion not found");
   }
+
+  return await requireEventAccess(suggestion.eventId, allowedRoles);
+}
+
+export async function triggerAICleanupAction(eventId: string) {
+  const { user } = await requireEventAccess(eventId, EVENT_ADMINS);
 
   await ensureUserRecord(user.id, user.email, user.displayName);
 
@@ -118,10 +138,7 @@ export async function triggerAICleanupAction(eventId: string) {
 }
 
 export async function getLatestCleanupTaskAction(eventId: string) {
-  const workspace = await getOrCreateWorkspaceAction();
-  if (!workspace) {
-    throw new Error("Unauthorized");
-  }
+  const { workspace } = await requireEventAccess(eventId, CONTENT_MODERATORS);
 
   // Get latest completed task
   const taskList = await db
@@ -162,10 +179,7 @@ export async function getLatestCleanupTaskAction(eventId: string) {
 }
 
 export async function approveMergeSuggestionAction(suggestionId: string, customName?: string) {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
+  const { user } = await requireSuggestionAccess(suggestionId, CONTENT_MODERATORS);
 
   return await db.transaction(async (tx) => {
     const sugList = await tx
@@ -254,10 +268,7 @@ export async function approveMergeSuggestionAction(suggestionId: string, customN
 }
 
 export async function rejectMergeSuggestionAction(suggestionId: string) {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
+  const { user } = await requireSuggestionAccess(suggestionId, CONTENT_MODERATORS);
 
   await db
     .update(aiMergeSuggestions)
@@ -272,10 +283,7 @@ export async function rejectMergeSuggestionAction(suggestionId: string) {
 }
 
 export async function undoMergeSuggestionAction(suggestionId: string) {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
+  const { user } = await requireSuggestionAccess(suggestionId, CONTENT_MODERATORS);
 
   return await db.transaction(async (tx) => {
     const sugList = await tx
@@ -321,93 +329,190 @@ export async function undoMergeSuggestionAction(suggestionId: string) {
 }
 
 export async function bulkApproveMergeSuggestionsAction(suggestionIds: string[]) {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("Unauthorized");
+  if (suggestionIds.length === 0) return { success: true };
+
+  // Authorize every event represented in the batch before approving any of it.
+  // Ids that resolve to another workspace throw here rather than being silently
+  // skipped, so a mixed batch fails loudly instead of partially applying.
+  const owners = await db
+    .selectDistinct({ eventId: aiMergeSuggestions.eventId })
+    .from(aiMergeSuggestions)
+    .where(inArray(aiMergeSuggestions.id, suggestionIds));
+
+  let user;
+  for (const owner of owners) {
+    ({ user } = await requireEventAccess(owner.eventId, CONTENT_MODERATORS));
   }
 
-  if (suggestionIds.length === 0) return { success: true };
+  if (!user) {
+    // Nothing in the batch resolved to a real suggestion; still prove the caller
+    // is a seated moderator rather than returning success to anyone.
+    ({ user } = await requireWorkspaceRole(CONTENT_MODERATORS));
+    return { success: true };
+  }
 
   // Loop and approve each suggestion in a single transaction
   return await db.transaction(async (tx) => {
-    for (const id of suggestionIds) {
-      const sugList = await tx
-        .select()
-        .from(aiMergeSuggestions)
-        .where(and(eq(aiMergeSuggestions.id, id), eq(aiMergeSuggestions.status, "PENDING")))
-        .limit(1);
+    const pending = await tx
+      .select()
+      .from(aiMergeSuggestions)
+      .where(
+        and(inArray(aiMergeSuggestions.id, suggestionIds), eq(aiMergeSuggestions.status, "PENDING"))
+      );
 
-      if (sugList.length === 0) continue;
-      const sug = sugList[0];
-
-      const sourceNames = sug.sourceNominees as string[];
-      const normalizedName = sug.suggestedName.toLowerCase().trim();
-      let nomineeId = "";
-
-      // 1. Find or create nominee
-      const existingList = await tx
-        .select()
-        .from(nominees)
-        .where(and(eq(nominees.categoryId, sug.categoryId), eq(nominees.normalizedName, normalizedName)))
-        .limit(1);
-
-      if (existingList.length > 0) {
-        nomineeId = existingList[0].id;
-        await tx
-          .update(nominees)
-          .set({
-            nominationCount: (existingList[0].nominationCount || 0) + sourceNames.length,
-            updatedAt: new Date(),
-          })
-          .where(eq(nominees.id, nomineeId));
-      } else {
-        const maxOrderResult = await tx
-          .select({ maxOrder: sql<number>`max(${nominees.displayOrder})` })
-          .from(nominees)
-          .where(eq(nominees.categoryId, sug.categoryId));
-        const nextOrder = (maxOrderResult[0]?.maxOrder || 0) + 1;
-
-        const newNom = await tx
-          .insert(nominees)
-          .values({
-            eventId: sug.eventId,
-            categoryId: sug.categoryId,
-            name: sug.suggestedName,
-            normalizedName,
-            displayOrder: nextOrder,
-            status: "ACTIVE",
-            source: "AI_SUGGESTED",
-            nominationCount: sourceNames.length,
-          })
-          .returning({ id: nominees.id });
-
-        nomineeId = newNom[0].id;
-      }
-
-      // 2. Link nominations
-      for (const sourceName of sourceNames) {
-        await tx
-          .update(nominationsTable)
-          .set({ resolvedNomineeId: nomineeId })
-          .where(
-            and(
-              eq(nominationsTable.eventId, sug.eventId),
-              eq(nominationsTable.categoryId, sug.categoryId),
-              eq(nominationsTable.nomineeText, sourceName)
-            )
-          );
-      }
-
-      // 3. Mark approved
-      await tx
-        .update(aiMergeSuggestions)
-        .set({
-          status: "APPROVED",
-          reviewedBy: user.id,
-          reviewedAt: new Date(),
-        })
-        .where(eq(aiMergeSuggestions.id, id));
+    if (pending.length === 0) {
+      return { success: true };
     }
+
+    // Two suggestions in one batch can normalise to the same nominee. The old
+    // per-suggestion loop absorbed that by re-querying every iteration; batching
+    // means collapsing them here so their nomination counts add up instead of
+    // the second overwriting the first.
+    type Group = {
+      eventId: string;
+      categoryId: string;
+      name: string;
+      normalizedName: string;
+      sourceNames: string[];
+      count: number;
+    };
+    const groups = new Map<string, Group>();
+    const groupKey = (categoryId: string, normalizedName: string) =>
+      `${categoryId}::${normalizedName}`;
+
+    for (const sug of pending) {
+      const normalizedName = sug.suggestedName.toLowerCase().trim();
+      const key = groupKey(sug.categoryId, normalizedName);
+      const sourceNames = (sug.sourceNominees as string[]) || [];
+      const existing = groups.get(key);
+
+      if (existing) {
+        existing.sourceNames.push(...sourceNames);
+        existing.count += sourceNames.length;
+      } else {
+        groups.set(key, {
+          eventId: sug.eventId,
+          categoryId: sug.categoryId,
+          name: sug.suggestedName,
+          normalizedName,
+          sourceNames: [...sourceNames],
+          count: sourceNames.length,
+        });
+      }
+    }
+
+    // One read covers both lookups the old loop did per suggestion: which
+    // nominees already exist, and the next free display order per category.
+    const categoryIds = [...new Set(pending.map((s) => s.categoryId))];
+    const categoryNominees = await tx
+      .select({
+        id: nominees.id,
+        categoryId: nominees.categoryId,
+        normalizedName: nominees.normalizedName,
+        displayOrder: nominees.displayOrder,
+        nominationCount: nominees.nominationCount,
+      })
+      .from(nominees)
+      .where(inArray(nominees.categoryId, categoryIds));
+
+    const existingByKey = new Map<string, (typeof categoryNominees)[number]>();
+    const nextOrderByCategory = new Map<string, number>();
+    for (const nom of categoryNominees) {
+      existingByKey.set(groupKey(nom.categoryId, nom.normalizedName), nom);
+      nextOrderByCategory.set(
+        nom.categoryId,
+        Math.max(nextOrderByCategory.get(nom.categoryId) ?? 0, nom.displayOrder)
+      );
+    }
+
+    // Resolve every group to a nominee id: insert the new ones in one statement,
+    // bump the counts of the ones that already existed in another.
+    const resolvedIdByKey = new Map<string, string>();
+    const toInsert: (typeof nominees.$inferInsert)[] = [];
+    const insertKeys: string[] = [];
+    const countBumps: { id: string; nominationCount: number }[] = [];
+
+    for (const [key, group] of groups) {
+      const existing = existingByKey.get(key);
+      if (existing) {
+        resolvedIdByKey.set(key, existing.id);
+        countBumps.push({
+          id: existing.id,
+          nominationCount: (existing.nominationCount || 0) + group.count,
+        });
+      } else {
+        const nextOrder = (nextOrderByCategory.get(group.categoryId) ?? 0) + 1;
+        nextOrderByCategory.set(group.categoryId, nextOrder);
+        insertKeys.push(key);
+        toInsert.push({
+          eventId: group.eventId,
+          categoryId: group.categoryId,
+          name: group.name,
+          normalizedName: group.normalizedName,
+          displayOrder: nextOrder,
+          status: "ACTIVE",
+          source: "AI_SUGGESTED",
+          nominationCount: group.count,
+        });
+      }
+    }
+
+    if (toInsert.length > 0) {
+      const inserted = await tx.insert(nominees).values(toInsert).returning({ id: nominees.id });
+      // `returning` preserves the order of `values`, so the two arrays line up.
+      inserted.forEach((row, i) => resolvedIdByKey.set(insertKeys[i], row.id));
+    }
+
+    if (countBumps.length > 0) {
+      // A single UPDATE with a CASE, rather than one round trip per nominee.
+      const cases = countBumps.map(
+        (b) => sql`when ${nominees.id} = ${b.id}::uuid then ${b.nominationCount}::int`
+      );
+      await tx
+        .update(nominees)
+        .set({
+          nominationCount: sql`case ${sql.join(cases, sql` `)} else ${nominees.nominationCount} end`,
+          updatedAt: new Date(),
+        })
+        .where(
+          inArray(
+            nominees.id,
+            countBumps.map((b) => b.id)
+          )
+        );
+    }
+
+    // Point the raw nominations at their resolved nominee. The inner loop over
+    // source names collapses into one `inArray` per nominee.
+    for (const [key, group] of groups) {
+      const nomineeId = resolvedIdByKey.get(key);
+      if (!nomineeId || group.sourceNames.length === 0) continue;
+
+      await tx
+        .update(nominationsTable)
+        .set({ resolvedNomineeId: nomineeId })
+        .where(
+          and(
+            eq(nominationsTable.eventId, group.eventId),
+            eq(nominationsTable.categoryId, group.categoryId),
+            inArray(nominationsTable.nomineeText, [...new Set(group.sourceNames)])
+          )
+        );
+    }
+
+    await tx
+      .update(aiMergeSuggestions)
+      .set({
+        status: "APPROVED",
+        reviewedBy: user.id,
+        reviewedAt: new Date(),
+      })
+      .where(
+        inArray(
+          aiMergeSuggestions.id,
+          pending.map((s) => s.id)
+        )
+      );
 
     return { success: true };
   });

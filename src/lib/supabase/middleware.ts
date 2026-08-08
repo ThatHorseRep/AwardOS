@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import { DEV_BYPASS_COOKIE, isDevBypassActive } from "@/lib/dev-mode";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -34,7 +35,11 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isDevBypass = request.cookies.get("awardos_dev_mode")?.value === "true";
+  // Dev bypass is only honoured in a local development build — never in
+  // preview or production, where the cookie is ignored entirely.
+  const isDevBypass = isDevBypassActive(
+    request.cookies.get(DEV_BYPASS_COOKIE)?.value
+  );
 
   // Protected routes — redirect to sign-in if not authenticated (unless in dev bypass mode)
   const isProtectedRoute =

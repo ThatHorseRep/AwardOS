@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { categories, nominees } from "@/lib/db/schema";
 import { getOrCreateWorkspaceAction } from "./workspaces";
+import { requireEventAccess, EVENT_ADMINS } from "./_rbac";
 import { eq } from "drizzle-orm";
 import { normalizeCapitalization } from "@/lib/ai/cleanup";
 
@@ -19,10 +20,7 @@ export async function bulkImportCategoriesAndNomineesAction(
   eventId: string,
   items: BulkImportItem[]
 ) {
-  const workspace = await getOrCreateWorkspaceAction();
-  if (!workspace) {
-    throw new Error("Unauthorized workspace access");
-  }
+  await requireEventAccess(eventId, EVENT_ADMINS);
 
   if (!items || items.length === 0) {
     throw new Error("No import items provided");

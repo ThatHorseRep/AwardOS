@@ -5,16 +5,14 @@ import { exportJobs, auditLogs } from "@/lib/db/schema/exports";
 import { events, categories, nominees, votes, voteSessions, invitationCodes } from "@/lib/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getCurrentUser, ensureUserRecord, getOrCreateWorkspaceAction } from "./workspaces";
+import { requireEventAccess, EVENT_ADMINS, CONTENT_MODERATORS } from "./_rbac";
 
 export async function createExportJobAction(
   eventId: string,
   type: "OFFICIAL_RESULTS" | "VOTE_TALLIES" | "AUDIT_TRAIL" | "INVITATION_CODES",
   format: "CSV" | "JSON" | "PDF" | "XLSX"
 ) {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
+  const { user } = await requireEventAccess(eventId, EVENT_ADMINS);
 
   await ensureUserRecord(user.id, user.email, user.displayName);
 
@@ -134,6 +132,8 @@ export async function createExportJobAction(
 }
 
 export async function getExportJobsAction(eventId: string) {
+  await requireEventAccess(eventId, CONTENT_MODERATORS);
+
   return await db
     .select()
     .from(exportJobs)
@@ -142,6 +142,9 @@ export async function getExportJobsAction(eventId: string) {
 }
 
 export async function getAuditLogsAction(eventId: string) {
+  // Audit rows include actor IPs — event admins only.
+  await requireEventAccess(eventId, EVENT_ADMINS);
+
   return await db
     .select()
     .from(auditLogs)

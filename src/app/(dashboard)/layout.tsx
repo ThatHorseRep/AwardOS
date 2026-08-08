@@ -14,6 +14,12 @@ export default async function DashboardLayout({
     redirect('/sign-in')
   }
 
+  // Deletion pending: the only page this account may reach is the one that
+  // offers to restore it.
+  if (user.deletionRequestedAt) {
+    redirect('/account/recover')
+  }
+
   // Ensure workspace exists
   try {
     await getOrCreateWorkspaceAction()
