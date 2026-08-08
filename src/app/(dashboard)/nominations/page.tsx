@@ -110,7 +110,7 @@ export default function OrganizerNominationsPage() {
             <span>Export CSV</span>
           </Button>
 
-          <Link href="/dashboard/voting">
+          <Link href="/voting">
             <Button variant="outline" size="sm" className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm">
               <Eye className="w-4 h-4 mr-1.5" />
               <span>Open Voting Hub</span>

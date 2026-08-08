@@ -1,11 +1,20 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+/** Paths the auth callback is allowed to send the browser to. */
+const ALLOWED_NEXT_PATHS = ["/reset-password", "/dashboard"];
+
+function resolveNext(raw: string | null): string {
+  // `startsWith("/") && !startsWith("//")` alone still admits `/\evil.com` and
+  // other escapes — the destination has to be one of a short allowlist.
+  if (!raw) return "/dashboard";
+  return ALLOWED_NEXT_PATHS.includes(raw) ? raw : "/dashboard";
+}
+
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const rawNext = searchParams.get("next") ?? "/dashboard";
-  const safeNext = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/dashboard";
+  const safeNext = resolveNext(searchParams.get("next"));
 
   if (code) {
     try {

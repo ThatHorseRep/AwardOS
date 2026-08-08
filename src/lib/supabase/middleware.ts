@@ -66,10 +66,14 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Auth routes — redirect to dashboard if already authenticated
+  // Auth routes — redirect to dashboard if already authenticated.
+  // `/reset-password` is deliberately absent: completing a reset requires the
+  // recovery session the callback just established, so bouncing a signed-in
+  // user away from it would break the flow it exists to finish.
   const isAuthRoute =
     request.nextUrl.pathname.startsWith("/sign-in") ||
-    request.nextUrl.pathname.startsWith("/sign-up");
+    request.nextUrl.pathname.startsWith("/sign-up") ||
+    request.nextUrl.pathname.startsWith("/forgot-password");
 
   if (isAuthRoute && user) {
     const url = request.nextUrl.clone();

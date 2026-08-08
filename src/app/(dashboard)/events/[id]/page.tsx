@@ -302,7 +302,7 @@ export default function EventDetailPage() {
             <Upload className="w-4 h-4 mr-1.5" />
             <span>Bulk Import</span>
           </Button>
-          <Link href="/dashboard/nominations">
+          <Link href="/nominations">
             <Button variant="outline" size="sm" className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm">
               <Users className="w-4 h-4 mr-1.5" />
               <span>Review Nominations</span>
@@ -400,13 +400,13 @@ export default function EventDetailPage() {
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-3">
-                <Link href="/dashboard/nominations">
+                <Link href="/nominations">
                   <Button variant="secondary" size="sm" className="rounded-full bg-white text-slate-800 border border-slate-200 hover:bg-slate-100 font-bold">
                     <MessageSquare className="w-4 h-4 mr-1.5" />
                     <span>Review Nominees</span>
                   </Button>
                 </Link>
-                <Link href="/dashboard/voting">
+                <Link href="/voting">
                   <Button variant="primary" size="sm" className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold">
                     <Vote className="w-4 h-4 mr-1.5" />
                     <span>Open Voting Hub</span>

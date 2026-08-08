@@ -101,7 +101,7 @@ export default function NewEventWizardPage() {
       });
 
       if (response.success) {
-        router.push(`/dashboard/events/${response.eventId}`);
+        router.push(`/events/${response.eventId}`);
       } else {
         alert("Failed to create event");
       }

@@ -123,7 +123,7 @@ export default function OrganizerVotingPage() {
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          <Link href="/dashboard/nominations">
+          <Link href="/nominations">
             <Button variant="outline" size="sm" className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm font-bold">
               <MessageSquare className="w-4 h-4 mr-1.5" />
               <span>Manage Nominees</span>
@@ -153,7 +153,7 @@ export default function OrganizerVotingPage() {
             <p className="font-medium">Open the nomination inbox and connect raw entries to official nominees before launching the ballot.</p>
             <p className="text-xs text-slate-500">This helps maintain a direct process from nominations through candidate validation into the voting hub.</p>
           </div>
-          <Link href="/dashboard/nominations">
+          <Link href="/nominations">
             <Button variant="primary" size="sm" className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20">
               <MessageSquare className="w-4 h-4 mr-1.5" />
               <span>Open Nominee Inbox</span>

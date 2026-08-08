@@ -186,7 +186,7 @@ export default function VotingIntegrityDashboardPage() {
     return (
       <div className="text-center py-12 text-slate-300">
         <h2 className="text-xl font-bold text-white">Event not found</h2>
-        <Link href="/dashboard/events" className="mt-4 inline-block text-indigo-400 hover:underline">
+        <Link href="/events" className="mt-4 inline-block text-indigo-400 hover:underline">
           Back to Events
         </Link>
       </div>
