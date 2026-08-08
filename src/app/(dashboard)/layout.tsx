@@ -28,7 +28,7 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen w-full bg-[#f4f5f8] text-slate-900 overflow-hidden font-sans select-none">
+    <div className="flex h-screen w-full bg-canvas text-content overflow-hidden font-sans select-none">
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0 h-screen overflow-hidden">
         <Header user={user} />

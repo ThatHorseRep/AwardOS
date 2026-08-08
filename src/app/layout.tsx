@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ThemeProvider } from "@/components/providers/theme-provider";
 
 export const metadata: Metadata = {
   title: {
@@ -38,11 +39,16 @@ export default function RootLayout({
       className="h-full antialiased"
       suppressHydrationWarning
     >
+      {/*
+        Colours come from the semantic tokens in globals.css, which resolve per
+        theme — the body used to hardcode a dark background while the dashboard
+        shell painted itself light on top of it.
+      */}
       <body
-        className="min-h-full flex flex-col font-sans bg-[#0a0a0f] text-zinc-100"
+        className="min-h-full flex flex-col font-sans bg-canvas text-content"
         suppressHydrationWarning
       >
-        {children}
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );

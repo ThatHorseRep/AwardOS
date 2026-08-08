@@ -33,22 +33,22 @@ export default function Sidebar() {
     <aside 
       className={`
         hidden md:flex flex-col
-        bg-zinc-950 border-r border-zinc-900 
+        bg-surface border-r border-border-subtle 
         h-full transition-all duration-300 relative select-none shrink-0
         ${collapsed ? 'w-[76px]' : 'w-[260px]'}
       `}
     >
       {/* Brand Header */}
-      <div className="flex items-center h-16 px-5 border-b border-zinc-900 shrink-0">
+      <div className="flex items-center h-16 px-5 border-b border-border-subtle shrink-0">
         <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-600/20 shrink-0">
           <Trophy className="w-5 h-5 text-white" />
         </div>
         {!collapsed && (
           <div className="ml-3">
-            <span className="font-bold text-lg tracking-tight text-white block leading-none">
+            <span className="font-bold text-lg tracking-tight text-content block leading-none">
               AwardOS
             </span>
-            <span className="text-[10px] text-zinc-500 font-medium">Event Engine</span>
+            <span className="text-[10px] text-content-muted font-medium">Event Engine</span>
           </div>
         )}
       </div>
@@ -65,12 +65,12 @@ export default function Sidebar() {
                   className={`
                     flex items-center px-3.5 py-2.5 rounded-full transition-all text-xs font-semibold group
                     ${isActive 
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25' 
-                      : 'text-zinc-400 hover:text-white hover:bg-zinc-900/80'
+                      ? 'bg-accent text-accent-contrast shadow-md shadow-accent/25' 
+                      : 'text-content-muted hover:text-content hover:bg-surface-muted'
                     }
                   `}
                 >
-                  <item.icon className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${isActive ? 'text-white' : 'text-zinc-400'}`} />
+                  <item.icon className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${isActive ? 'text-accent-contrast' : 'text-content-muted'}`} />
                   {!collapsed && (
                     <span className="ml-3 truncate">
                       {item.label}
@@ -84,10 +84,10 @@ export default function Sidebar() {
       </nav>
 
       {/* Collapse Toggle */}
-      <div className="p-3 border-t border-zinc-900">
+      <div className="p-3 border-t border-border-subtle">
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="flex items-center justify-center w-full py-2 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors text-xs font-medium"
+          className="flex items-center justify-center w-full py-2 rounded-full text-content-muted hover:text-content hover:bg-surface-muted transition-colors text-xs font-medium"
         >
           {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>

@@ -1,5 +1,48 @@
 @import "tailwindcss";
 
+/*
+ * Class-based dark mode. Tailwind v4 has no tailwind.config.js, so the variant
+ * is declared here; next-themes puts `.dark` on <html>.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Semantic tokens.
+ *
+ * Components should reach for these (bg-surface, text-muted, border-subtle)
+ * rather than raw palette values. Before this, every card repeated
+ * `bg-white border-slate-200/80` and every dark surface repeated its own
+ * zinc/slate mix, so a theme change meant editing ~20 files by hand.
+ *
+ * Accent is blue-600 (#2563eb) — the colour already used by the logo gradient
+ * and the sign-in page.
+ */
+@theme {
+  --color-canvas: #f4f5f8;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f8fafc;
+  --color-border-subtle: #e2e8f0;
+  --color-content: #09090b;
+  --color-content-muted: #64748b;
+  --color-accent: #2563eb;
+  --color-accent-hover: #1d4ed8;
+  --color-accent-contrast: #ffffff;
+}
+
+@layer theme {
+  .dark {
+    --color-canvas: #0a0a0f;
+    --color-surface: #18181b;
+    --color-surface-muted: #27272a;
+    --color-border-subtle: #27272a;
+    --color-content: #fafafa;
+    --color-content-muted: #a1a1aa;
+    --color-accent: #3b82f6;
+    --color-accent-hover: #60a5fa;
+    --color-accent-contrast: #ffffff;
+  }
+}
+
 @layer base {
   :root {
     --canvas: #f4f5f8;
@@ -21,8 +64,8 @@
 }
 
 body {
-  background-color: var(--canvas);
-  color: var(--text-main);
+  background-color: var(--color-canvas);
+  color: var(--color-content);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
@@ -45,6 +88,14 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
 }
 
 /* Keyframe Animations */

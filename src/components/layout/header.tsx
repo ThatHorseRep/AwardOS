@@ -6,6 +6,7 @@ import { signOutAction } from '@/actions/auth'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Avatar } from '@/components/ui/avatar'
+import { ThemeToggle } from '@/components/ui/theme-toggle'
 
 interface HeaderProps {
   user: {
@@ -47,27 +48,29 @@ export default function Header({ user }: HeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-40 h-16 flex items-center justify-between px-4 md:px-6 bg-zinc-950/90 backdrop-blur-xl border-b border-zinc-900 shrink-0 select-none">
+    <header className="sticky top-0 z-40 h-16 flex items-center justify-between px-4 md:px-6 bg-surface/90 backdrop-blur-xl border-b border-border-subtle shrink-0 select-none">
       <div className="flex items-center gap-3">
         <button 
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="md:hidden p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-900 transition-colors"
+          className="md:hidden p-2 text-content-muted hover:text-content rounded-full hover:bg-surface-muted transition-colors"
         >
           {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
 
         <div className="flex flex-col">
-          <span className="text-sm font-bold text-white tracking-tight">
+          <span className="text-sm font-bold text-content tracking-tight">
             {getGreeting()}, {user.displayName}! 👋
           </span>
-          <span className="text-[10px] text-zinc-500 font-medium">Workspace Overview</span>
+          <span className="text-[10px] text-content-muted font-medium">Workspace Overview</span>
         </div>
       </div>
 
       <div className="flex items-center gap-3">
-        <button className="relative p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-900 transition-colors">
+        <ThemeToggle className="hidden sm:inline-flex" />
+
+        <button className="relative p-2 text-content-muted hover:text-content rounded-full hover:bg-surface-muted transition-colors">
           <Bell className="w-4 h-4" />
-          <span className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full ring-2 ring-zinc-950" />
+          <span className="absolute top-2 right-2 w-2 h-2 bg-accent rounded-full ring-2 ring-surface" />
         </button>
 
         <div className="relative">
@@ -84,11 +87,11 @@ export default function Header({ user }: HeaderProps) {
                 className="fixed inset-0 z-40"
                 onClick={() => setDropdownOpen(false)}
               />
-              <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl overflow-hidden z-50 animate-in fade-in duration-150">
+              <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-surface border border-border-subtle shadow-2xl overflow-hidden z-50 animate-in fade-in duration-150">
                 <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-3">
                   <Avatar src={user.avatarUrl} name={user.displayName} size="sm" />
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-white truncate">{user.displayName}</p>
+                    <p className="text-xs font-bold text-content truncate">{user.displayName}</p>
                     <p className="text-[10px] text-zinc-400 truncate">{user.email}</p>
                   </div>
                 </div>
