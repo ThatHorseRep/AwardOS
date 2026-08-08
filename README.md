@@ -70,8 +70,24 @@ npm run db:migrate    # applies it
 ```
 
 Never hand-edit a migration that has already been applied, and never edit
-`meta/_journal.json` by hand — drizzle tracks applied migrations by hash, and a
-mismatch is painful to unwind.
+`meta/_journal.json` by hand — drizzle tracks applied migrations by the sha256
+of each file, so a mismatch is painful to unwind.
+
+Migrations are applied by `drizzle-kit`, which records every applied file in
+`drizzle.__drizzle_migrations`. If you are pointing at a database that already
+has the schema but an empty ledger, adopt the baseline once rather than
+re-running it:
+
+```bash
+node scripts/adopt-baseline.js          # dry run
+node scripts/adopt-baseline.js --apply  # record it
+```
+
+To snapshot data before a risky change:
+
+```bash
+node scripts/backup-data.js ./some-backup-dir
+```
 
 ## Deploying
 

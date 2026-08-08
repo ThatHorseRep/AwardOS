@@ -10,7 +10,7 @@
     "verify:exports": "node scripts/verify_exports.js",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
-    "db:migrate": "node scripts/migrate.js"
+    "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.23",

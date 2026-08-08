@@ -17,6 +17,8 @@ CREATE TYPE "public"."member_status" AS ENUM('PENDING', 'ACTIVE', 'REMOVED');-->
 CREATE TYPE "public"."merge_suggestion_status" AS ENUM('PENDING', 'APPROVED', 'REJECTED', 'UNDONE');--> statement-breakpoint
 CREATE TYPE "public"."nominee_source" AS ENUM('NOMINATION', 'MANUAL', 'AI_SUGGESTED');--> statement-breakpoint
 CREATE TYPE "public"."nominee_status" AS ENUM('ACTIVE', 'MERGED', 'DISQUALIFIED', 'REMOVED');--> statement-breakpoint
+CREATE TYPE "public"."notification_status" AS ENUM('SENT', 'FAILED', 'SKIPPED');--> statement-breakpoint
+CREATE TYPE "public"."notification_type" AS ENUM('SLACK', 'CONSOLE', 'EMAIL', 'WEBHOOK');--> statement-breakpoint
 CREATE TYPE "public"."result_action_type" AS ENUM('DISQUALIFY', 'OVERRIDE_RANK', 'REMOVE_VOTES', 'ADD_SPECIAL_AWARD', 'RESTORE', 'PUBLISH', 'UNPUBLISH', 'ADMIN_NOTE');--> statement-breakpoint
 CREATE TYPE "public"."stage_status" AS ENUM('PENDING', 'ACTIVE', 'COMPLETED', 'SKIPPED');--> statement-breakpoint
 CREATE TYPE "public"."suggested_category_status" AS ENUM('PENDING', 'APPROVED', 'REJECTED', 'MERGED');--> statement-breakpoint
@@ -36,6 +38,8 @@ CREATE TABLE "users" (
 	"email_verified" boolean DEFAULT false,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"deletion_requested_at" timestamp with time zone,
+	"deletion_scheduled_for" timestamp with time zone,
 	"deleted_at" timestamp with time zone,
 	CONSTRAINT "users_email_unique" UNIQUE("email")
 );
@@ -47,6 +51,22 @@ CREATE TABLE "custom_roles" (
 	"permissions" jsonb NOT NULL,
 	"created_by" uuid,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "workspace_invites" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"workspace_id" uuid NOT NULL,
+	"email" varchar(255),
+	"role" "workspace_role" DEFAULT 'EVENT_MANAGER' NOT NULL,
+	"custom_role_id" uuid,
+	"token" varchar(255) NOT NULL,
+	"max_uses" integer DEFAULT 1 NOT NULL,
+	"uses_count" integer DEFAULT 0 NOT NULL,
+	"expires_at" timestamp with time zone,
+	"domain_restrictions" jsonb DEFAULT '[]' NOT NULL,
+	"created_by" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "workspace_invites_token_unique" UNIQUE("token")
 );
 --> statement-breakpoint
 CREATE TABLE "workspace_members" (
@@ -214,6 +234,16 @@ CREATE TABLE "vote_sessions" (
 	CONSTRAINT "vote_sessions_session_token_unique" UNIQUE("session_token")
 );
 --> statement-breakpoint
+CREATE TABLE "voter_otps" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"event_id" uuid NOT NULL,
+	"email" varchar(255) NOT NULL,
+	"code" varchar(6) NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL,
+	"verified" boolean DEFAULT false NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "votes" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"vote_session_id" uuid NOT NULL,
@@ -371,8 +401,24 @@ CREATE TABLE "export_jobs" (
 	"expires_at" timestamp with time zone
 );
 --> statement-breakpoint
+CREATE TABLE "notification_events" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"alert_id" uuid,
+	"event_id" uuid NOT NULL,
+	"notification_type" "notification_type" NOT NULL,
+	"destination_type" varchar(50) NOT NULL,
+	"status" "notification_status" NOT NULL,
+	"response_code" integer,
+	"response_body" jsonb,
+	"error_message" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 ALTER TABLE "custom_roles" ADD CONSTRAINT "custom_roles_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "custom_roles" ADD CONSTRAINT "custom_roles_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workspace_invites" ADD CONSTRAINT "workspace_invites_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workspace_invites" ADD CONSTRAINT "workspace_invites_custom_role_id_custom_roles_id_fk" FOREIGN KEY ("custom_role_id") REFERENCES "public"."custom_roles"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workspace_invites" ADD CONSTRAINT "workspace_invites_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workspace_members" ADD CONSTRAINT "workspace_members_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workspace_members" ADD CONSTRAINT "workspace_members_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workspace_members" ADD CONSTRAINT "workspace_members_custom_role_id_custom_roles_id_fk" FOREIGN KEY ("custom_role_id") REFERENCES "public"."custom_roles"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -393,6 +439,7 @@ ALTER TABLE "suggested_categories" ADD CONSTRAINT "suggested_categories_reviewed
 ALTER TABLE "invitation_codes" ADD CONSTRAINT "invitation_codes_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "invitation_codes" ADD CONSTRAINT "invitation_codes_used_by_session_vote_sessions_id_fk" FOREIGN KEY ("used_by_session") REFERENCES "public"."vote_sessions"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "vote_sessions" ADD CONSTRAINT "vote_sessions_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "voter_otps" ADD CONSTRAINT "voter_otps_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "votes" ADD CONSTRAINT "votes_vote_session_id_vote_sessions_id_fk" FOREIGN KEY ("vote_session_id") REFERENCES "public"."vote_sessions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "votes" ADD CONSTRAINT "votes_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "votes" ADD CONSTRAINT "votes_category_id_categories_id_fk" FOREIGN KEY ("category_id") REFERENCES "public"."categories"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -423,6 +470,9 @@ ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_event_id_events_id_fk" FOREI
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_actor_id_users_id_fk" FOREIGN KEY ("actor_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "export_jobs" ADD CONSTRAINT "export_jobs_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "export_jobs" ADD CONSTRAINT "export_jobs_requested_by_users_id_fk" FOREIGN KEY ("requested_by") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notification_events" ADD CONSTRAINT "notification_events_alert_id_integrity_alerts_id_fk" FOREIGN KEY ("alert_id") REFERENCES "public"."integrity_alerts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notification_events" ADD CONSTRAINT "notification_events_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "idx_users_deletion_scheduled_for" ON "users" USING btree ("deletion_scheduled_for");--> statement-breakpoint
 CREATE UNIQUE INDEX "unq_workspace_name" ON "custom_roles" USING btree ("workspace_id","name");--> statement-breakpoint
 CREATE UNIQUE INDEX "unq_workspace_user" ON "workspace_members" USING btree ("workspace_id","user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "unq_workspace_slug" ON "events" USING btree ("workspace_id","slug");--> statement-breakpoint
@@ -438,13 +488,4 @@ CREATE UNIQUE INDEX "unq_vote_session_category" ON "votes" USING btree ("vote_se
 CREATE INDEX "idx_votes_event_cat_nominee" ON "votes" USING btree ("event_id","category_id","nominee_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "unq_event_category_nominee_res" ON "official_results" USING btree ("event_id","category_id","nominee_id");--> statement-breakpoint
 CREATE INDEX "idx_audit_logs_workspace_created" ON "audit_logs" USING btree ("workspace_id","created_at");--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "voter_otps" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"event_id" uuid NOT NULL,
-	"email" varchar(255) NOT NULL,
-	"code" varchar(6) NOT NULL,
-	"expires_at" timestamp with time zone NOT NULL,
-	"verified" boolean DEFAULT false NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
-);--> statement-breakpoint
-ALTER TABLE "voter_otps" ADD CONSTRAINT "voter_otps_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE cascade ON UPDATE no action;
+CREATE INDEX "idx_notification_events_event_created" ON "notification_events" USING btree ("event_id","created_at");
