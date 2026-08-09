@@ -102,9 +102,25 @@ gets a preview deployment.
   matching what is on `main` — which is exactly how this project ended up with
   no preview deploys and no PR checks.
 
-CI (`.github/workflows/ci.yml`) runs typecheck, lint, and build on every push
-and pull request. It uses dummy database credentials: the build imports the db
-module but never connects, so CI never touches a real database.
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, test, and build on every
+push and pull request. It uses dummy database credentials: the build imports the
+db module but never connects, so CI never touches a real database.
+
+### A trap worth knowing about: request header size
+
+`npm run dev` and `npm start` pass `--max-http-header-size=65536`, raising Node's
+16 KB default. **Vercel does not run either script** — it runs routes in its own
+runtime, where the edge's header limit cannot be raised at all.
+
+So oversized request headers fail *only in production*, as
+`494 REQUEST_HEADER_TOO_LARGE`, while local development is masked by that flag.
+If you hit it, clear cookies for the domain to recover, then look at what is
+accumulating: Supabase chunks large sessions across several `sb-*-auth-token.N`
+cookies, and anything the app sets at `path: "/"` is attached to every request
+to the domain forever. That is why the per-event voted cookies are scoped to
+`/e/<slug>` rather than the root.
+
+Never add a root-scoped, long-lived cookie without accounting for this.
 
 ## Layout
 

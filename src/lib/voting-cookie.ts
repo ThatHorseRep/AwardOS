@@ -16,13 +16,27 @@ export function votedCookieName(slug: string): string {
   return `${VOTED_COOKIE_PREFIX}${slug}`;
 }
 
-export const votedCookieOptions = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "lax" as const,
-  path: "/",
-  maxAge: 60 * 60 * 24 * 365, // 1 year
-};
+/**
+ * Scoped to the event's own public path.
+ *
+ * These used to be `path: "/"`, so every ballot a person ever cast was attached
+ * to every subsequent request to the domain — dashboard pages, API calls, static
+ * routes — for a year. Combined with Supabase's chunked auth cookies that is how
+ * a request grows past the edge's header limit and starts returning
+ * 494 REQUEST_HEADER_TOO_LARGE, which no Node flag can raise on Vercel.
+ *
+ * The narrower path means the browser only sends it while the voter is on that
+ * event's pages, which is the only place it is read.
+ */
+export function votedCookieOptions(slug: string) {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: `/e/${slug}`,
+    maxAge: 60 * 60 * 24 * 180, // 6 months — past any realistic event lifetime
+  };
+}
 
 /**
  * Frictionless (NONE) mode is the only method that leans on this cookie for

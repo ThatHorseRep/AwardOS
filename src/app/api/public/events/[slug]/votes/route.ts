@@ -116,18 +116,13 @@ export async function POST(
     const verificationConfig = (event.verificationConfig as any) || {};
     const expectedMethod = verificationConfig.method || "NONE";
 
-    // HTTP-only cookie gate (frictionless mode): the cookie is only honoured once it
-    // resolves to a real submitted ballot for this event, so a stale or hand-crafted
-    // Cookie header cannot permanently lock a legitimate voter out.
-    if (votedCookie && isCookieEnforcedMethod(expectedMethod)) {
-      const priorBallot = await resolveVotedBallot(event.id, votedCookie);
-      if (priorBallot) {
-        return NextResponse.json(
-          { error: "You have already cast a ballot for this event." },
-          { status: 409 }
-        );
-      }
-    }
+    // No cookie gate here. The voted cookie is now scoped to /e/<slug>, so the
+    // browser does not attach it to this API path and a check here would never
+    // fire. Nothing is lost: the partial unique index on
+    // (event_id, device_fingerprint) is what actually enforces one ballot per
+    // voter, and it holds even against concurrent submissions, which a cookie
+    // read never could. The cookie's remaining job is presentational — showing a
+    // returning voter the "already voted" state on the ballot page itself.
 
     if (verificationSession && expectedMethod !== providedMethod) {
       return NextResponse.json(
@@ -446,7 +441,7 @@ export async function POST(
     // Server-set HTTP-only cookie: survives localStorage clears and is unreadable and
     // unforgeable from page scripts. Value is the ballot receipt so it can be validated
     // against vote_sessions on later requests.
-    successResponse.cookies.set(votedCookieName(slug), ballotId, votedCookieOptions);
+    successResponse.cookies.set(votedCookieName(slug), ballotId, votedCookieOptions(slug));
 
     return successResponse;
   } catch (error: unknown) {
