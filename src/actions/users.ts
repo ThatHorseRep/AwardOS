@@ -72,13 +72,28 @@ export async function updateUserProfileFormAction(formData: FormData) {
         },
       });
 
-    // 2. Update Supabase User Metadata (if remote auth)
+    // 2. Mirror the display name into Supabase user metadata (remote auth only).
+    //
+    // The avatar is deliberately NOT mirrored when it is an inline data URI.
+    // user_metadata is embedded in the access token, the token is stored in a
+    // cookie, and @supabase/ssr chunks that cookie across as many
+    // sb-*-auth-token.N entries as it needs. The uploader produces base64 JPEGs
+    // around 15 KB, which after JWT encoding pushed every signed-in request past
+    // the edge's header limit — the whole domain then returned 494
+    // REQUEST_HEADER_TOO_LARGE before any application code ran, and signing in
+    // again immediately recreated it.
+    //
+    // Nothing is lost by omitting it: users.avatarUrl in the database is already
+    // the source of truth for display (see getOrCreateWorkspaceAction, which
+    // prefers the database record over metadata). A remote https URL is small
+    // and safe to mirror, so only data URIs are held back.
     if (user.id !== "00000000-0000-0000-0000-000000000000") {
       const supabase = await createClient();
+      const isInlineImage = avatarUrl?.startsWith("data:") ?? false;
       await supabase.auth.updateUser({
         data: {
           full_name: displayName,
-          avatar_url: avatarUrl,
+          avatar_url: isInlineImage ? null : avatarUrl,
         },
       });
     }
