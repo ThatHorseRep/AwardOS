@@ -35,6 +35,37 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  /**
+   * Carry Supabase's refreshed auth cookies onto a redirect.
+   *
+   * `NextResponse.redirect()` builds a brand-new response, so returning one
+   * directly discarded every cookie `setAll` had just written to
+   * `supabaseResponse`. The refreshed session was therefore never persisted:
+   * the next request arrived with the same stale token, Supabase refreshed and
+   * re-issued cookies again, and that response was discarded again.
+   *
+   * On a protected route that becomes a redirect loop, and each pass leaves
+   * another set of chunked `sb-*-auth-token.N` cookies behind. They accumulate
+   * until the request exceeds the edge's header limit and the whole domain
+   * starts returning 494 REQUEST_HEADER_TOO_LARGE — including for a brand-new
+   * private window, because the loop rebuilds them from scratch every time.
+   */
+  const redirectTo = (pathname: string, params?: Record<string, string>) => {
+    const url = request.nextUrl.clone();
+    url.pathname = pathname;
+    if (params) {
+      for (const [key, value] of Object.entries(params)) {
+        url.searchParams.set(key, value);
+      }
+    }
+
+    const response = NextResponse.redirect(url);
+    for (const cookie of supabaseResponse.cookies.getAll()) {
+      response.cookies.set(cookie);
+    }
+    return response;
+  };
+
   // Dev bypass is only honoured in a local development build — never in
   // preview or production, where the cookie is ignored entirely.
   const isDevBypass = isDevBypassActive(
@@ -60,10 +91,7 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/certificates");
 
   if (isProtectedRoute && !user && !isDevBypass) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/sign-in";
-    url.searchParams.set("redirect", request.nextUrl.pathname);
-    return NextResponse.redirect(url);
+    return redirectTo("/sign-in", { redirect: request.nextUrl.pathname });
   }
 
   // Auth routes — redirect to dashboard if already authenticated.
@@ -76,9 +104,7 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/forgot-password");
 
   if (isAuthRoute && user) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
+    return redirectTo("/dashboard");
   }
 
   return supabaseResponse;
