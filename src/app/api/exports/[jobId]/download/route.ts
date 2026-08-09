@@ -41,37 +41,57 @@ export async function GET(
     let payload: any[] = [];
 
     if (type === "OFFICIAL_RESULTS" || type === "VOTE_TALLIES") {
+      // Three queries total, regardless of size. This was a nested loop issuing
+      // one COUNT per nominee per category — an event with 20 categories and 10
+      // nominees each fired 201 queries to build one file.
       const cats = await db
         .select()
         .from(categories)
         .where(eq(categories.eventId, eventId))
         .orderBy(categories.displayOrder);
 
+      const nomList = await db
+        .select()
+        .from(nominees)
+        .where(eq(nominees.eventId, eventId))
+        .orderBy(desc(nominees.nominationCount));
+
+      const tallies = await db
+        .select({
+          nomineeId: votes.nomineeId,
+          count: sql<number>`count(${votes.id})::int`,
+        })
+        .from(votes)
+        .innerJoin(voteSessions, eq(votes.voteSessionId, voteSessions.id))
+        .where(
+          and(
+            // Scoped to this event. The per-nominee count matched on nomineeId
+            // alone, so a nominee appearing in more than one event had every
+            // event's ballots folded into each export.
+            eq(votes.eventId, eventId),
+            eq(voteSessions.status, "SUBMITTED")
+          )
+        )
+        .groupBy(votes.nomineeId);
+
+      const votesByNominee = new Map(
+        tallies.map((row) => [row.nomineeId, row.count])
+      );
+      const nomineesByCategory = new Map<string, typeof nomList>();
+      for (const nom of nomList) {
+        const list = nomineesByCategory.get(nom.categoryId);
+        if (list) list.push(nom);
+        else nomineesByCategory.set(nom.categoryId, [nom]);
+      }
+
       for (const cat of cats) {
-        const nomList = await db
-          .select()
-          .from(nominees)
-          .where(eq(nominees.categoryId, cat.id))
-          .orderBy(desc(nominees.nominationCount));
-
-        for (const nom of nomList) {
-          const voteCountResult = await db
-            .select({ count: sql<number>`count(${votes.id})::int` })
-            .from(votes)
-            .innerJoin(voteSessions, eq(votes.voteSessionId, voteSessions.id))
-            .where(
-              and(
-                eq(votes.nomineeId, nom.id),
-                eq(voteSessions.status, "SUBMITTED")
-              )
-            );
-
+        for (const nom of nomineesByCategory.get(cat.id) ?? []) {
           payload.push({
             Category: cat.name,
             Nominee: nom.name,
             Status: nom.status,
             Source: nom.source,
-            TotalVotes: voteCountResult[0]?.count || 0,
+            TotalVotes: votesByNominee.get(nom.id) ?? 0,
           });
         }
       }
