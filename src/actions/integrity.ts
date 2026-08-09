@@ -4,8 +4,9 @@ import { db } from "@/lib/db";
 import { integrityAlerts } from "@/lib/db/schema/integrity";
 import { users } from "@/lib/db/schema/users";
 import { voteSessions } from "@/lib/db/schema/voting";
-import { requireEventAccess, CONTENT_MODERATORS, EVENT_ADMINS } from "./_rbac";
-import { eq, and, desc, inArray, sql } from "drizzle-orm";
+import { requireEventAccess, requireWorkspaceRole, CONTENT_MODERATORS, EVENT_ADMINS } from "./_rbac";
+import { events } from "@/lib/db/schema/events";
+import { eq, and, desc, inArray, isNull, sql } from "drizzle-orm";
 import { sendAlertNotifications } from "@/lib/notifier";
 
 /**
@@ -367,4 +368,69 @@ export async function restoreSessionsAction(sessionIds: string[]) {
     .set({ status: "SUBMITTED" })
     .where(inArray(voteSessions.id, sessionIds));
   return { success: true };
+}
+
+/**
+ * Per-event integrity summary across the caller's workspace.
+ *
+ * Backs the workspace-level integrity directory, which previously rendered a
+ * hardcoded list of invented threats — fabricated IPs, invented risk scores,
+ * and a "purge" button that only filtered local state. On a voting product a
+ * fake integrity dashboard is worse than none: it reports safety that was never
+ * measured.
+ */
+export async function getWorkspaceIntegritySummaryAction() {
+  const { workspace } = await requireWorkspaceRole(CONTENT_MODERATORS);
+
+  const eventList = await db
+    .select({ id: events.id, name: events.name, slug: events.slug, status: events.status })
+    .from(events)
+    .where(and(eq(events.workspaceId, workspace.id), isNull(events.deletedAt)))
+    .orderBy(desc(events.createdAt));
+
+  if (eventList.length === 0) return [];
+
+  const eventIds = eventList.map((e) => e.id);
+
+  // Two grouped queries rather than a pair per event.
+  const alertRows = await db
+    .select({
+      eventId: integrityAlerts.eventId,
+      status: integrityAlerts.status,
+      severity: integrityAlerts.severity,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(integrityAlerts)
+    .where(inArray(integrityAlerts.eventId, eventIds))
+    .groupBy(integrityAlerts.eventId, integrityAlerts.status, integrityAlerts.severity);
+
+  const sessionRows = await db
+    .select({
+      eventId: voteSessions.eventId,
+      status: voteSessions.status,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(voteSessions)
+    .where(inArray(voteSessions.eventId, eventIds))
+    .groupBy(voteSessions.eventId, voteSessions.status);
+
+  return eventList.map((event) => {
+    const alerts = alertRows.filter((r) => r.eventId === event.id);
+    const sessions = sessionRows.filter((r) => r.eventId === event.id);
+    const sum = <T extends { count: number }>(rows: T[]) =>
+      rows.reduce((n, r) => n + r.count, 0);
+
+    return {
+      ...event,
+      openAlerts: sum(alerts.filter((a) => a.status === "NEW")),
+      criticalAlerts: sum(
+        alerts.filter((a) => a.status === "NEW" && a.severity === "CRITICAL")
+      ),
+      totalAlerts: sum(alerts),
+      submittedBallots: sum(sessions.filter((s) => s.status === "SUBMITTED")),
+      flaggedBallots: sum(
+        sessions.filter((s) => s.status === "FLAGGED" || s.status === "INVALIDATED")
+      ),
+    };
+  });
 }
