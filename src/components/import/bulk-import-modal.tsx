@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useState } from "react";
 import { AlertCircle, Check, Download, FileText, Loader2, Table, Upload } from "lucide-react";
 import { bulkImportCategoriesAndNomineesAction, parsePdfBulkImportAction, type BulkImportItem, type ImportExistingBehavior } from "@/actions/import";
 import { Button } from "@/components/ui/button";
@@ -43,29 +43,24 @@ export function BulkImportModal({ eventId, isOpen, onClose, onSuccess }: BulkImp
     };
   };
 
-  const handleParse = useCallback(async () => {
-    setErrorMsg(null); setResult(null);
+  const parseInput = (inputText: string) => {
+    setErrorMsg(null);
+    setResult(null);
     try {
       let items: BulkImportItem[];
-      if (/^[\s]*[\[{]/.test(rawInput)) {
-        const input: unknown = JSON.parse(rawInput);
+      if (/^[\s]*[\[{]/.test(inputText)) {
+        const input: unknown = JSON.parse(inputText);
         const rows = Array.isArray(input) ? input : [input];
         items = rows.map((value) => {
           const row = value && typeof value === "object" ? value as Record<string, unknown> : {};
           return { categoryName: String(row.categoryName ?? row.category ?? ""), categoryDescription: String(row.categoryDescription ?? ""), nomineeName: String(row.nomineeName ?? row.name ?? ""), nomineeBio: String(row.nomineeBio ?? row.bio ?? ""), nomineePhotoUrl: String(row.nomineePhotoUrl ?? row.photoUrl ?? "") };
         });
-      } else items = parseBulkImportText(rawInput);
+      } else items = parseBulkImportText(inputText);
       if (items.length === 0) throw new Error("No rows could be parsed.");
       setParsedItems(items);
       setPreview(createLocalPreview(items));
     } catch (error: unknown) { setErrorMsg(error instanceof Error ? error.message : "Failed to parse input."); }
-  }, [rawInput]);
-
-  useEffect(() => {
-    if (!rawInput.trim() || result) return;
-    const timer = window.setTimeout(() => void handleParse(), 350);
-    return () => window.clearTimeout(timer);
-  }, [handleParse, rawInput, result]);
+  };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -129,7 +124,7 @@ export function BulkImportModal({ eventId, isOpen, onClose, onSuccess }: BulkImp
           <div className="flex flex-wrap justify-center gap-2">{result.failedRows.length > 0 && <Button variant="outline" size="sm" onClick={downloadErrors}><Download className="mr-1.5 h-4 w-4" />Download error report</Button>}<Button variant="primary" size="sm" onClick={onSuccess}>Done</Button></div>
         </div> : <>
           <div className="flex items-center justify-between gap-3"><label htmlFor="bulk-import-input" className="flex items-center gap-1.5 font-bold text-slate-900"><FileText className="h-4 w-4 text-purple-600" />Paste CSV or JSON data</label><label className="cursor-pointer rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 font-bold text-slate-700 hover:bg-slate-200">Upload file<input type="file" accept=".csv,.json,.txt,.pdf,text/csv,application/json,application/pdf" onChange={(event) => void handleFileUpload(event)} className="sr-only" /></label></div>
-          <textarea id="bulk-import-input" rows={6} value={rawInput} onChange={(event) => { setRawInput(event.target.value); clearPreview(); }} placeholder={"Best Student Leader\nBest Athlete\nBest Entrepreneur"} className="w-full rounded-xl border border-border-subtle bg-surface-raised p-3 font-mono text-xs text-content focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20" />
+          <textarea id="bulk-import-input" rows={6} value={rawInput} onChange={(event) => { const value = event.target.value; setRawInput(value); if (value.trim()) parseInput(value); else clearPreview(); }} placeholder={"Best Student Leader\nBest Athlete\nBest Entrepreneur"} className="w-full rounded-xl border border-border-subtle bg-surface-raised p-3 font-mono text-xs text-content focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20" />
           <p className="flex items-center gap-1.5 text-content-secondary"><Table className="h-4 w-4" />Preview updates automatically as you paste or edit the data.</p>
           <label className="grid gap-1.5 text-slate-700"><span className="font-bold text-slate-900">When a nominee already exists</span><select value={existingBehavior} onChange={(event) => setExistingBehavior(event.target.value as ImportExistingBehavior)} className="h-9 rounded-lg border border-slate-200 bg-white px-3 font-medium focus:outline-none focus:ring-2 focus:ring-purple-500"><option value="UPDATE">Update the existing nominee</option><option value="SKIP">Skip the existing nominee</option></select></label>
           {parsedItems.length > 0 && <div className="max-h-44 overflow-auto rounded-xl border border-border-subtle"><table className="w-full text-left"><thead className="sticky top-0 bg-surface-raised text-xs"><tr><th className="p-2">Category</th><th className="p-2">Nominee</th><th className="p-2">Bio</th></tr></thead><tbody>{parsedItems.slice(0, 50).map((item, index) => <tr key={`${index}-${item.categoryName}-${item.nomineeName}`} className="border-t border-border-subtle"><td className="p-2 font-bold text-accent">{item.categoryName || "Missing category"}</td><td className="p-2 font-bold text-content">{item.nomineeName || "Category only"}</td><td className="max-w-48 truncate p-2 text-content-secondary">{item.nomineeBio || ""}</td></tr>)}</tbody></table></div>}
