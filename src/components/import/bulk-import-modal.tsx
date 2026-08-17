@@ -5,7 +5,7 @@ import { AlertCircle, Check, Download, FileText, Loader2, Table, Upload } from "
 import { bulkImportCategoriesAndNomineesAction, parsePdfBulkImportAction, previewBulkImportAction, type BulkImportItem, type ImportExistingBehavior } from "@/actions/import";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { parseBulkImportText } from "@/lib/bulk-import";
+import { parseBulkImportText, validateBulkImportItems } from "@/lib/bulk-import";
 
 interface BulkImportModalProps { eventId: string; isOpen: boolean; onClose: () => void; onSuccess: () => void; }
 
@@ -19,6 +19,20 @@ export function BulkImportModal({ eventId, isOpen, onClose, onSuccess }: BulkImp
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof previewBulkImportAction>> | null>(null);
 
   const clearPreview = () => { setParsedItems([]); setPreview(null); setResult(null); };
+
+  const createLocalPreview = (items: BulkImportItem[]) => {
+    const validation = validateBulkImportItems(items);
+    const categoryCount = new Set(validation.valid.map((item) => item.categoryName.toLocaleLowerCase())).size;
+    return {
+      totalRows: validation.totalRows,
+      validRows: validation.valid.length,
+      categoriesToCreate: categoryCount,
+      nomineesToCreate: validation.valid.filter((item) => Boolean(item.nomineeName)).length,
+      nomineesToUpdate: 0,
+      duplicateRows: validation.duplicateRows,
+      errors: validation.errors,
+    };
+  };
 
   const handleParse = async () => {
     setErrorMsg(null); setResult(null);
@@ -34,7 +48,13 @@ export function BulkImportModal({ eventId, isOpen, onClose, onSuccess }: BulkImp
       } else items = parseBulkImportText(rawInput);
       if (items.length === 0) throw new Error("No rows could be parsed.");
       setParsedItems(items);
-      setPreview(await previewBulkImportAction(eventId, items));
+      const localPreview = createLocalPreview(items);
+      setPreview(localPreview);
+      try {
+        setPreview(await previewBulkImportAction(eventId, items));
+      } catch (previewError) {
+        setErrorMsg(previewError instanceof Error ? `Preview details unavailable. The validated rows can still be imported. ${previewError.message}` : "Preview details unavailable. The validated rows can still be imported.");
+      }
     } catch (error: unknown) { setErrorMsg(error instanceof Error ? error.message : "Failed to parse input."); }
   };
 
@@ -57,7 +77,13 @@ export function BulkImportModal({ eventId, isOpen, onClose, onSuccess }: BulkImp
           nomineePhotoUrl: item.nomineePhotoUrl ?? undefined,
         }));
         setParsedItems(items);
-        setPreview(await previewBulkImportAction(eventId, items));
+        const localPreview = createLocalPreview(items);
+        setPreview(localPreview);
+        try {
+          setPreview(await previewBulkImportAction(eventId, items));
+        } catch (previewError) {
+          setErrorMsg(previewError instanceof Error ? `Preview details unavailable. The validated rows can still be imported. ${previewError.message}` : "Preview details unavailable. The validated rows can still be imported.");
+        }
         setRawInput("Machine-readable PDF extracted successfully.");
       } catch (error) {
         setErrorMsg(error instanceof Error ? error.message : "The PDF could not be extracted.");
