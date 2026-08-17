@@ -1,13 +1,22 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { AlertCircle, Check, Download, FileText, Loader2, Table, Upload } from "lucide-react";
-import { bulkImportCategoriesAndNomineesAction, parsePdfBulkImportAction, previewBulkImportAction, type BulkImportItem, type ImportExistingBehavior } from "@/actions/import";
+import { bulkImportCategoriesAndNomineesAction, parsePdfBulkImportAction, type BulkImportItem, type ImportExistingBehavior } from "@/actions/import";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { parseBulkImportText, validateBulkImportItems } from "@/lib/bulk-import";
 
 interface BulkImportModalProps { eventId: string; isOpen: boolean; onClose: () => void; onSuccess: () => void; }
+interface LocalImportPreview {
+  totalRows: number;
+  validRows: number;
+  categoriesToCreate: number;
+  nomineesToCreate: number;
+  nomineesToUpdate: number;
+  duplicateRows: number;
+  errors: Array<{ row: number; message: string }>;
+}
 
 export function BulkImportModal({ eventId, isOpen, onClose, onSuccess }: BulkImportModalProps) {
   const [rawInput, setRawInput] = useState("");
@@ -16,7 +25,7 @@ export function BulkImportModal({ eventId, isOpen, onClose, onSuccess }: BulkImp
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [existingBehavior, setExistingBehavior] = useState<ImportExistingBehavior>("UPDATE");
   const [result, setResult] = useState<Awaited<ReturnType<typeof bulkImportCategoriesAndNomineesAction>> | null>(null);
-  const [preview, setPreview] = useState<Awaited<ReturnType<typeof previewBulkImportAction>> | null>(null);
+  const [preview, setPreview] = useState<LocalImportPreview | null>(null);
 
   const clearPreview = () => { setParsedItems([]); setPreview(null); setResult(null); };
 
@@ -34,7 +43,7 @@ export function BulkImportModal({ eventId, isOpen, onClose, onSuccess }: BulkImp
     };
   };
 
-  const handleParse = async () => {
+  const handleParse = useCallback(async () => {
     setErrorMsg(null); setResult(null);
     try {
       let items: BulkImportItem[];
@@ -48,15 +57,15 @@ export function BulkImportModal({ eventId, isOpen, onClose, onSuccess }: BulkImp
       } else items = parseBulkImportText(rawInput);
       if (items.length === 0) throw new Error("No rows could be parsed.");
       setParsedItems(items);
-      const localPreview = createLocalPreview(items);
-      setPreview(localPreview);
-      try {
-        setPreview(await previewBulkImportAction(eventId, items));
-      } catch (previewError) {
-        setErrorMsg(previewError instanceof Error ? `Preview details unavailable. The validated rows can still be imported. ${previewError.message}` : "Preview details unavailable. The validated rows can still be imported.");
-      }
+      setPreview(createLocalPreview(items));
     } catch (error: unknown) { setErrorMsg(error instanceof Error ? error.message : "Failed to parse input."); }
-  };
+  }, [rawInput]);
+
+  useEffect(() => {
+    if (!rawInput.trim() || result) return;
+    const timer = window.setTimeout(() => void handleParse(), 350);
+    return () => window.clearTimeout(timer);
+  }, [handleParse, rawInput, result]);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -77,13 +86,7 @@ export function BulkImportModal({ eventId, isOpen, onClose, onSuccess }: BulkImp
           nomineePhotoUrl: item.nomineePhotoUrl ?? undefined,
         }));
         setParsedItems(items);
-        const localPreview = createLocalPreview(items);
-        setPreview(localPreview);
-        try {
-          setPreview(await previewBulkImportAction(eventId, items));
-        } catch (previewError) {
-          setErrorMsg(previewError instanceof Error ? `Preview details unavailable. The validated rows can still be imported. ${previewError.message}` : "Preview details unavailable. The validated rows can still be imported.");
-        }
+        setPreview(createLocalPreview(items));
         setRawInput("Machine-readable PDF extracted successfully.");
       } catch (error) {
         setErrorMsg(error instanceof Error ? error.message : "The PDF could not be extracted.");
@@ -127,7 +130,7 @@ export function BulkImportModal({ eventId, isOpen, onClose, onSuccess }: BulkImp
         </div> : <>
           <div className="flex items-center justify-between gap-3"><label htmlFor="bulk-import-input" className="flex items-center gap-1.5 font-bold text-slate-900"><FileText className="h-4 w-4 text-purple-600" />Paste CSV or JSON data</label><label className="cursor-pointer rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 font-bold text-slate-700 hover:bg-slate-200">Upload file<input type="file" accept=".csv,.json,.txt,.pdf,text/csv,application/json,application/pdf" onChange={(event) => void handleFileUpload(event)} className="sr-only" /></label></div>
           <textarea id="bulk-import-input" rows={6} value={rawInput} onChange={(event) => { setRawInput(event.target.value); clearPreview(); }} placeholder={"Best Student Leader\nBest Athlete\nBest Entrepreneur"} className="w-full rounded-xl border border-border-subtle bg-surface-raised p-3 font-mono text-xs text-content focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20" />
-          <Button variant="ghost" size="sm" onClick={() => void handleParse()} disabled={!rawInput.trim()}><Table className="mr-1.5 h-4 w-4" />Parse and preview</Button>
+          <p className="flex items-center gap-1.5 text-content-secondary"><Table className="h-4 w-4" />Preview updates automatically as you paste or edit the data.</p>
           <label className="grid gap-1.5 text-slate-700"><span className="font-bold text-slate-900">When a nominee already exists</span><select value={existingBehavior} onChange={(event) => setExistingBehavior(event.target.value as ImportExistingBehavior)} className="h-9 rounded-lg border border-slate-200 bg-white px-3 font-medium focus:outline-none focus:ring-2 focus:ring-purple-500"><option value="UPDATE">Update the existing nominee</option><option value="SKIP">Skip the existing nominee</option></select></label>
           {parsedItems.length > 0 && <div className="max-h-44 overflow-auto rounded-xl border border-border-subtle"><table className="w-full text-left"><thead className="sticky top-0 bg-surface-raised text-xs"><tr><th className="p-2">Category</th><th className="p-2">Nominee</th><th className="p-2">Bio</th></tr></thead><tbody>{parsedItems.slice(0, 50).map((item, index) => <tr key={`${index}-${item.categoryName}-${item.nomineeName}`} className="border-t border-border-subtle"><td className="p-2 font-bold text-accent">{item.categoryName || "Missing category"}</td><td className="p-2 font-bold text-content">{item.nomineeName || "Category only"}</td><td className="max-w-48 truncate p-2 text-content-secondary">{item.nomineeBio || ""}</td></tr>)}</tbody></table></div>}
           {preview && <div className="space-y-2"><div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-4"><span>Create categories: <strong>{preview.categoriesToCreate}</strong></span><span>Create nominees: <strong>{preview.nomineesToCreate}</strong></span><span>{existingBehavior === "UPDATE" ? "Update" : "Skip"} existing: <strong>{preview.nomineesToUpdate}</strong></span><span>Rejected rows: <strong>{preview.errors.length}</strong></span></div>{preview.errors.length > 0 && <Button variant="outline" size="sm" onClick={downloadErrors}><Download className="mr-1.5 h-4 w-4" />Download error report</Button>}</div>}
