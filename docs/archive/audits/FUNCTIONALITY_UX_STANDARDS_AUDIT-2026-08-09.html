@@ -1,0 +1,1078 @@
+<title>AwardOS — Functionality, UX &amp; Standards Audit</title>
+<div style="padding:12px 16px;background:#fff3cd;color:#5f4500;font:600 14px system-ui,sans-serif;border-bottom:1px solid #e5c86b">
+  Historical audit snapshot from August 9, 2026. Findings are not a current open-issues list.
+</div>
+<style>
+  /* ============ TOKENS ============
+     Palette: ballot-paper neutrals with a slight cool bias toward the
+     verdigris accent. Severity colours are separate from the accent. */
+  :root {
+    --paper:        #f7f6f3;
+    --surface:      #fffefb;
+    --surface-2:    #f1efe9;
+    --ink:          #16171a;
+    --ink-2:        #4a4d55;
+    --ink-3:        #7b7f89;
+    --rule:         #dedbd2;
+    --rule-strong:  #c6c2b6;
+
+    --accent:       #1f6f5c;   /* verdigris — the "counted" colour */
+    --accent-soft:  #e4efea;
+    --accent-ink:   #14503f;
+
+    --crit:         #a32020;
+    --crit-soft:    #fbeaea;
+    --high:         #a35a00;
+    --high-soft:    #fbf0e0;
+    --med:          #4a5bb5;
+    --med-soft:     #eaecf9;
+    --low:          #5f6570;
+    --low-soft:     #eeeff1;
+
+    --shadow: 0 1px 2px rgba(22,23,26,.05), 0 8px 24px -12px rgba(22,23,26,.12);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:        #131417;
+      --surface:      #191b1f;
+      --surface-2:    #212429;
+      --ink:          #eceef1;
+      --ink-2:        #b3b8c0;
+      --ink-3:        #848a94;
+      --rule:         #2b2f35;
+      --rule-strong:  #3d434b;
+
+      --accent:       #57b79b;
+      --accent-soft:  #16302a;
+      --accent-ink:   #8ed4bd;
+
+      --crit:         #f0736b;
+      --crit-soft:    #331617;
+      --high:         #e0a13f;
+      --high-soft:    #302312;
+      --med:          #8f9de8;
+      --med-soft:     #1c2036;
+      --low:          #9aa0aa;
+      --low-soft:     #23262b;
+
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:        #131417;
+    --surface:      #191b1f;
+    --surface-2:    #212429;
+    --ink:          #eceef1;
+    --ink-2:        #b3b8c0;
+    --ink-3:        #848a94;
+    --rule:         #2b2f35;
+    --rule-strong:  #3d434b;
+    --accent:       #57b79b;
+    --accent-soft:  #16302a;
+    --accent-ink:   #8ed4bd;
+    --crit:         #f0736b;
+    --crit-soft:    #331617;
+    --high:         #e0a13f;
+    --high-soft:    #302312;
+    --med:          #8f9de8;
+    --med-soft:     #1c2036;
+    --low:          #9aa0aa;
+    --low-soft:     #23262b;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: ui-serif, Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 62rem; margin: 0 auto; padding: 0 1.5rem 6rem; }
+
+  /* ============ MASTHEAD ============ */
+  .masthead {
+    border-bottom: 2px solid var(--ink);
+    padding: 3.5rem 0 1.25rem;
+    margin-bottom: 2.5rem;
+  }
+  .eyebrow {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: .68rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 1rem;
+  }
+  h1 {
+    font-size: clamp(2.1rem, 5.5vw, 3.4rem);
+    line-height: 1.04;
+    letter-spacing: -.022em;
+    margin: 0 0 .9rem;
+    text-wrap: balance;
+    font-weight: 600;
+  }
+  .standfirst {
+    font-size: 1.1rem;
+    color: var(--ink-2);
+    max-width: 46rem;
+    margin: 0 0 1.75rem;
+    text-wrap: pretty;
+  }
+  .meta-row {
+    display: flex; flex-wrap: wrap; gap: 1.75rem;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: .7rem; letter-spacing: .05em;
+    color: var(--ink-3); text-transform: uppercase;
+  }
+  .meta-row b { display: block; color: var(--ink); font-size: 1.45rem;
+    font-family: ui-serif, Georgia, serif; letter-spacing: -.01em;
+    text-transform: none; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+  /* ============ VERDICT ============ */
+  .verdict {
+    background: var(--crit-soft);
+    border: 1px solid var(--crit);
+    border-left: 4px solid var(--crit);
+    border-radius: 3px;
+    padding: 1.6rem 1.75rem;
+    margin: 0 0 3rem;
+  }
+  .verdict h2 { margin: 0 0 .6rem; font-size: 1.15rem; color: var(--crit); letter-spacing: -.01em; }
+  .verdict p { margin: 0 0 .7rem; color: var(--ink); }
+  .verdict p:last-child { margin-bottom: 0; }
+
+  /* ============ SECTIONS ============ */
+  section { margin: 0 0 4rem; scroll-margin-top: 1.5rem; }
+  h2.sec {
+    font-size: 1.65rem; letter-spacing: -.02em; margin: 0 0 .4rem;
+    padding-bottom: .55rem; border-bottom: 1px solid var(--rule-strong);
+    font-weight: 600;
+  }
+  h2.sec .num {
+    font-family: ui-monospace, monospace; font-size: .72rem;
+    color: var(--accent); letter-spacing: .1em; display: block;
+    margin-bottom: .3rem; font-weight: 400;
+  }
+  .sec-intro { color: var(--ink-2); margin: .9rem 0 2rem; max-width: 46rem; }
+  h3.sub {
+    font-size: 1.12rem; margin: 2.5rem 0 1rem; letter-spacing: -.01em;
+    font-weight: 600;
+  }
+
+  /* ============ FINDING CARDS ============ */
+  .finding {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 1.25rem 1.4rem;
+    margin: 0 0 1rem;
+    box-shadow: var(--shadow);
+  }
+  .finding.is-crit { border-left: 4px solid var(--crit); }
+  .finding.is-high { border-left: 4px solid var(--high); }
+  .finding.is-med  { border-left: 4px solid var(--med); }
+  .finding.is-low  { border-left: 4px solid var(--low); }
+
+  .f-head {
+    display: flex; flex-wrap: wrap; align-items: baseline;
+    gap: .6rem; margin-bottom: .7rem;
+  }
+  .f-id {
+    font-family: ui-monospace, monospace; font-size: .7rem;
+    color: var(--ink-3); letter-spacing: .06em; font-weight: 500;
+  }
+  .f-title { font-size: 1.03rem; font-weight: 600; letter-spacing: -.008em; flex: 1 1 18rem; }
+
+  .pill {
+    display: inline-block;
+    font-family: ui-monospace, monospace;
+    font-size: .62rem; letter-spacing: .1em; text-transform: uppercase;
+    padding: .22em .6em; border-radius: 2px; font-weight: 600;
+    white-space: nowrap;
+  }
+  .p-crit { background: var(--crit-soft); color: var(--crit); }
+  .p-high { background: var(--high-soft); color: var(--high); }
+  .p-med  { background: var(--med-soft);  color: var(--med); }
+  .p-low  { background: var(--low-soft);  color: var(--low); }
+  .p-ok   { background: var(--accent-soft); color: var(--accent-ink); }
+
+  .f-body { font-size: .95rem; color: var(--ink-2); }
+  .f-body > p { margin: 0 0 .6rem; }
+  .f-body > p:last-child { margin-bottom: 0; }
+  .f-body strong { color: var(--ink); font-weight: 600; }
+
+  dl.kv { margin: .7rem 0 0; display: grid; grid-template-columns: max-content 1fr; gap: .3rem .9rem; font-size: .9rem; }
+  dl.kv dt {
+    font-family: ui-monospace, monospace; font-size: .66rem;
+    letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3);
+    padding-top: .28em; font-weight: 500;
+  }
+  dl.kv dd { margin: 0; color: var(--ink-2); }
+  dl.kv dd strong { color: var(--ink); }
+
+  code, .loc {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: .84em;
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: .08em .38em;
+    color: var(--ink);
+    word-break: break-word;
+  }
+  .loc { color: var(--accent-ink); background: var(--accent-soft); border-color: transparent; }
+
+  /* ============ TABLES ============ */
+  .tscroll { overflow-x: auto; margin: 1.25rem 0; border: 1px solid var(--rule); border-radius: 3px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: .88rem; min-width: 40rem; }
+  th, td { text-align: left; padding: .62rem .85rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  thead th {
+    font-family: ui-monospace, monospace; font-size: .64rem;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3);
+    background: var(--surface-2); font-weight: 600; white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  table code { font-size: .8em; }
+
+  /* ============ ROUTE TREE ============ */
+  .tree {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 3px;
+    padding: 1.25rem 1.4rem; overflow-x: auto; margin: 1.25rem 0;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: .8rem; line-height: 1.75; color: var(--ink-2);
+    white-space: pre;
+  }
+  .tree .ok   { color: var(--accent-ink); }
+  .tree .bad  { color: var(--crit); }
+  .tree .warn { color: var(--high); }
+  .tree .dim  { color: var(--ink-3); }
+  .tree .new  { color: var(--accent); font-weight: 600; }
+
+  /* ============ BATCHES ============ */
+  .batch {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-radius: 3px; padding: 1.4rem 1.5rem; margin: 0 0 1.1rem;
+    box-shadow: var(--shadow);
+  }
+  .batch-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .7rem; margin-bottom: .35rem; }
+  .batch-n {
+    font-family: ui-monospace, monospace; font-size: .68rem; letter-spacing: .1em;
+    color: var(--accent); text-transform: uppercase; font-weight: 600;
+  }
+  .batch h3 { margin: 0; font-size: 1.12rem; letter-spacing: -.01em; flex: 1 1 16rem; font-weight: 600; }
+  .batch .why { color: var(--ink-2); font-size: .93rem; margin: .5rem 0 .9rem; }
+  .batch ul { margin: 0; padding-left: 1.1rem; font-size: .9rem; color: var(--ink-2); }
+  .batch li { margin-bottom: .3rem; }
+  .batch li::marker { color: var(--accent); }
+
+  ul.plain { padding-left: 1.1rem; color: var(--ink-2); }
+  ul.plain li { margin-bottom: .45rem; }
+  ul.plain li::marker { color: var(--rule-strong); }
+
+  .q {
+    background: var(--accent-soft); border-left: 3px solid var(--accent);
+    border-radius: 0 3px 3px 0; padding: .85rem 1.1rem; margin: 0 0 .7rem;
+    font-size: .94rem; color: var(--ink);
+  }
+  .q b { display: block; font-family: ui-monospace, monospace; font-size: .65rem;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--accent-ink);
+    margin-bottom: .25rem; font-weight: 600; }
+
+  hr.div { border: none; border-top: 1px solid var(--rule); margin: 2.5rem 0; }
+
+  footer {
+    border-top: 2px solid var(--ink); margin-top: 4rem; padding-top: 1.25rem;
+    font-family: ui-monospace, monospace; font-size: .7rem;
+    letter-spacing: .05em; color: var(--ink-3); text-transform: uppercase;
+  }
+
+  a { color: var(--accent-ink); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  @media (max-width: 34rem) {
+    body { font-size: 16px; }
+    dl.kv { grid-template-columns: 1fr; gap: .1rem .9rem; }
+    dl.kv dt { margin-top: .5rem; }
+  }
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">AwardOS · Pass 2 · Functionality, UX &amp; Standards</p>
+  <h1>The app is feature-complete on the surface and unsafe underneath.</h1>
+  <p class="standfirst">
+    A read of all 137 source files, tracing every core feature end to end. The headline is not a
+    UI problem: <strong>one live defect makes a public election unrunnable</strong>, and three more
+    silently produce wrong vote counts. Deduplication — the product's signature feature — does not
+    deduplicate the ballot.
+  </p>
+  <div class="meta-row">
+    <span>Files read<b>137</b></span>
+    <span>Findings<b>63</b></span>
+    <span>Blocker / Critical<b>9</b></span>
+    <span>Vote-integrity<b>6</b></span>
+  </div>
+</header>
+
+<div class="verdict">
+  <h2>Read this before anything else</h2>
+  <p>
+    <strong>Every ballot is deduplicated by IP address alone</strong>, for all three verification
+    modes. <code>src/app/api/public/events/[slug]/votes/route.ts:53</code> sets
+    <code>deviceFingerprint = hashIP(ipAddress, slug)</code> — no canvas, no WebGL, no screen or
+    timezone signal, despite the field name and the PRD's definition of a device fingerprint. A
+    partial unique index on <code>(event_id, device_fingerprint)</code> then enforces it in the
+    database.
+  </p>
+  <p>
+    On campus Wi-Fi, an office network, or a mobile carrier's NAT, <strong>the first person to vote
+    locks out everyone behind that IP</strong>. They are told "A ballot from this device has already
+    been submitted." For the MVP's stated target — university award nights, 90%+ mobile traffic —
+    this does not degrade the product, it ends the event. The PRD anticipated exactly this
+    (<code>EDGE-VOT-06</code>) and the shipped behaviour is the opposite of what it specifies.
+  </p>
+  <p>
+    It also fires in <code>EMAIL_OTP</code> and <code>INVITATION_CODE</code> mode, where the
+    fingerprint is still written and still indexed — so two verified voters sharing a lecture-hall
+    network collide even though each holds a valid, distinct credential.
+  </p>
+</div>
+
+<!-- ================= PHASE 1 ================= -->
+<section id="phase1">
+  <h2 class="sec"><span class="num">Phase 1</span>Functional correctness</h2>
+  <p class="sec-intro">
+    Each core feature traced from UI entry point through server action to database. Findings are
+    grouped by feature; severity reflects user impact, not effort.
+  </p>
+
+  <h3 class="sub">Vote integrity &amp; counting</h3>
+
+  <div class="finding is-crit">
+    <div class="f-head"><span class="f-id">F-01</span><span class="f-title">"Device fingerprint" is only a hashed IP — one vote per network</span><span class="pill p-crit">Blocker</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">api/public/events/[slug]/votes/route.ts:53</span>, <span class="loc">lib/hash.ts:17</span>, <span class="loc">lib/db/schema/voting.ts:49–51</span>, <span class="loc">migrations/0001_vote_integrity.sql:4</span></dd>
+        <dt>Now</dt><dd>Fingerprint = <code>sha256(ip + slug)</code>. A unique index rejects the second ballot from any IP, in every verification mode.</dd>
+        <dt>Should</dt><dd>Either collect a real client-side fingerprint, or scope the constraint to <code>NONE</code> mode only and treat IP as a rate-limit signal rather than an identity. PRD <code>FR-VER-01</code> lists canvas, WebGL, timezone, screen resolution — none are collected anywhere in the codebase.</dd>
+        <dt>Impact</dt><dd><strong>Blocks the core flow for the majority of real voters.</strong></dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="finding is-crit">
+    <div class="f-head"><span class="f-id">F-02</span><span class="f-title">Disqualified nominees still count toward vote percentages and ranks</span><span class="pill p-crit">Wrong counts</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">actions/results.ts:44,62–63,85,92–101</span></dd>
+        <dt>Now</dt><dd><code>totalCategoryVotes</code> sums votes for <em>every</em> nominee row, including <code>DISQUALIFIED</code>, <code>MERGED</code> and <code>REMOVED</code>. The filter at line 85 excludes only <code>MERGED</code>/<code>REMOVED</code> from the ranked list — disqualified nominees stay in it and are assigned <code>rank: idx + 1</code>.</dd>
+        <dt>Should</dt><dd>Disqualified nominees are excluded from the denominator and skipped when assigning ranks.</dd>
+        <dt>Impact</dt><dd>Every published percentage is understated. If the top vote-getter is disqualified, <strong>the real winner is labelled rank 02</strong> and the public results page shows no winner at all (<span class="loc">(public)/e/[slug]/results/page.tsx:152</span> looks for <code>rank === 1</code> AND not disqualified — that row does not exist).</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="finding is-crit">
+    <div class="f-head"><span class="f-id">F-03</span><span class="f-title">Approving a merge does not remove the duplicate nominees from the ballot</span><span class="pill p-crit">Feature broken</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">actions/cleanup.ts:182–269</span> and <span class="loc">:332–520</span> (bulk)</dd>
+        <dt>Now</dt><dd>Nominee rows are created by <code>syncNomineesForEvent</code> at submission time — "Jane Doe", "Dr. Jane Doe" and "J. Doe" become three <code>ACTIVE</code> rows. Approving a merge re-points <code>nominations.resolvedNomineeId</code> and creates/updates one canonical nominee, but <strong>never sets the source nominees to <code>MERGED</code></strong>. <code>nominees.mergedInto</code> exists in the schema and is <strong>never written anywhere in the codebase</strong>.</dd>
+        <dt>Should</dt><dd>Source nominees flip to <code>MERGED</code> with <code>mergedInto</code> set, so the ballot query (<span class="loc">actions/voting.ts:363</span>, filtering <code>status = 'ACTIVE'</code>) drops them.</dd>
+        <dt>Impact</dt><dd>The ballot still shows all three spellings after cleanup. <strong>The deduplication feature has no effect on the thing it exists to fix</strong>, and votes split across duplicates. The UI at <span class="loc">events/[id]/ai-cleanup/page.tsx:500</span> explicitly promises "precise tally computation."</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="finding is-crit">
+    <div class="f-head"><span class="f-id">F-04</span><span class="f-title">Merge re-pointing silently no-ops on any name whose casing was normalised</span><span class="pill p-crit">Silent failure</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">lib/ai/cleanup.ts:129</span> produces <code>sourceNominees</code> from <code>normalizeCapitalization(...)</code>; <span class="loc">actions/cleanup.ts:244–254</span> matches those strings against raw <code>nominations.nomineeText</code>.</dd>
+        <dt>Now</dt><dd>Suggestions carry <em>normalised</em> names ("Jane Doe"); the UPDATE matches on <em>raw</em> submitted text ("JANE DOE", "jane doe"). Any nomination whose original casing differed never matches, so <code>resolvedNomineeId</code> stays null.</dd>
+        <dt>Should</dt><dd>Match on a normalised comparison, or store nomination ids on the suggestion instead of free text.</dd>
+        <dt>Impact</dt><dd>Merges report success and partially do nothing. Because casing variation is the single most common form of duplication, <strong>this likely affects the majority of merges</strong>.</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="finding is-high">
+    <div class="f-head"><span class="f-id">F-05</span><span class="f-title">Merge inflates nomination counts; undo leaves an orphan nominee</span><span class="pill p-high">Data drift</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">actions/cleanup.ts:211–217</span> (inflate), <span class="loc">:286–330</span> (undo)</dd>
+        <dt>Now</dt><dd>Approve adds <code>sourceNames.length</code> to a nominee whose count already included those nominations from the initial sync — double counting. Undo nulls <code>resolvedNomineeId</code> and resets status to <code>PENDING</code>, but does not delete the nominee it created or reverse the count bump; the orphan stays <code>ACTIVE</code> on the ballot. The schema's <code>UNDONE</code> status is never used.</dd>
+        <dt>Impact</dt><dd>Nomination counts drift upward with each run. Undo is not a true inverse — PRD <code>FR-AI-08</code> requires it to restore original records.</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="finding is-high">
+    <div class="f-head"><span class="f-id">F-06</span><span class="f-title">"Votes Cast" on the event dashboard counts skipped selections and abandoned sessions</span><span class="pill p-high">Wrong number</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">actions/events.ts:219–223</span>, displayed <span class="loc">events/[id]/page.tsx:388</span></dd>
+        <dt>Now</dt><dd>A bare <code>count()</code> on <code>votes</code> filtered only by <code>eventId</code> — no join to <code>voteSessions.status</code>, no exclusion of <code>skipped = true</code>. It counts one row per category per ballot, including deliberate skips and rows from <code>IN_PROGRESS</code>/<code>FLAGGED</code>/<code>INVALIDATED</code> sessions.</dd>
+        <dt>Should</dt><dd>Count distinct submitted sessions, matching <span class="loc">actions/analytics.ts:33</span>.</dd>
+        <dt>Impact</dt><dd>An 8-category event reports roughly <strong>8× the true voter count</strong>. The analytics page reports a different number for the same event, so the two screens visibly contradict each other.</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="finding is-med">
+    <div class="f-head"><span class="f-id">F-07</span><span class="f-title">Ballot page ignores the voting schedule that the submit route enforces</span><span class="pill p-med">Inconsistent</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">(public)/e/[slug]/vote/page.tsx:241–242</span> vs <span class="loc">api/.../votes/route.ts:99–114</span></dd>
+        <dt>Now</dt><dd>The client reads <code>event.stages</code> — but <code>getPublicBallotDetailsAction</code> (<span class="loc">actions/voting.ts:384–396</span>) <strong>never returns <code>stages</code></strong>. The lookup is always <code>undefined</code>, so the gate falls back to <code>event.status === "ACTIVE"</code>. The API separately enforces <code>startsAt</code>/<code>endsAt</code>.</dd>
+        <dt>Impact</dt><dd>Voters fill in a full ballot outside the window, then get rejected at submit. No grace window exists either (PRD <code>FR-VOT-08</code> specifies 15 minutes).</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="finding is-med">
+    <div class="f-head"><span class="f-id">F-08</span><span class="f-title">Thank-you page shows a receipt built from the wrong localStorage key</span><span class="pill p-med">Broken trust surface</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">(public)/e/[slug]/vote/thank-you/page.tsx:44–47</span></dd>
+        <dt>Now</dt><dd>Reads <code>awardos_session_id</code>. The ballot page writes the per-event key <code>awardos_session_id_&lt;slug&gt;</code> (<span class="loc">vote/page.tsx:173</span>). The unscoped key is only ever written by the <em>nomination</em> form (<span class="loc">nominate/page.tsx:85</span>).</dd>
+        <dt>Impact</dt><dd>A voter who never nominated sees <strong>no receipt at all</strong>. A voter who did nominate sees a receipt token that does not correspond to their ballot — pasting it into the verification tool directly below returns "No matching ballot receipt recorded." The page also announces the event name by title-casing the URL slug (<code>:38–41</code>) rather than fetching it.</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="finding is-med">
+    <div class="f-head"><span class="f-id">F-09</span><span class="f-title">Ballot forces a selection in every category, contradicting the skip feature</span><span class="pill p-med">Spec conflict</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">api/.../votes/route.ts:151–158</span> vs <span class="loc">vote/page.tsx:466–467</span></dd>
+        <dt>Now</dt><dd>The API requires exactly one entry per active category. Categories with zero nominees still appear on the ballot showing "No nominee candidates configured" — the voter cannot select anything, and the client sends them as skipped, which passes. But PRD <code>EDGE-VOT-05</code> says empty categories should be hidden from the ballot with a dashboard warning. Neither happens.</dd>
+        <dt>Impact</dt><dd>Empty categories are visible dead weight on the highest-stakes screen, and there is no organiser warning that a category will ship empty.</dd>
+      </dl>
+    </div>
+  </div>
+
+  <h3 class="sub">Nomination &amp; category management</h3>
+
+  <div class="finding is-crit">
+    <div class="f-head"><span class="f-id">F-10</span><span class="f-title">Categories cannot be created, edited, reordered or deleted after event creation</span><span class="pill p-crit">Missing feature</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">events/[id]/page.tsx:525–528</span> — "Add Category" button has <strong>no <code>onClick</code></strong>. Verified: <code>src/actions/</code> contains <strong>no category CRUD action of any kind</strong>.</dd>
+        <dt>Now</dt><dd>Categories can only be set in the creation wizard, or created indirectly by approving a participant suggestion (<span class="loc">actions/nominations.ts:61</span>).</dd>
+        <dt>Should</dt><dd>PRD <code>FR-EV-03</code> and <code>RD-02</code> require full CRUD plus reorder.</dd>
+        <dt>Impact</dt><dd><strong>A typo in a category name is permanent.</strong> This is a core Review Dashboard capability that does not exist.</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="finding is-high">
+    <div class="f-head"><span class="f-id">F-11</span><span class="f-title">Two placeholder categories are written to the database for every event</span><span class="pill p-high">Junk data</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">events/new/page.tsx:48–51</span></dd>
+        <dt>Now</dt><dd>The wizard seeds "Best Student Leader of the Year" and "Innovation in Tech Award" as real state, submitted at <code>:100</code> unless manually deleted.</dd>
+        <dt>Impact</dt><dd>Combined with F-10, <strong>these are unremovable once created.</strong> Every event ships with two fictional categories on its public page and ballot.</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="finding is-med">
+    <div class="f-head"><span class="f-id">F-12</span><span class="f-title">Nomination "previous submission" banner never restores anything</span><span class="pill p-med">Partial</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">nominate/page.tsx:42–46,107</span></dd>
+        <dt>Now</dt><dd>Entries are written to <code>localStorage</code> and the banner appears on return, but the saved values are never read back into the form. PRD <code>FR-NOM-04</code> asks for restore-on-revisit.</dd>
+        <dt>Impact</dt><dd>Cosmetic banner; the participant still retypes everything. Also: <code>submissionNumber</code> and <code>isLatest</code> exist in the schema and are never maintained (<code>FR-NOM-03</code>), so re-submissions all read as <code>isLatest = true</code>.</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="finding is-med">
+    <div class="f-head"><span class="f-id">F-13</span><span class="f-title">Public nomination route trusts a spoofable IP header</span><span class="pill p-med">Inconsistent</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">api/public/events/[slug]/nominations/route.ts:39</span></dd>
+        <dt>Now</dt><dd>Uses <code>request.headers.get("x-forwarded-for")</code> directly, taking the first entry. The codebase already has <code>getClientIp()</code> (<span class="loc">lib/request-ip.ts</span>) built precisely to avoid this, and the votes route uses it.</dd>
+        <dt>Impact</dt><dd>Stored nomination IPs are unreliable for the integrity monitor. Also, this route enforces <strong>no nomination window and no rate limit at all</strong> — nominations are accepted at any time regardless of stage, unlike votes.</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="finding is-med">
+    <div class="f-head"><span class="f-id">F-14</span><span class="f-title">Suggested-category approval and rejection act on text, not identity</span><span class="pill p-med">Fragile</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">actions/nominations.ts:88,103</span></dd>
+        <dt>Now</dt><dd>Both update <code>WHERE suggestionText = ...</code>, which is correct for the grouped UI but means an approval with a renamed target still creates a category named after the raw text when called from <span class="loc">(dashboard)/nominations/page.tsx:55</span>, which passes <code>suggestionText</code> as <code>approvedName</code>. The rename capability the action supports is never surfaced there.</dd>
+        <dt>Impact</dt><dd>Organisers cannot clean up a suggestion's wording from the workspace-level inbox. Merge of similar suggestions (<code>FR-NOM-06</code>) does not exist.</dd>
+      </dl>
+    </div>
+  </div>
+
+  <h3 class="sub">Workspaces, collaborators, RBAC</h3>
+
+  <div class="finding is-crit">
+    <div class="f-head"><span class="f-id">F-15</span><span class="f-title">A user can only ever reach one workspace — there is no workspace switcher</span><span class="pill p-crit">Multi-tenancy broken</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">actions/workspaces.ts:95–107</span></dd>
+        <dt>Now</dt><dd><code>getOrCreateWorkspaceAction</code> takes the <strong>first</strong> <code>ACTIVE</code> membership row with <code>.limit(1)</code> and no ordering. Every guarded action resolves the active workspace this way. There is no UI anywhere to select a workspace, and no persisted selection.</dd>
+        <dt>Should</dt><dd>PRD <code>EDGE-WS-03</code> requires users to switch between their personal workspace and organisations they join.</dd>
+        <dt>Impact</dt><dd>Accept a collaborator invite and <strong>you may lose access to your own workspace</strong> — whichever row Postgres returns first wins, and it can change between requests. Every event, member and setting in the other workspace becomes unreachable. This is the second-most severe finding after F-01.</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="finding is-high">
+    <div class="f-head"><span class="f-id">F-16</span><span class="f-title">Invited members land in PENDING and are never activated by the email path</span><span class="pill p-high">Broken invite</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">actions/members.ts:139–161</span></dd>
+        <dt>Now</dt><dd>Inviting an existing user by email inserts a membership with <code>status: "PENDING"</code>. <code>requireRole</code> admits <code>ACTIVE</code> only (<span class="loc">_rbac.ts:82</span>), and <code>getOrCreateWorkspaceAction</code> filters on <code>ACTIVE</code>. Nothing flips it except <code>acceptWorkspaceInviteAction</code>, which requires the token link. <strong>No email is ever sent</strong> — there is no send call in this file; the token is only shown in the admin UI to copy manually.</dd>
+        <dt>Impact</dt><dd>"Invite by email" does nothing the invitee can act on. The organiser must copy the link out and deliver it themselves — but the UI implies an email went out. PRD <code>FR-WS-05</code> specifies a magic link.</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="finding is-high">
+    <div class="f-head"><span class="f-id">F-17</span><span class="f-title">Personal → Organization auto-upgrade never happens</span><span class="pill p-high">Missing</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">actions/members.ts:284–304</span></dd>
+        <dt>Now</dt><dd>Accepting an invite adds the member but never touches <code>workspaces.type</code>. Grep confirms <code>type</code> is written only at creation, always <code>PERSONAL</code>.</dd>
+        <dt>Impact</dt><dd>PRD <code>WS-04</code>/<code>FR-WS-02</code> unimplemented. Every workspace is permanently "personal" regardless of member count. Ownership transfer (<code>FR-WS-06</code>) also has no action — only role edits, with no two-party confirmation.</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="finding is-med">
+    <div class="f-head"><span class="f-id">F-18</span><span class="f-title">Custom roles grant no permissions</span><span class="pill p-med">Decorative</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">actions/_rbac.ts:86</span></dd>
+        <dt>Now</dt><dd>Authorization checks <code>member.role</code> — the built-in enum — only. <code>customRoleId</code> and the <code>permissions</code> JSON are stored, displayed, and never consulted by any guard.</dd>
+        <dt>Impact</dt><dd>A member on a custom role is silently governed by their base role. <code>FR-WS-04</code> and the permissions matrix in PRD §5.2.1 are not enforced. Existing member roles also cannot be changed from the UI — <code>updateWorkspaceMemberRoleAction</code> is imported at <span class="loc">team/page.tsx:35</span> and never called.</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="finding is-med">
+    <div class="f-head"><span class="f-id">F-19</span><span class="f-title">The audit log table is read in three places and written in none</span><span class="pill p-med">Empty by design</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd>Verified: no <code>insert(auditLogs)</code> anywhere in <code>src/</code>. Read by <span class="loc">actions/exports.ts:88,145</span> and <span class="loc">api/exports/[jobId]/download/route.ts:113</span>.</dd>
+        <dt>Impact</dt><dd>The Audit Trail export always produces an empty file. <code>FR-WS-08</code>, <code>FR-AI-09</code> and <code>FR-RM-03</code> all depend on it. The cleanup page compensates with a fake in-memory log (<span class="loc">cleanup/page.tsx:88–96</span>) hardcoding <code>time: "Just now"</code>, presented as a "Real-time log."</dd>
+      </dl>
+    </div>
+  </div>
+
+  <h3 class="sub">Results, exports, branding</h3>
+
+  <div class="finding is-high">
+    <div class="f-head"><span class="f-id">F-20</span><span class="f-title">"Public Results Link" always points at <code>/e/undefined/results</code></span><span class="pill p-high">Dead link</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">events/[id]/results/page.tsx:179</span></dd>
+        <dt>Now</dt><dd>Uses <code>resultsData.slug</code>, but <code>tabulateEventResults</code> returns only <code>{ eventId, name, liveResultsMode, categoriesResults }</code> (<span class="loc">actions/results.ts:113–118</span>). <code>slug</code> is added only on the <em>public</em> path at <code>:201</code>.</dd>
+        <dt>Impact</dt><dd>The organiser's one route to preview what the public sees is broken 100% of the time.</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="finding is-high">
+    <div class="f-head"><span class="f-id">F-21</span><span class="f-title">Publishing results destroys the chosen visibility mode</span><span class="pill p-high">Data loss</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">actions/results.ts:128–140</span></dd>
+        <dt>Now</dt><dd><code>publishResultsAction</code> writes only <code>FULL_LEADERBOARD</code> or <code>HIDDEN</code>, silently overwriting <code>RANKINGS</code>, <code>PERCENTAGES</code> or <code>VOTE_COUNTS</code> set elsewhere.</dd>
+        <dt>Impact</dt><dd>An organiser who chose "Percentages Only" and then hits Publish exposes <strong>full vote counts</strong>. PRD <code>LR-01</code> treats these as five distinct, organiser-controlled disclosure levels. The public page honours all five (<span class="loc">e/[slug]/results/page.tsx:76–77</span>) — only the publish path collapses them.</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="finding is-high">
+    <div class="f-head"><span class="f-id">F-22</span><span class="f-title">Official Results layer does not exist — publishing exposes raw tallies</span><span class="pill p-high">Missing</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">actions/results.ts</span> — <code>officialResults</code> is only ever written by <code>updateNomineeJudgeScoreAction</code> (<code>:373–393</code>).</dd>
+        <dt>Now</dt><dd>No generate-from-raw, no ranking override, no vote removal. <code>overrideRank</code>, <code>overrideReason</code>, <code>isDisqualified</code>, <code>finalRank</code>, <code>rawVoteCount</code>, <code>adjustedVoteCount</code> are all unwritten. The <code>resultActions</code> table has no writer.</dd>
+        <dt>Impact</dt><dd>PRD §5.11 (<code>FR-RM-01</code>…<code>FR-RM-05</code>) is largely unbuilt. Tie-breaking, documented overrides and unpublish-with-notice are unavailable — the "raw is immutable, official is editable" guarantee the product is sold on is not implemented.</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="finding is-med">
+    <div class="f-head"><span class="f-id">F-23</span><span class="f-title">Exports are mislabelled: ".xlsx" is HTML, "PDF" is a print dialog</span><span class="pill p-med">Misleading</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">events/[id]/exports/page.tsx:93–125,127–198,232–234</span></dd>
+        <dt>Now</dt><dd>The button says "Download Excel (.xlsx)"; <code>convertToExcel</code> emits an HTML table saved as <code>.xls</code>. "Export PDF Report" calls <code>window.print()</code> — no file is produced. The job row then records format <code>XLSX</code> (<code>:242</code>).</dd>
+        <dt>Should</dt><dd>The real XLSX writer already exists at <span class="loc">api/exports/[jobId]/download/route.ts:161–164</span> using the <code>xlsx</code> package. The client path duplicates it badly.</dd>
+        <dt>Impact</dt><dd>Excel shows a security warning on the fake <code>.xls</code>. Re-downloading a "Raw Ballots" job returns tallies instead, because it was logged as <code>VOTE_TALLIES</code> (<code>:242</code>). Popup-blocked PDF fails silently (<code>:131</code>).</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="finding is-med">
+    <div class="f-head"><span class="f-id">F-24</span><span class="f-title">Event branding page overwrites secondary colour with primary on every save</span><span class="pill p-med">Data loss</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">events/[id]/branding/page.tsx:83</span> — <code>secondaryColor: primaryColor</code></dd>
+        <dt>Now</dt><dd>Silently destroys the secondary colour set in the Branding tab of <span class="loc">events/[id]/page.tsx:820–835</span>, which has a real picker.</dd>
+        <dt>Impact</dt><dd>Two UIs write the same record with different field sets; the narrower one wins. Separately, <strong>branding is never applied to any public page</strong> — the public event, ballot and results pages hardcode <code>blue-600</code>/<code>slate</code> and never read <code>branding</code>. <code>FR-EV-08</code> ("live preview in event page") and <code>EC-05</code> are not delivered.</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="finding is-med">
+    <div class="f-head"><span class="f-id">F-25</span><span class="f-title">Timeline editor shifts every stage date by the UTC offset on each save</span><span class="pill p-med">Corruption</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">events/[id]/page.tsx:115–116</span> → <span class="loc">actions/events.ts:245–246</span></dd>
+        <dt>Now</dt><dd><code>new Date(s.startsAt).toISOString().slice(0,16)</code> puts a UTC wall-clock string into a <code>datetime-local</code> input, which the browser interprets as local. On save, <code>new Date(value)</code> parses it back as local.</dd>
+        <dt>Impact</dt><dd>Dates drift by the offset every round trip and compound. Since the votes route enforces <code>startsAt</code>/<code>endsAt</code> (<code>:102–113</code>), <strong>voting can open or close hours early or late.</strong></dd>
+      </dl>
+    </div>
+  </div>
+
+  <h3 class="sub">Dead, orphaned and placebo surfaces</h3>
+
+  <div class="finding is-high">
+    <div class="f-head"><span class="f-id">F-26</span><span class="f-title">Three screens report success while saving nothing</span><span class="pill p-high">Fake persistence</span></div>
+    <div class="f-body">
+      <dl class="kv">
+        <dt>Where</dt><dd><span class="loc">settings/page.tsx:68–72</span> (domain config), <span class="loc">settings/ai/page.tsx:42–45</span> (AI provider + API key), <span class="loc">certificates/page.tsx</span> (no backend at all)</dd>
+        <dt>Now</dt><dd>Each handler sets a local <code>saved</code> flag on a timer and returns. No server action is imported in <code>settings/ai</code>. Grep confirms no schema column or action exists for <code>subdomain</code>, <code>customDomain</code>, <code>whiteLabel</code>, <code>aiProvider</code> or <code>aiModel</code>.</dd>
+        <dt>Impact</dt><dd>The AI settings page collects a <strong>provider API key into discarded React state</strong> while asserting an "Enterprise Privacy Guarantee" (<code>:141–149</code>). Certificates hardcode the verification ID <code>AWD-2026-99482-VERIFIED</code> (<code>:25</code>) — identical on every certificate, backed by no record — and winners must be retyped by hand because the page never loads results.</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="finding is-med">
+    <div class="f-head"><span class="f-id">F-27</span><span class="f-title">Built components that are never mounted</span><span class="pill p-med">Dead code</span></div>
+    <div class="f-body">
+      <p>Each is fully implemented and imported by nothing:</p>
+      <ul class="plain">
+        <li><strong>AI Assistant</strong> — <span class="loc">components/ai/assistant-panel.tsx</span> is the only caller of <span class="loc">api/ai/chat/route.ts</span>, and nothing renders it. PRD §3.9 / §5.9 has <strong>no UI entry point</strong>; <code>aiConversations</code> and <code>aiMessages</code> tables are unused.</li>
+        <li><strong>Command palette</strong> — <span class="loc">components/layout/command-palette.tsx</span>, never mounted. It is also the only inbound reference to <code>/certificates</code> and <code>/integrity</code>, so both are unreachable by navigation.</li>
+        <li><strong>Modal</strong> — <span class="loc">components/ui/modal.tsx</span> used by one page (<code>voting</code>); eight other dialogs are hand-rolled and five destructive flows use native <code>confirm()</code>.</li>
+        <li><strong>Notifier</strong> — <span class="loc">lib/notifier.ts</span>, no callers.</li>
+      </ul>
+      <p><strong>Unreferenced schema:</strong> <code>archiveConfig</code>, <code>specialAwards.photoUrl</code>, <code>nominees.mergedInto</code>, <code>suggestedCategories.mergedInto</code>, <code>voteSessions.scrollEvents</code>/<code>mouseEvents</code>/<code>timeSpentMs</code> (never written, yet <code>timeSpentMs</code> drives the analytics tile), <code>workflowStages.autoTransition</code> (no scheduler exists — stages only change by manual click).</p>
+    </div>
+  </div>
+
+  <div class="finding is-med">
+    <div class="f-head"><span class="f-id">F-28</span><span class="f-title">Fabricated data presented as measurement</span><span class="pill p-med">Trust</span></div>
+    <div class="f-body">
+      <div class="tscroll"><table>
+        <thead><tr><th>Location</th><th>Literal</th><th>Presented as</th></tr></thead>
+        <tbody>
+          <tr><td><code>actions/analytics.ts:116</code></td><td><code>"1m 24s"</code></td><td>Avg completion time (no session records duration)</td></tr>
+          <tr><td><code>actions/analytics.ts:54–62</code></td><td>09:00–12:00 zero series</td><td>Vote velocity chart; makes the real empty state unreachable</td></tr>
+          <tr><td><code>events/[id]/integrity/page.tsx:515</code></td><td><code>"127.0.0.1"</code></td><td>Forensic IP on the anti-fraud screen</td></tr>
+          <tr><td><code>cleanup/page.tsx:327–328</code></td><td><code>confidence \|\| 90</code>, <code>"100%"</code></td><td>AI confidence average (100% when never run)</td></tr>
+          <tr><td><code>voting/page.tsx:193,203</code></td><td><code>MULTI-METHOD</code>, <code>ACTIVE</code></td><td>Security method / fraud protection KPIs</td></tr>
+          <tr><td><code>settings/page.tsx:24–25,159</code></td><td><code>campus-awards</code>, <code>SSL CERTIFIED</code></td><td>Configured domain and certificate status</td></tr>
+          <tr><td><code>settings/profile/page.tsx:239,255</code></td><td><code>VERIFIED</code>, <code>GOOGLE SSO</code></td><td>Email verification and auth provider</td></tr>
+          <tr><td><code>e/[slug]/vote/thank-you:84</code></td><td>"encrypted, write-locked"</td><td>Ballot storage (votes are stored in plain columns)</td></tr>
+          <tr><td><code>(public)/layout.tsx:25</code></td><td>"Encrypted Voting &amp; Anti-Bot Protection"</td><td>Sitewide claim; no bot detection exists (<code>FR-IM-04</code>)</td></tr>
+        </tbody>
+      </table></div>
+      <p><strong>Also miscomputed:</strong> category turnout divides vote rows by session count, so percentages sum to ~800% for an 8-category event (<span class="loc">actions/analytics.ts:148</span>); hourly buckets key on <code>getHours()</code> alone, merging every day of a multi-day event into 24 slots (<code>:38–43</code>); null user-agents are counted as desktop (<code>:89–92</code>); the dashboard's "Recent Award Programs" is ordered ascending, showing the <em>oldest</em> four (<span class="loc">dashboard/page.tsx:46</span>).</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PHASE 2 ================= -->
+<section id="phase2">
+  <h2 class="sec"><span class="num">Phase 2</span>Routing &amp; app schema</h2>
+  <p class="sec-intro">
+    41 pages, 7 API routes, 4 layouts. The public tree is clean and conventional. The dashboard tree
+    has a structural problem: it is flat and workspace-implicit where the data model is nested and
+    multi-tenant.
+  </p>
+
+  <h3 class="sub">Current structure</h3>
+  <div class="tree">/                                    <span class="bad">→ redirect to /dashboard — no public landing page exists</span>
+
+<span class="dim">(auth)/</span>
+  /sign-in  /sign-up  /forgot-password  /reset-password  /verify-email      <span class="ok">ok</span>
+
+<span class="dim">(public)/</span>
+  /e/[slug]                          <span class="ok">event landing</span>
+  /e/[slug]/nominate                 <span class="ok">+ /confirmation</span>
+  /e/[slug]/vote                     <span class="ok">+ /thank-you</span>
+  /e/[slug]/results                  <span class="ok">ok</span>
+  /embed/nominee/[id]                <span class="warn">outside /e — no event scope, leaks across events</span>
+  /invite/[token]                    <span class="warn">workspace invite sitting in the public event group</span>
+
+<span class="dim">(dashboard)/  — all workspace-implicit, no /w/[workspace] segment</span>
+  /dashboard
+  /events  /events/new  /events/[id]
+    /events/[id]/ai-cleanup          <span class="warn">verb-named; siblings are nouns</span>
+    /events/[id]/analytics  /branding  /exports  /integrity
+    /events/[id]/invitations  /results  /suggested-categories
+  /analytics                         <span class="warn">thin directory → /events/[id]/analytics</span>
+  /branding                          <span class="warn">thin directory</span>
+  /exports                           <span class="warn">thin directory; missing force-dynamic</span>
+  /integrity                         <span class="warn">real aggregation, but no nav link</span>
+  /results                           <span class="warn">thin directory</span>
+  /cleanup                           <span class="bad">duplicates /events/[id]/ai-cleanup, different name</span>
+  /nominations  /voting              <span class="warn">workspace-wide, partially wired</span>
+  /team  /settings  /settings/{profile,ai,account}
+  /certificates                      <span class="bad">orphan — reachable only via unmounted palette</span>
+
+<span class="dim">outside every route group</span>
+  /account/recover                   <span class="bad">no layout — unstyled shell</span>
+
+<span class="dim">api/</span>
+  /api/public/events/[slug]/{nominations,votes}     <span class="ok">ok</span>
+  /api/exports/[jobId]/download                     <span class="warn">not under /api/events/[id]/</span>
+  /api/auth/callback  /api/ai/chat                  <span class="warn">chat has no caller</span>
+  /api/admin/{cleanup,purge-accounts}               <span class="ok">cron</span>
+
+<span class="bad">MISSING ENTIRELY: loading.tsx · error.tsx · not-found.tsx  (zero across the whole app)</span>
+<span class="bad">MISSING ENTIRELY: /archive — PRD §3.13, §5.13, §9.14 Community Archive</span></div>
+
+  <h3 class="sub">What breaks convention</h3>
+  <div class="tscroll"><table>
+    <thead><tr><th>Issue</th><th>Detail</th><th>Severity</th></tr></thead>
+    <tbody>
+      <tr><td>No workspace segment</td><td>Routes are <code>/events/[id]</code>, not <code>/w/[workspace]/events/[id]</code>. The active workspace is inferred server-side from the first membership row — the root cause of F-15. A multi-tenant SaaS makes tenancy addressable.</td><td><span class="pill p-crit">Critical</span></td></tr>
+      <tr><td>Duplicate cleanup routes</td><td><code>/cleanup</code> and <code>/events/[id]/ai-cleanup</code> are two different UIs over the same actions, reachable from different places, with different feature sets (one has undo, one does not).</td><td><span class="pill p-high">High</span></td></tr>
+      <tr><td>Five thin directory pages</td><td><code>/analytics</code>, <code>/results</code>, <code>/exports</code>, <code>/branding</code> list events and link into the event-scoped page. Their titles promise workspace-wide aggregation ("Workspace Data Exporter Hub") they do not deliver. Only <code>/integrity</code> genuinely aggregates.</td><td><span class="pill p-med">Medium</span></td></tr>
+      <tr><td>Zero route boundaries</td><td>No <code>loading.tsx</code>, <code>error.tsx</code> or <code>not-found.tsx</code> anywhere. Every server-component page that throws produces an unhandled error; every client page hand-rolls a spinner.</td><td><span class="pill p-high">High</span></td></tr>
+      <tr><td>No public landing page</td><td><code>/</code> redirects to <code>/dashboard</code>, which redirects an anonymous visitor to <code>/sign-in</code>. A voter who types the bare domain sees a login wall. PRD §4.1 opens with a landing page.</td><td><span class="pill p-med">Medium</span></td></tr>
+      <tr><td>Unscoped embed route</td><td><code>/embed/nominee/[id]</code> queries by nominee id with no event or visibility check (<span class="loc">page.tsx:30</span>) — it will render a nominee from a <code>PRIVATE</code> or soft-deleted event.</td><td><span class="pill p-med">Medium</span></td></tr>
+      <tr><td>Naming drift</td><td><code>ai-cleanup</code> (verb) beside <code>results</code>/<code>exports</code> (nouns); <code>/team</code> in nav but "Members" as the label; <code>/voting</code> vs <code>/e/[slug]/vote</code>.</td><td><span class="pill p-low">Low</span></td></tr>
+      <tr><td>Orphan outside layouts</td><td><code>/account/recover</code> sits at <code>app/account/</code>, inheriting only the root layout — no nav, no shell.</td><td><span class="pill p-low">Low</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 class="sub">Proposed structure</h3>
+  <p class="sec-intro" style="margin-bottom:1rem">
+    Two principles: make tenancy addressable, and make the event the single home for
+    event-scoped work. Workspace-level pages become genuine cross-event roll-ups or disappear.
+  </p>
+  <div class="tree"><span class="new">/</span>                                        marketing landing + public event search
+<span class="new">/archive</span>  <span class="new">/archive/[slug]</span>                   Community Archive (PRD §5.13)
+
+<span class="dim">(auth)/</span>  unchanged — /sign-in /sign-up /forgot-password /reset-password /verify-email
+<span class="new">/accept-invite/[token]</span>                   moved out of (public)/invite — it is an auth flow
+<span class="new">/account/recover</span>                         moved into (auth) so it inherits a shell
+
+<span class="dim">(public)/  — voter-facing, unauthenticated</span>
+  /e/[slug]
+  /e/[slug]/nominate            /e/[slug]/nominate/confirmation
+  /e/[slug]/vote                /e/[slug]/vote/thank-you
+  /e/[slug]/results
+  <span class="new">/e/[slug]/nominees/[nomineeId]</span>          full profile page (share target)
+  <span class="new">/e/[slug]/embed/nominee/[nomineeId]</span>     event-scoped, visibility-checked
+
+<span class="dim">(dashboard)/w/[workspaceSlug]/  — tenancy in the URL</span>
+  /                                       workspace home
+  /events            /events/new
+  /events/[eventId]                       overview + stage control
+    /settings                             <span class="new">name, slug, visibility, schedule</span>
+    /categories                           <span class="new">full CRUD + reorder (closes F-10)</span>
+    /nominations                          inbox + suggested categories
+    /nominations/cleanup                  <span class="new">the one merge console (retires /cleanup)</span>
+    /ballot                               <span class="new">nominee review + preview + verification</span>
+    /ballot/invitations
+    /results                              raw + official + special awards
+    /integrity        /analytics          /exports        /branding
+  /members  /settings  /settings/{profile,ai,account,billing}
+  <span class="new">/insights</span>                               real cross-event roll-up
+  <span class="new">/integrity</span>                              real cross-event roll-up
+  <span class="dim">— retire /analytics /results /exports /branding /cleanup /certificates as top-level</span>
+  <span class="dim">— certificates becomes an action inside /events/[eventId]/results</span>
+
+<span class="dim">api/</span>
+  /api/public/events/[slug]/{ballot,nominations,votes,verify,live-results}
+  <span class="new">/api/events/[eventId]/exports/[jobId]/download</span>
+  /api/auth/callback   /api/admin/*
+
+<span class="new">+ loading.tsx · error.tsx · not-found.tsx at each route-group root</span></div>
+</section>
+
+<!-- ================= PHASE 3 ================= -->
+<section id="phase3">
+  <h2 class="sec"><span class="num">Phase 3</span>UI/UX &amp; modern standards</h2>
+
+  <h3 class="sub">The voting experience — highest stakes</h3>
+  <p class="sec-intro" style="margin-bottom:1.25rem">
+    Judged as a first-time mobile voter arriving from a WhatsApp link. The visual design is
+    competent and clean; the problems are trust, feedback and mobile ergonomics.
+  </p>
+
+  <div class="finding is-crit">
+    <div class="f-head"><span class="f-id">U-01</span><span class="f-title">The floating action bar covers the ballot on mobile</span><span class="pill p-crit">Blocker</span></div>
+    <div class="f-body">
+      <p><span class="loc">e/[slug]/vote/page.tsx:519</span> — a <code>fixed</code> pill at <code>w-[90%] max-w-3xl</code> holds a counter, two lines of text and a "Review &amp; Submit Ballot" button in one non-wrapping <code>flex</code> row. At 360–390&nbsp;px this overflows; the button is clipped or pushed off-screen. Nominee cards are <code>md:grid-cols-3</code>, so on mobile they stack into a long column — with 90%+ mobile traffic, <strong>this is the primary voting surface and it is the least tested one.</strong></p>
+      <p><strong>Modern pattern:</strong> a stacked sticky bar with safe-area insets, the count as a slim progress track, and a full-width primary button.</p>
+    </div>
+  </div>
+
+  <div class="finding is-crit">
+    <div class="f-head"><span class="f-id">U-02</span><span class="f-title">Nominee cards are unreachable by keyboard and invisible to screen readers</span><span class="pill p-crit">A11y</span></div>
+    <div class="f-body">
+      <p><span class="loc">e/[slug]/vote/page.tsx:474–481</span> — selection is a bare <code>&lt;div onClick&gt;</code>: no <code>role="radio"</code>, no <code>tabIndex</code>, no <code>aria-checked</code>, no keyboard handler, no <code>fieldset</code>/<code>legend</code> grouping the category. <strong>A keyboard or screen-reader user cannot cast a vote at all.</strong></p>
+      <p>Compounding it: <code>select-none</code> on the page root (<code>:270</code>) blocks text selection sitewide, so a voter cannot copy a nominee name or their own receipt token; body text is <code>text-xs</code> (12px) and <code>text-[10px]</code> throughout, below the 16px that prevents iOS input zoom and well under comfortable reading size; <code>focus:outline-none</code> appears on every input with only a border-colour substitute. PRD §7.5 commits to WCAG AA.</p>
+    </div>
+  </div>
+
+  <div class="finding is-high">
+    <div class="f-head"><span class="f-id">U-03</span><span class="f-title">A failed submission can lose the whole ballot</span><span class="pill p-high">Data loss</span></div>
+    <div class="f-body">
+      <p><span class="loc">e/[slug]/vote/page.tsx:165–215</span> — selections live only in React state. There is no retry, no exponential backoff, no offline queue, and nothing persists the payload. A dropped connection on submit discards every selection; the voter must start over. PRD <code>EDGE-VOT-01</code> specifies three retries plus local replay.</p>
+      <p>The review modal (<code>:551</code>) is also a hand-rolled dialog with no focus trap, no Escape handler and no scroll lock, and its selections list is capped at <code>max-h-48</code> — with more than ~4 categories the voter reviews their ballot through a 190px window.</p>
+    </div>
+  </div>
+
+  <div class="finding is-high">
+    <div class="f-head"><span class="f-id">U-04</span><span class="f-title">Trust claims the system does not deliver</span><span class="pill p-high">Credibility</span></div>
+    <div class="f-body">
+      <p>The voting surface leans hard on cryptographic language it cannot back: "Cryptographic Ballot Receipt" (<span class="loc">thank-you:94</span>), "encrypted, write-locked" (<code>:84</code>), "verify … cryptographic inclusion" (<code>:125</code>), "Encrypted Voting &amp; Anti-Bot Protection" in the global header (<span class="loc">(public)/layout.tsx:25</span>). The receipt is a plain session token in a normal column; nothing is encrypted beyond TLS; no bot detection exists.</p>
+      <p>Given F-08 leaves most voters with <strong>no receipt at all</strong>, the gap between claim and delivery is exactly where a sceptical voter looks. For a product whose stated purpose is closing a trust deficit, understating and delivering beats overstating.</p>
+    </div>
+  </div>
+
+  <div class="finding is-med">
+    <div class="f-head"><span class="f-id">U-05</span><span class="f-title">Verification flows have no resend, no cooldown feedback, no progress</span><span class="pill p-med">Friction</span></div>
+    <div class="f-body">
+      <p>OTP screen (<span class="loc">vote/page.tsx:350–392</span>): no resend button despite <code>FR-VER-02</code> allowing three, no countdown to expiry, no <code>inputMode="numeric"</code> or <code>autoComplete="one-time-code"</code> (so mobile shows a text keyboard and iOS cannot autofill), no paste-friendly segmented input. The invitation-code screen says "8-character" (<code>:403</code>) while <code>INVITATION_CODE_LENGTH</code> is 10 and the generator adds an optional prefix — <strong>the copy is wrong and the button stays disabled until 10 characters</strong>, so a user typing the 8 they were told to expect sees a dead button with no explanation.</p>
+    </div>
+  </div>
+
+  <h3 class="sub">Design system &amp; consistency</h3>
+
+  <div class="finding is-high">
+    <div class="f-head"><span class="f-id">U-06</span><span class="f-title">The design system exists and 22 of 24 pages ignore it</span><span class="pill p-high">Systemic</span></div>
+    <div class="f-body">
+      <p><span class="loc">globals.css:20–44</span> defines a complete semantic token set with a dark override, and its own comment states components "should reach for these." Only <span class="loc">(dashboard)/integrity/page.tsx</span> and the shell (<code>layout</code>, <code>header</code>, <code>sidebar</code>, <code>toast</code>) comply. Everything else hardcodes <code>bg-white</code>, <code>text-slate-900</code>, <code>border-slate-200/80</code>.</p>
+      <p><strong>Consequence:</strong> a <code>ThemeToggle</code> ships in the header, but dark mode is broken on nearly every page. Worse, four pages are styled <em>dark</em> on the light shell and are <strong>currently unreadable</strong>: <code>events/[id]/results</code> (<code>:168</code> <code>text-white</code>), <code>events/[id]/invitations</code> (<code>:208</code>), <code>events/[id]/integrity</code> (<code>:567</code>), <code>events/[id]/branding</code>. <span class="loc">nominations/page.tsx:213–272</span> renders white text on a white card — invisible today. <span class="loc">header.tsx:91–124</span> mixes tokens with <code>zinc-800</code>/<code>zinc-300</code> in the same dropdown.</p>
+    </div>
+  </div>
+
+  <div class="finding is-high">
+    <div class="f-head"><span class="f-id">U-07</span><span class="f-title">The base <code>Card</code> applies a class that does not exist</span><span class="pill p-high">Systemic</span></div>
+    <div class="f-body">
+      <p><span class="loc">components/ui/card.tsx:17</span> applies <code>glass-card</code>. Verified: <strong>defined nowhere in the codebase.</strong> Every <code>Card</code> therefore has no background of its own, which is why nearly every instance carries a manual <code>bg-white border-slate-200/80 rounded-3xl shadow-sm</code> override — and why the four dark-styled pages leak through. Fixing this one class is the highest-leverage step in the whole UI batch.</p>
+      <p>Related: <code>Card</code> hardcodes <code>rounded-2xl</code> and is overridden to <code>rounded-3xl</code> almost everywhere; there is no spacing or type scale, with sizes ranging <code>text-[9px]</code> to <code>text-4xl</code> chosen ad hoc.</p>
+    </div>
+  </div>
+
+  <div class="finding is-med">
+    <div class="f-head"><span class="f-id">U-08</span><span class="f-title">No loading, empty or error states as a category</span><span class="pill p-med">Systemic</span></div>
+    <div class="f-body">
+      <p><strong>Loading:</strong> every client page hand-rolls <code>&lt;Loader2 className="animate-spin"&gt;</code> in a <code>min-h-[400px]</code> box. No skeletons anywhere, despite <span class="loc">components/shared/loading.tsx</span> existing.</p>
+      <p><strong>Error:</strong> ten <code>catch</code> blocks <code>console.error</code> and fall through to an empty state, so "the request failed" and "you have no data" are indistinguishable — <span class="loc">dashboard:48</span>, <span class="loc">nominations:41</span>, <span class="loc">voting:51</span>, <span class="loc">team:163,200,213</span>, <span class="loc">cleanup:66</span>, <span class="loc">branding:34</span>, <span class="loc">profile:56</span>. Several client pages render "Event not found" on what was actually a network failure.</p>
+      <p><strong>Blocking dialogs:</strong> native <code>confirm()</code> in five destructive flows (<span class="loc">team:158,171,208</span>, <span class="loc">events/[id]/results:94,127</span>, <span class="loc">invitations:93</span>, <span class="loc">suggested-categories:82</span>) and <code>window.prompt()</code> to capture a permanent audit note (<span class="loc">events/[id]/integrity:378</span>).</p>
+      <p><strong>No optimistic UI:</strong> every approve/reject/merge awaits a full <code>loadData()</code> refetch of the entire tree. <code>router.refresh()</code> is never used; three handlers call <code>window.location.reload()</code> (<span class="loc">events/[id]/page.tsx:696,709,1063</span>).</p>
+    </div>
+  </div>
+
+  <div class="finding is-med">
+    <div class="f-head"><span class="f-id">U-09</span><span class="f-title">Mobile and responsive gaps beyond the ballot</span><span class="pill p-med">Responsive</span></div>
+    <div class="f-body">
+      <ul class="plain">
+        <li>Sidebar is <code>hidden md:flex</code>; the mobile drawer in <span class="loc">header.tsx:133</span> is hardcoded <code>bg-zinc-950</code> — a dark panel dropped into a light app.</li>
+        <li>Four-card stat grids inside <code>sm:grid-cols-3</code> leave an orphan (<span class="loc">events/[id]/integrity:261</span>).</li>
+        <li>Rank badges hardcode a leading zero — rank 10 renders as <code>010</code> (<span class="loc">events/[id]/results:332</span>, <span class="loc">e/[slug]/results:208</span>); category chips do the same (<code>Category 010</code>).</li>
+        <li>Touch targets: icon buttons at <code>p-1</code>/<code>p-1.5</code> land near 24–28px against the 44px minimum in PRD §7.5.</li>
+        <li>Session lists silently truncate at 50 with no indicator (<span class="loc">events/[id]/integrity:487</span>); workspace nomination queries cap at 50 while the UI presents the count as a total (<span class="loc">actions/nominations.ts:137</span>).</li>
+        <li><code>border-slate-850</code> (<span class="loc">events/[id]/integrity:488</span>) is not a real Tailwind shade — the border never renders.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="finding is-low">
+    <div class="f-head"><span class="f-id">U-10</span><span class="f-title">Motion is decorative; polish details</span><span class="pill p-low">Low</span></div>
+    <div class="f-body">
+      <p><span class="loc">globals.css:135–172</span> defines <code>pulseGlow</code> and <code>floatSmooth</code> used nowhere meaningful, and there is <strong>no <code>prefers-reduced-motion</code> block</strong> despite persistent <code>animate-ping</code> and <code>animate-pulse</code>. Motion marks page entrance rather than state change — the places it would earn its keep (vote recorded, merge applied, results updating) have none.</p>
+      <p>Also: 40+ unused icon imports across the dashboard; <span class="loc">settings/profile/page.tsx:28–35</span> hotlinks six Unsplash URLs as preset avatars via raw <code>&lt;img&gt;</code>; <code>next/image</code> is not used anywhere; the events wizard hardcodes <code>awardos.io/e/</code> (<span class="loc">events/new:214</span>) while <code>lib/app-url.ts</code> exists for exactly that.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PHASE 4 ================= -->
+<section id="phase4">
+  <h2 class="sec"><span class="num">Phase 4</span>Ranked bug inventory</h2>
+
+  <div class="verdict" style="background:var(--crit-soft);margin-bottom:2rem">
+    <h2>Silent data loss / incorrect vote counts — non-negotiable</h2>
+    <p style="margin-bottom:.5rem">These six change who wins, or lose data with no error shown. Fix regardless of effort.</p>
+    <ul class="plain" style="margin:0;color:var(--ink)">
+      <li><strong>F-01</strong> — IP-as-fingerprint silently rejects most legitimate voters behind shared NAT.</li>
+      <li><strong>F-02</strong> — Disqualified nominees inflate the denominator and displace the real winner's rank.</li>
+      <li><strong>F-03</strong> — Merges never deactivate duplicates; votes split across spellings of one person.</li>
+      <li><strong>F-04</strong> — Merge re-pointing silently no-ops on casing variants, the commonest duplicate.</li>
+      <li><strong>F-05</strong> — Merge inflates nomination counts; undo leaves an orphan nominee on the ballot.</li>
+      <li><strong>F-21</strong> — Publishing overwrites the disclosure mode, exposing counts the organiser chose to hide.</li>
+    </ul>
+  </div>
+
+  <div class="tscroll"><table>
+    <thead><tr><th>#</th><th>Bug</th><th>Blocks</th><th>Severity</th><th>Batch</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td><strong>F-01</strong> IP-only fingerprint blocks voters on shared networks</td><td>Voting</td><td><span class="pill p-crit">Blocker</span></td><td class="num">1</td></tr>
+      <tr><td class="num">2</td><td><strong>F-15</strong> No workspace switcher; joining an org can orphan your own</td><td>All admin</td><td><span class="pill p-crit">Blocker</span></td><td class="num">3</td></tr>
+      <tr><td class="num">3</td><td><strong>F-03</strong> Merge leaves duplicate nominees active on the ballot</td><td>Dedup + counts</td><td><span class="pill p-crit">Critical</span></td><td class="num">2</td></tr>
+      <tr><td class="num">4</td><td><strong>F-02</strong> Disqualified nominees skew percentages and ranks</td><td>Results</td><td><span class="pill p-crit">Critical</span></td><td class="num">1</td></tr>
+      <tr><td class="num">5</td><td><strong>F-04</strong> Merge silently fails on casing variants</td><td>Dedup</td><td><span class="pill p-crit">Critical</span></td><td class="num">2</td></tr>
+      <tr><td class="num">6</td><td><strong>F-10</strong> No category CRUD after creation</td><td>Setup</td><td><span class="pill p-crit">Critical</span></td><td class="num">2</td></tr>
+      <tr><td class="num">7</td><td><strong>U-01</strong> Floating bar overflows the mobile ballot</td><td>Voting (90% of users)</td><td><span class="pill p-crit">Critical</span></td><td class="num">1</td></tr>
+      <tr><td class="num">8</td><td><strong>U-02</strong> Ballot unusable by keyboard / screen reader</td><td>Voting (a11y)</td><td><span class="pill p-crit">Critical</span></td><td class="num">1</td></tr>
+      <tr><td class="num">9</td><td><strong>F-21</strong> Publish overwrites live-results disclosure mode</td><td>Results privacy</td><td><span class="pill p-high">High</span></td><td class="num">1</td></tr>
+      <tr><td class="num">10</td><td><strong>U-03</strong> Failed submit discards the entire ballot</td><td>Voting</td><td><span class="pill p-high">High</span></td><td class="num">1</td></tr>
+      <tr><td class="num">11</td><td><strong>F-08</strong> Thank-you receipt reads the wrong storage key</td><td>Voter trust</td><td><span class="pill p-high">High</span></td><td class="num">1</td></tr>
+      <tr><td class="num">12</td><td><strong>F-06</strong> "Votes Cast" ~8× overcounted; contradicts analytics</td><td>Organiser trust</td><td><span class="pill p-high">High</span></td><td class="num">2</td></tr>
+      <tr><td class="num">13</td><td><strong>F-05</strong> Count inflation + orphan nominee on undo</td><td>Dedup</td><td><span class="pill p-high">High</span></td><td class="num">2</td></tr>
+      <tr><td class="num">14</td><td><strong>F-16</strong> Email invites never send and stay PENDING</td><td>Collaboration</td><td><span class="pill p-high">High</span></td><td class="num">3</td></tr>
+      <tr><td class="num">15</td><td><strong>F-11</strong> Placeholder categories written to every event</td><td>Setup</td><td><span class="pill p-high">High</span></td><td class="num">2</td></tr>
+      <tr><td class="num">16</td><td><strong>F-25</strong> Timeline dates drift by UTC offset each save</td><td>Scheduling</td><td><span class="pill p-high">High</span></td><td class="num">2</td></tr>
+      <tr><td class="num">17</td><td><strong>U-07</strong> <code>glass-card</code> class does not exist</td><td>All UI</td><td><span class="pill p-high">High</span></td><td class="num">4</td></tr>
+      <tr><td class="num">18</td><td><strong>U-06</strong> 4 pages unreadable (dark-on-light); dark mode broken</td><td>All UI</td><td><span class="pill p-high">High</span></td><td class="num">4</td></tr>
+      <tr><td class="num">19</td><td><strong>F-20</strong> Public results link is always <code>/e/undefined/results</code></td><td>Results preview</td><td><span class="pill p-high">High</span></td><td class="num">2</td></tr>
+      <tr><td class="num">20</td><td><strong>F-26</strong> Three screens fake a successful save</td><td>Settings, certs</td><td><span class="pill p-high">High</span></td><td class="num">5</td></tr>
+      <tr><td class="num">21</td><td><strong>F-22</strong> Official Results layer unimplemented</td><td>Results workflow</td><td><span class="pill p-high">High</span></td><td class="num">5</td></tr>
+      <tr><td class="num">22</td><td><strong>F-19</strong> Audit log never written; export always empty</td><td>Auditability</td><td><span class="pill p-high">High</span></td><td class="num">5</td></tr>
+      <tr><td class="num">23</td><td><strong>U-04</strong> Cryptographic claims the system cannot back</td><td>Voter trust</td><td><span class="pill p-high">High</span></td><td class="num">1</td></tr>
+      <tr><td class="num">24</td><td><strong>F-24</strong> Branding overwrites secondary; never applied publicly</td><td>Customisation</td><td><span class="pill p-med">Medium</span></td><td class="num">5</td></tr>
+      <tr><td class="num">25</td><td><strong>F-18</strong> Custom roles grant nothing; roles not editable</td><td>RBAC</td><td><span class="pill p-med">Medium</span></td><td class="num">3</td></tr>
+      <tr><td class="num">26</td><td><strong>F-17</strong> Personal→Org upgrade + ownership transfer missing</td><td>Workspaces</td><td><span class="pill p-med">Medium</span></td><td class="num">3</td></tr>
+      <tr><td class="num">27</td><td><strong>F-07</strong> Ballot ignores schedule the API enforces</td><td>Voting</td><td><span class="pill p-med">Medium</span></td><td class="num">1</td></tr>
+      <tr><td class="num">28</td><td><strong>U-05</strong> No OTP resend; invitation-code length copy wrong</td><td>Verification</td><td><span class="pill p-med">Medium</span></td><td class="num">1</td></tr>
+      <tr><td class="num">29</td><td><strong>F-23</strong> Exports mislabelled; re-download returns wrong report</td><td>Exports</td><td><span class="pill p-med">Medium</span></td><td class="num">5</td></tr>
+      <tr><td class="num">30</td><td><strong>F-28</strong> Fabricated analytics + turnout summing to ~800%</td><td>Analytics trust</td><td><span class="pill p-med">Medium</span></td><td class="num">5</td></tr>
+      <tr><td class="num">31</td><td><strong>U-08</strong> No loading/error states; 10 silent catches; 5 <code>confirm()</code></td><td>Whole app</td><td><span class="pill p-med">Medium</span></td><td class="num">4</td></tr>
+      <tr><td class="num">32</td><td><strong>F-09</strong> Empty categories shown on ballot, no organiser warning</td><td>Voting</td><td><span class="pill p-med">Medium</span></td><td class="num">2</td></tr>
+      <tr><td class="num">33</td><td><strong>F-13</strong> Nominations: spoofable IP, no window, no rate limit</td><td>Nominations</td><td><span class="pill p-med">Medium</span></td><td class="num">2</td></tr>
+      <tr><td class="num">34</td><td><strong>F-12</strong> localStorage restore + re-submission versioning absent</td><td>Nominations</td><td><span class="pill p-med">Medium</span></td><td class="num">5</td></tr>
+      <tr><td class="num">35</td><td><strong>F-27</strong> AI Assistant / palette built but never mounted</td><td>Features</td><td><span class="pill p-med">Medium</span></td><td class="num">5</td></tr>
+      <tr><td class="num">36</td><td><strong>U-09</strong> Mobile drawer dark; orphan grid cells; <code>010</code> ranks</td><td>Polish</td><td><span class="pill p-med">Medium</span></td><td class="num">4</td></tr>
+      <tr><td class="num">37</td><td><strong>F-14</strong> Suggestion rename/merge not surfaced</td><td>Nominations</td><td><span class="pill p-low">Low</span></td><td class="num">5</td></tr>
+      <tr><td class="num">38</td><td><strong>U-10</strong> Decorative motion, no reduced-motion, Unsplash avatars</td><td>Polish</td><td><span class="pill p-low">Low</span></td><td class="num">4</td></tr>
+    </tbody>
+  </table></div>
+  <p style="font-size:.88rem;color:var(--ink-3);margin-top:.8rem">
+    Route-schema items (Phase 2 table) map to Batch 3; the remaining ~25 lower-severity observations
+    (unused imports, missing <code>force-dynamic</code>, naming drift) fold into whichever batch touches the file.
+  </p>
+</section>
+
+<!-- ================= BATCHES ================= -->
+<section id="batches">
+  <h2 class="sec"><span class="num">Phase 5</span>Proposed order of operations</h2>
+  <p class="sec-intro">
+    Ordered so that correctness lands before anything cosmetic, and so no batch is invalidated by a
+    later one. Batches 1 and 2 are prerequisites for running a real event; 3 restructures; 4 and 5
+    are safe to defer. Approve one at a time.
+  </p>
+
+  <div class="batch">
+    <div class="batch-head"><span class="batch-n">Batch 1</span><h3>Make the voting flow correct and usable</h3><span class="pill p-crit">Ship first</span></div>
+    <p class="why">Nothing else matters if voters cannot vote or the tally is wrong. Self-contained: the public ballot, the votes API, and the tabulation core.</p>
+    <ul>
+      <li><strong>F-01</strong> — replace IP-as-fingerprint; scope the uniqueness constraint per verification mode (migration required).</li>
+      <li><strong>F-02</strong> — exclude disqualified nominees from the denominator and from rank assignment.</li>
+      <li><strong>F-21</strong> — preserve the chosen <code>liveResultsMode</code> on publish.</li>
+      <li><strong>U-01, U-02</strong> — mobile action bar; radio-group semantics, keyboard support, focus states, 16px inputs, 44px targets.</li>
+      <li><strong>U-03</strong> — retry with backoff + local payload persistence on submit failure.</li>
+      <li><strong>F-08</strong> — fix the receipt key and fetch the real event name.</li>
+      <li><strong>F-07</strong> — return <code>stages</code> from the ballot action; add the 15-minute grace window.</li>
+      <li><strong>U-04</strong> — rewrite trust copy to match what the system actually does.</li>
+      <li><strong>U-05</strong> — OTP resend + countdown + <code>autoComplete="one-time-code"</code>; correct the invitation-code length copy.</li>
+    </ul>
+  </div>
+
+  <div class="batch">
+    <div class="batch-head"><span class="batch-n">Batch 2</span><h3>Repair the organiser data pipeline</h3><span class="pill p-crit">Ship second</span></div>
+    <p class="why">Nomination → dedup → ballot → count. Batch 1 fixed how votes are counted; this fixes what they are counted against.</p>
+    <ul>
+      <li><strong>F-03, F-04, F-05</strong> — rewrite merge: set source nominees to <code>MERGED</code> with <code>mergedInto</code>, key on nomination ids rather than raw text, make undo a true inverse. <em>Treat as one change; they share a code path.</em></li>
+      <li><strong>F-10, F-11</strong> — category CRUD + reorder, then drop the seeded placeholder categories.</li>
+      <li><strong>F-06</strong> — count distinct submitted sessions; reconcile the dashboard with analytics.</li>
+      <li><strong>F-25</strong> — local-time round-trip for the timeline editor.</li>
+      <li><strong>F-20</strong> — return <code>slug</code> from the tabulation core.</li>
+      <li><strong>F-09</strong> — hide empty categories from the ballot; warn the organiser.</li>
+      <li><strong>F-13</strong> — use <code>getClientIp()</code>; enforce the nomination window and a rate limit.</li>
+    </ul>
+  </div>
+
+  <div class="batch">
+    <div class="batch-head"><span class="batch-n">Batch 3</span><h3>Multi-tenancy and route schema</h3><span class="pill p-high">Structural</span></div>
+    <p class="why">One batch because the workspace bug and the route restructure are the same change: putting tenancy in the URL is what fixes the ambiguous lookup. Sequenced after 1–2 so it never blocks a correctness fix, and before the UI batch so pages move once.</p>
+    <ul>
+      <li><strong>F-15</strong> — <code>/w/[workspaceSlug]</code> segment, workspace switcher, persisted selection.</li>
+      <li>Adopt the proposed sitemap: consolidate <code>/cleanup</code> into the event tree, retire the four thin directories, move <code>/certificates</code> under results, relocate <code>/invite</code> and <code>/account/recover</code>.</li>
+      <li>Add <code>loading.tsx</code>, <code>error.tsx</code>, <code>not-found.tsx</code> per route group.</li>
+      <li>Add the public landing page; scope and visibility-check the embed route.</li>
+      <li><strong>F-16, F-17, F-18</strong> — send invite emails; auto-upgrade to Organization; enforce custom-role permissions; surface role editing.</li>
+    </ul>
+  </div>
+
+  <div class="batch">
+    <div class="batch-head"><span class="batch-n">Batch 4</span><h3>Design system standardisation</h3><span class="pill p-high">Wide, low-risk</span></div>
+    <p class="why">Touches nearly every file but changes no logic — deliberately after the route move so pages are restyled once, in their final location.</p>
+    <ul>
+      <li><strong>U-07</strong> — define <code>glass-card</code> (or replace it with token classes) and strip the per-instance overrides it forced. Do this first; it removes much of the rest.</li>
+      <li><strong>U-06</strong> — migrate all pages to semantic tokens; fix the four dark-on-light pages and the invisible <code>/nominations</code> tab; verify dark mode end to end.</li>
+      <li>Establish a spacing and type scale; set a minimum body size; standardise radii.</li>
+      <li><strong>U-08</strong> — skeletons, real error states, replace the ten silent catches with toasts, replace <code>confirm()</code>/<code>prompt()</code> with the existing <code>Modal</code>, adopt <code>router.refresh()</code> and optimistic updates.</li>
+      <li><strong>U-09, U-10</strong> — responsive fixes, rank formatting, touch targets, <code>prefers-reduced-motion</code>, self-host avatars, prune unused imports.</li>
+    </ul>
+  </div>
+
+  <div class="batch">
+    <div class="batch-head"><span class="batch-n">Batch 5</span><h3>Close the honesty gap on unfinished features</h3><span class="pill p-med">Product decision</span></div>
+    <p class="why">Everything here currently claims to work and does not. Each item is a build-or-remove call — worth deciding together rather than defaulting to build.</p>
+    <ul>
+      <li><strong>F-26</strong> — domain settings, AI settings, certificates: implement or remove. <em>Remove is defensible for all three; the AI key field should go either way.</em></li>
+      <li><strong>F-22</strong> — the Official Results layer: the largest genuine gap against the PRD.</li>
+      <li><strong>F-19</strong> — write audit log entries, or drop the export and the fake cleanup log.</li>
+      <li><strong>F-28</strong> — remove fabricated analytics; fix turnout maths, hour bucketing, device attribution; delete the "Live Telemetry" badge or make it live.</li>
+      <li><strong>F-23</strong> — route exports through the real XLSX writer; implement real PDF or rename the button.</li>
+      <li><strong>F-24</strong> — apply branding to public pages, or stop offering it.</li>
+      <li><strong>F-27</strong> — mount the AI Assistant and command palette, or delete them.</li>
+      <li><strong>F-12, F-14</strong> — localStorage restore, submission versioning, suggestion rename/merge.</li>
+      <li>Decide on Community Archive (PRD §5.13) — currently absent in full.</li>
+    </ul>
+  </div>
+
+  <hr class="div">
+
+  <h3 class="sub">Open questions — flagged rather than guessed</h3>
+
+  <div class="q"><b>Q1 · Duplicate voter policy</b>
+    What should happen when two legitimate voters share an IP? The answer determines whether F-01 is fixed with a real client fingerprint, a per-mode constraint, or by making advanced verification the default for public events. This is a product call, not a technical one.</div>
+
+  <div class="q"><b>Q2 · Merge semantics</b>
+    Should approving a merge deactivate the source nominees (my read of intent, and what the ballot needs), or is the current nomination-level re-pointing deliberate with nominee cleanup planned elsewhere? The <code>mergedInto</code> column suggests the former was intended.</div>
+
+  <div class="q"><b>Q3 · Workspace-level pages</b>
+    Should <code>/analytics</code>, <code>/results</code>, <code>/exports</code>, <code>/branding</code> become genuine cross-event roll-ups, or be retired as redundant navigation? Their titles promise aggregation; the code is a list of links.</div>
+
+  <div class="q"><b>Q4 · Scope of MVP</b>
+    Official Results, Community Archive, custom-role permissions, ownership transfer, judge scoring and bot detection are all specified and effectively unbuilt. Which are launch-blocking versus post-launch? This determines how much of Batch 5 is real work.</div>
+
+  <div class="q"><b>Q5 · Stage automation</b>
+    <code>autoTransition</code> exists on every stage and no scheduler reads it. Should stages advance automatically (PRD <code>FR-EV-05</code>), or is manual control the intended model? Affects whether F-25 is a correctness fix or a scheduling feature.</div>
+</section>
+
+<footer>
+  AwardOS audit · Pass 2 of 2 · 137 files · 63 findings · No code modified
+</footer>
+
+</div>

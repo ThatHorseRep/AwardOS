@@ -10,3 +10,7 @@ behavior, limitations, and priorities are documented in
 Archived documents should not be edited to describe new work. Create or update
 a current document instead, and retain the archive as evidence of the earlier
 state.
+
+The `audits/` directory contains reports that helped shape production-readiness
+work. Their findings describe the codebase at the date of each report and may
+already have been resolved.

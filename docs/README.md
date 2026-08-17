@@ -39,6 +39,7 @@ not active plans and should not be used as current implementation instructions.
 | [Completed shipping plan](./archive/IMPLEMENTATION_PLAN_SHIPPING.md) | Phase-by-phase production-readiness checklist completed in August 2026 |
 | [Development handover, July 31](./archive/HANDOVER_CHECKPOINT-2026-07-31.md) | Early Claude/Gemini development checkpoint |
 | [Completion bookmark, July 31](./archive/PROJECT_COMPLETION_BOOKMARK-2026-07-31.md) | Early build snapshot from a previous project location |
+| [Historical audits](./archive/audits/README.md) | Pre-shipping audit and redesign reports retained as source evidence |
 
 ## Documentation Rules
 
