@@ -14,47 +14,47 @@ export default async function WorkspaceIntegrityPage() {
   const totalFlagged = events.reduce((n, e) => n + e.flaggedBallots, 0);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 font-sans select-none pb-16">
+    <div className="max-w-4xl mx-auto space-y-6 font-sans select-none pb-16 animate-page-entrance text-content">
       <div>
         <h1 className="text-2xl font-bold text-content tracking-tight flex items-center gap-2">
           <ShieldAlert className="w-6 h-6 text-accent" />
-          <span>Voting Integrity</span>
+          <span>Voting integrity</span>
         </h1>
-        <p className="text-content-muted text-xs mt-1 font-medium">
+        <p className="text-content-secondary text-xs mt-1 font-normal">
           Open alerts across your events. Select an event to run a scan, review flagged
           sessions, and resolve alerts.
         </p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="rounded-3xl bg-surface border-border-subtle shadow-sm p-5">
-          <span className="text-[11px] font-semibold text-content-muted uppercase tracking-wider block">
+        <Card className="rounded-2xl bg-surface border-border-subtle shadow-sm p-5 hover-lift text-content">
+          <span className="text-xs font-semibold text-content-secondary uppercase tracking-wider block">
             Open alerts
           </span>
-          <span className="text-3xl font-extrabold text-content mt-1 block">{totalOpen}</span>
+          <span className="text-3xl font-bold text-content mt-1 block tabular-nums">{totalOpen}</span>
         </Card>
-        <Card className="rounded-3xl bg-surface border-border-subtle shadow-sm p-5">
-          <span className="text-[11px] font-semibold text-content-muted uppercase tracking-wider block">
+        <Card className="rounded-2xl bg-surface border-border-subtle shadow-sm p-5 hover-lift text-content">
+          <span className="text-xs font-semibold text-content-secondary uppercase tracking-wider block">
             Critical
           </span>
           <span
-            className={`text-3xl font-extrabold mt-1 block ${
-              totalCritical > 0 ? "text-rose-500" : "text-content"
+            className={`text-3xl font-bold mt-1 block tabular-nums ${
+              totalCritical > 0 ? "text-destructive" : "text-content"
             }`}
           >
             {totalCritical}
           </span>
         </Card>
-        <Card className="rounded-3xl bg-surface border-border-subtle shadow-sm p-5">
-          <span className="text-[11px] font-semibold text-content-muted uppercase tracking-wider block">
+        <Card className="rounded-2xl bg-surface border-border-subtle shadow-sm p-5 hover-lift text-content">
+          <span className="text-xs font-semibold text-content-secondary uppercase tracking-wider block">
             Flagged ballots
           </span>
-          <span className="text-3xl font-extrabold text-content mt-1 block">{totalFlagged}</span>
+          <span className="text-3xl font-bold text-content mt-1 block tabular-nums">{totalFlagged}</span>
         </Card>
       </div>
 
       {events.length === 0 ? (
-        <Card className="rounded-3xl bg-surface border-border-subtle shadow-sm p-12 text-center text-content-muted text-xs font-medium">
+        <Card className="rounded-2xl bg-surface border-border-subtle shadow-sm p-12 text-center text-content-secondary text-xs font-normal">
           No events yet. Integrity monitoring begins once an event starts collecting ballots.
         </Card>
       ) : (
@@ -65,15 +65,15 @@ export default async function WorkspaceIntegrityPage() {
               <Link
                 key={event.id}
                 href={`/events/${event.id}/integrity`}
-                className="block p-5 rounded-3xl bg-surface border border-border-subtle hover:border-accent/50 hover:shadow-md transition-all"
+                className="block p-5 rounded-2xl bg-surface border border-border-subtle hover:border-accent hover-lift shadow-sm transition-all text-content"
               >
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-4 min-w-0">
                     <div
-                      className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border border-border-subtle ${
                         clean
-                          ? "bg-emerald-500/10 text-emerald-500"
-                          : "bg-rose-500/10 text-rose-500"
+                          ? "bg-surface-raised text-success"
+                          : "bg-surface-raised text-destructive"
                       }`}
                     >
                       {clean ? (
@@ -86,7 +86,7 @@ export default async function WorkspaceIntegrityPage() {
                       <h3 className="text-sm font-bold text-content leading-snug truncate">
                         {event.name}
                       </h3>
-                      <p className="text-xs text-content-muted font-medium mt-0.5">
+                      <p className="text-xs text-content-secondary font-normal mt-0.5">
                         {event.submittedBallots} ballot
                         {event.submittedBallots === 1 ? "" : "s"}
                         {event.flaggedBallots > 0 && ` · ${event.flaggedBallots} flagged`}
@@ -110,7 +110,7 @@ export default async function WorkspaceIntegrityPage() {
                         Clear
                       </Badge>
                     )}
-                    <ChevronRight className="w-4 h-4 text-content-muted" />
+                    <ChevronRight className="w-4 h-4 text-content-secondary" />
                   </div>
                 </div>
               </Link>

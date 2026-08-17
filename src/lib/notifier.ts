@@ -1,9 +1,12 @@
 // Simple pluggable notifier for integrity alerts.
-// Uses SLACK_WEBHOOK_URL env var if present; otherwise falls back to console logging.
+// Uses SLACK_WEBHOOK_URL env var if present; otherwise records that delivery was skipped.
 // Adds basic retry logic and Slack-friendly formatting.
 
 import { db } from '@/lib/db';
 import { notificationEvents } from '@/lib/db/schema/exports';
+import { integrityAlerts } from '@/lib/db/schema/integrity';
+
+type IntegrityAlert = typeof integrityAlerts.$inferSelect;
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 800;
@@ -13,11 +16,11 @@ function sleep(ms: number) {
 }
 
 async function logNotificationEvent(options: {
-  alert: any;
+  alert: IntegrityAlert;
   destinationType: string;
   status: 'SENT' | 'FAILED' | 'SKIPPED';
   responseCode?: number;
-  responseBody?: any;
+  responseBody?: unknown;
   errorMessage?: string;
 }) {
   const { alert, destinationType, status, responseCode, responseBody, errorMessage } = options;
@@ -25,7 +28,7 @@ async function logNotificationEvent(options: {
     await db.insert(notificationEvents).values({
       alertId: alert.id || null,
       eventId: alert.eventId,
-      notificationType: destinationType === 'SLACK' ? 'SLACK' : 'CONSOLE',
+      notificationType: destinationType === 'SLACK' ? 'SLACK' : 'EMAIL',
       destinationType,
       status,
       responseCode,
@@ -38,7 +41,7 @@ async function logNotificationEvent(options: {
   }
 }
 
-export async function sendAlertNotifications(alerts: any[]) {
+export async function sendAlertNotifications(alerts: IntegrityAlert[]) {
   if (!alerts || alerts.length === 0) return;
 
   // Server-side only. A NEXT_PUBLIC_ fallback used to sit here, but Next inlines
@@ -59,15 +62,16 @@ export async function sendAlertNotifications(alerts: any[]) {
 
     if (webhook) {
       let attempt = 0;
-      let lastError: any = null;
+      let lastError: unknown = null;
       let responseCode: number | undefined;
-      let responseBody: any = null;
+      let responseBody: unknown = null;
       while (attempt < MAX_RETRIES) {
         try {
           const res = await fetch(webhook, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(10_000),
           });
           responseCode = res.status;
           if (res.ok) {
@@ -104,12 +108,11 @@ export async function sendAlertNotifications(alerts: any[]) {
         });
       }
     } else {
-       
-      console.log("Notifier (stub):", payload);
       await logNotificationEvent({
         alert: a,
-        destinationType: 'CONSOLE',
-        status: 'SENT',
+        destinationType: 'SLACK',
+        status: 'SKIPPED',
+        errorMessage: "SLACK_WEBHOOK_URL is not configured.",
       });
     }
   }

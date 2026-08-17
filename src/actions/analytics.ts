@@ -1,12 +1,12 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { events, categories, nominees, votes, voteSessions } from "@/lib/db/schema";
+import { events, categories, votes, voteSessions } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { requireEventAccess, ALL_MEMBERS } from "./_rbac";
 
 export async function getEventAnalyticsAction(eventId: string) {
-  await requireEventAccess(eventId, ALL_MEMBERS);
+  await requireEventAccess(eventId, ALL_MEMBERS, "view_analytics");
 
   // 1. Get event
   const eventList = await db

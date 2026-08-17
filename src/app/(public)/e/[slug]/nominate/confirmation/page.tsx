@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Trophy, CheckCircle2, Share2, ArrowRight, Sparkles, Home } from "lucide-react";
+import { CheckCircle2, Share2, Sparkles, Home } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ShareKitModal } from "@/components/sharing/share-kit-modal";

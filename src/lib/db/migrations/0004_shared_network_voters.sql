@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS "unq_vote_sessions_event_fingerprint";--> statement-breakpoint
+CREATE UNIQUE INDEX "unq_vote_sessions_event_fingerprint" ON "vote_sessions" USING btree ("event_id","device_fingerprint") WHERE "vote_sessions"."device_fingerprint" IS NOT NULL AND "vote_sessions"."status" = 'SUBMITTED' AND "vote_sessions"."verification_method" = 'NONE';

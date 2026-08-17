@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getEventsAction } from "@/actions/events";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { FileSpreadsheet, ChevronRight } from "lucide-react";
 
 export default async function GlobalExportsPage() {

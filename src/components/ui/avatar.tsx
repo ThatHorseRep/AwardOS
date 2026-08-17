@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -46,11 +47,13 @@ export function Avatar({
       {...props}
     >
       {src && !imageError ? (
-        <img
+        <Image
           src={src}
           alt={name}
+          fill
+          sizes="56px"
           onError={() => setImageError(true)}
-          className="w-full h-full object-cover"
+          className="object-cover"
         />
       ) : (
         <span>{getInitials(name)}</span>

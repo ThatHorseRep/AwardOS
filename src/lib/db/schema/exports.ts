@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, timestamp, integer, jsonb, index, text } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, timestamp, integer, jsonb, index, text, boolean, uniqueIndex } from 'drizzle-orm/pg-core';
 import { exportType, exportFormat, exportStatus, notificationType, notificationStatus } from './enums';
 import { users } from './users';
 import { events } from './events';
@@ -15,11 +15,25 @@ export const exportJobs = pgTable('export_jobs', {
   fileUrl: varchar('file_url', { length: 1024 }),
   fileSizeBytes: integer('file_size_bytes'),
   rowCount: integer('row_count'),
+  payloadSnapshot: jsonb('payload_snapshot').$type<Array<Record<string, unknown>>>(),
+  includeSensitiveFields: boolean('include_sensitive_fields').default(false).notNull(),
   errorMessage: varchar('error_message', { length: 1024 }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   completedAt: timestamp('completed_at', { withTimezone: true }),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
 });
+
+export const importRuns = pgTable('import_runs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  requestedBy: uuid('requested_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  idempotencyKey: varchar('idempotency_key', { length: 64 }).notNull(),
+  result: jsonb('result').$type<Record<string, unknown>>(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+}, (table) => ({
+  unqEventImportKey: uniqueIndex('unq_import_runs_event_key').on(table.eventId, table.idempotencyKey),
+}));
 
 export const auditLogs = pgTable('audit_logs', {
   id: uuid('id').defaultRandom().primaryKey(),

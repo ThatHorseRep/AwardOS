@@ -1,7 +1,10 @@
 import { redirect } from 'next/navigation'
 import Sidebar from '@/components/layout/sidebar'
 import Header from '@/components/layout/header'
-import { getOrCreateWorkspaceAction, getCurrentUser } from '@/actions/workspaces'
+import { getOrCreateWorkspaceAction, getCurrentUser, listUserWorkspacesAction } from '@/actions/workspaces'
+import { WorkspaceSwitcher } from '@/components/layout/workspace-switcher'
+
+export const dynamic = 'force-dynamic'
 
 export default async function DashboardLayout({
   children,
@@ -28,11 +31,11 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen w-full bg-canvas text-content overflow-hidden font-sans select-none">
+    <div className="flex min-h-dvh h-screen w-full bg-canvas text-content overflow-hidden font-sans select-none">
       <Sidebar />
-      <div className="flex flex-col flex-1 min-w-0 h-screen overflow-hidden">
-        <Header user={user} />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 relative animate-page-entrance">
+      <div className="flex flex-col flex-1 min-w-0 h-full overflow-hidden">
+        <Header user={user} workspaceSwitcher={<WorkspaceSwitcher workspaces={await listUserWorkspacesAction()} selectedId={(await getOrCreateWorkspaceAction())?.id ?? ""} />} />
+        <main id="main-content" className="flex-1 overflow-y-auto p-4 md:p-6 relative animate-page-entrance">
           {children}
         </main>
       </div>

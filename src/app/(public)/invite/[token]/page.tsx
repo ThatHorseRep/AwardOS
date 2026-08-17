@@ -3,11 +3,13 @@
 import React, { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Trophy, ShieldCheck, Check, AlertCircle, Loader2, ArrowRight, Sparkles, Building2, Users } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Trophy, ShieldCheck, AlertCircle, Loader2, ArrowRight, Building2 } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getInviteDetailsAction, acceptWorkspaceInviteAction } from "@/actions/members";
+type InviteDetails = Awaited<ReturnType<typeof getInviteDetailsAction>>;
+type ValidInvite = NonNullable<InviteDetails["invite"]>;
 
 export default function AcceptInvitationPage() {
   const params = useParams();
@@ -15,13 +17,16 @@ export default function AcceptInvitationPage() {
   const token = params.token as string;
 
   const [loading, setLoading] = useState(true);
-  const [inviteData, setInviteData] = useState<any | null>(null);
+  const [inviteData, setInviteData] = useState<ValidInvite | null>(null);
   const [errorReason, setErrorReason] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [acceptError, setAcceptError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     async function checkInvite() {
+      setLoading(true); setLoadFailed(false); setErrorReason(null);
       try {
         const res = await getInviteDetailsAction(token);
         if (res.valid && res.invite) {
@@ -32,12 +37,13 @@ export default function AcceptInvitationPage() {
       } catch (err) {
         console.error("Error verifying invitation token:", err);
         setErrorReason("Failed to load invitation link.");
+        setLoadFailed(true);
       } finally {
         setLoading(false);
       }
     }
     checkInvite();
-  }, [token]);
+  }, [token, loadAttempt]);
 
   const handleAccept = () => {
     setAcceptError(null);
@@ -47,9 +53,9 @@ export default function AcceptInvitationPage() {
         if (res.success) {
           router.push("/dashboard");
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Accept invite error:", err);
-        setAcceptError(err.message || "Failed to accept workspace invitation.");
+        setAcceptError(err instanceof Error ? err.message : "Failed to accept workspace invitation.");
       }
     });
   };
@@ -83,6 +89,7 @@ export default function AcceptInvitationPage() {
               Go to AwardOS Sign In
             </Button>
           </Link>
+          {loadFailed && <Button variant="outline" className="w-full" onClick={() => setLoadAttempt((value) => value + 1)}>Try again</Button>}
         </Card>
       </div>
     );

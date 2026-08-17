@@ -1,17 +1,11 @@
 "use server";
 
 import { db } from "@/lib/db";
-import {
-  workspaces,
-  workspaceMembers,
-  workspaceInvites,
-  customRoles,
-  users,
-} from "@/lib/db/schema";
-import { eq, and, sql, isNull, ne, desc } from "drizzle-orm";
+import { workspaces, workspaceMembers, workspaceInvites, customRoles, users, auditLogs } from "@/lib/db/schema";
+import { eq, and, sql, ne, desc } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { getOrCreateWorkspaceAction, getCurrentUser } from "./workspaces";
-import { requireWorkspaceRole, WORKSPACE_ADMINS } from "./_rbac";
+import { requireWorkspaceRole, WORKSPACE_ADMINS, WORKSPACE_PERMISSIONS } from "./_rbac";
 
 // 1. Fetch workspace members list
 export async function getWorkspaceMembersAction() {
@@ -51,7 +45,7 @@ export async function getWorkspaceMembersAction() {
 // 2. Fetch invite links logs
 export async function getWorkspaceInvitesAction() {
   // Invite rows carry join tokens — admins only.
-  const { workspace } = await requireWorkspaceRole(WORKSPACE_ADMINS);
+  const { workspace } = await requireWorkspaceRole(WORKSPACE_ADMINS, "manage_team");
 
   const invitesList = await db
     .select({
@@ -75,6 +69,26 @@ export async function getWorkspaceInvitesAction() {
   return invitesList;
 }
 
+export async function getWorkspaceAuditLogsAction() {
+  const { workspace } = await requireWorkspaceRole(WORKSPACE_ADMINS, "manage_team");
+  return db
+    .select({
+      id: auditLogs.id,
+      action: auditLogs.action,
+      targetType: auditLogs.targetType,
+      targetId: auditLogs.targetId,
+      details: auditLogs.details,
+      createdAt: auditLogs.createdAt,
+      actorName: users.displayName,
+      actorEmail: users.email,
+    })
+    .from(auditLogs)
+    .leftJoin(users, eq(auditLogs.actorId, users.id))
+    .where(eq(auditLogs.workspaceId, workspace.id))
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(100);
+}
+
 // 3. Generate secure invite token / direct email invitation
 export async function generateWorkspaceInviteAction(input: {
   email?: string;
@@ -84,11 +98,19 @@ export async function generateWorkspaceInviteAction(input: {
   expiresDays?: number;
   domainRestrictions?: string[];
 }) {
-  const { user, workspace, member } = await requireWorkspaceRole(WORKSPACE_ADMINS);
+  const { user, workspace, member } = await requireWorkspaceRole(WORKSPACE_ADMINS, "manage_team");
 
   // Only an OWNER may mint an invite that confers OWNER.
   if (input.role === "OWNER" && member.role !== "OWNER") {
     throw new Error("Unauthorized: only an OWNER can grant the OWNER role");
+  }
+
+  const targetEmail = input.email ? input.email.trim().toLowerCase() : null;
+  if (input.role === "OWNER" && !targetEmail) {
+    throw new Error("Ownership transfer requires a specific recipient email address.");
+  }
+  if (input.role === "OWNER" && targetEmail === user.email.toLowerCase()) {
+    throw new Error("Choose another member to receive workspace ownership.");
   }
 
   // Same check updateWorkspaceMemberRoleAction already performs. Without it a
@@ -123,7 +145,6 @@ export async function generateWorkspaceInviteAction(input: {
   }
 
   const isEmailTargeted = Boolean(input.email && input.email.trim().length > 0);
-  const targetEmail = input.email ? input.email.trim().toLowerCase() : null;
   const maxUses = isEmailTargeted ? 1 : (input.maxUses || 1);
 
   let directMemberAdded = false;
@@ -177,6 +198,15 @@ export async function generateWorkspaceInviteAction(input: {
     })
     .returning();
 
+  await db.insert(auditLogs).values({
+    workspaceId: workspace.id,
+    actorId: user.id,
+    action: input.role === "OWNER" ? "workspace.ownership_transfer_requested" : "workspace.invite_created",
+    targetType: "workspace_invite",
+    targetId: newInvite.id,
+    details: { email: targetEmail, role: input.role, expiresAt: expiresAt?.toISOString() ?? null },
+  });
+
   return {
     ...newInvite,
     directMemberAdded,
@@ -200,6 +230,7 @@ export async function getInviteDetailsAction(token: string) {
       workspaceName: workspaces.name,
       customRoleId: workspaceInvites.customRoleId,
       customRoleName: customRoles.name,
+      createdBy: workspaceInvites.createdBy,
     })
     .from(workspaceInvites)
     .innerJoin(workspaces, eq(workspaceInvites.workspaceId, workspaces.id))
@@ -265,50 +296,76 @@ export async function acceptWorkspaceInviteAction(token: string) {
   // redemptions of a maxUses=1 link could all pass the earlier check and every
   // one of them would join. Updating only when a use remains makes the database
   // the arbiter: exactly one concurrent caller gets a row back.
-  const claimed = await db
-    .update(workspaceInvites)
-    .set({ usesCount: sql`${workspaceInvites.usesCount} + 1` })
-    .where(
-      and(
-        eq(workspaceInvites.id, inv.id),
-        sql`${workspaceInvites.usesCount} < ${workspaceInvites.maxUses}`
+  await db.transaction(async (tx) => {
+    const claimed = await tx
+      .update(workspaceInvites)
+      .set({ usesCount: sql`${workspaceInvites.usesCount} + 1` })
+      .where(
+        and(
+          eq(workspaceInvites.id, inv.id),
+          sql`${workspaceInvites.usesCount} < ${workspaceInvites.maxUses}`
+        )
       )
-    )
-    .returning({ id: workspaceInvites.id });
+      .returning({ id: workspaceInvites.id });
 
-  if (claimed.length === 0) {
-    throw new Error("This invitation has already been used.");
-  }
+    if (claimed.length === 0) {
+      throw new Error("This invitation has already been used.");
+    }
 
-  // Add user as workspace member
-  await db
-    .insert(workspaceMembers)
-    .values({
-      workspaceId: inv.workspaceId,
-      userId: user.id,
-      role: inv.role,
-      // Was dropped on acceptance, so a member invited with a custom role
-      // silently landed on the base role instead.
-      customRoleId: inv.customRoleId || null,
-      status: "ACTIVE",
-      acceptedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: [workspaceMembers.workspaceId, workspaceMembers.userId],
-      set: {
+    await tx
+      .insert(workspaceMembers)
+      .values({
+        workspaceId: inv.workspaceId,
+        userId: user.id,
         role: inv.role,
         customRoleId: inv.customRoleId || null,
         status: "ACTIVE",
         acceptedAt: new Date(),
-      },
+      })
+      .onConflictDoUpdate({
+        target: [workspaceMembers.workspaceId, workspaceMembers.userId],
+        set: {
+          role: inv.role,
+          customRoleId: inv.customRoleId || null,
+          status: "ACTIVE",
+          acceptedAt: new Date(),
+        },
+      });
+
+    // OWNER invitations are explicit ownership-transfer requests. Acceptance
+    // is the second party's confirmation; only then is the initiating owner
+    // demoted. Both changes share this transaction so the workspace can never
+    // be left between owners if either statement fails.
+    if (inv.role === "OWNER" && inv.createdBy && inv.createdBy !== user.id) {
+      await tx
+        .update(workspaceMembers)
+        .set({ role: "ADMIN", customRoleId: null })
+        .where(
+          and(
+            eq(workspaceMembers.workspaceId, inv.workspaceId),
+            eq(workspaceMembers.userId, inv.createdBy),
+            eq(workspaceMembers.role, "OWNER"),
+            ne(workspaceMembers.status, "REMOVED")
+          )
+        );
+    }
+
+    await tx.insert(auditLogs).values({
+      workspaceId: inv.workspaceId,
+      actorId: user.id,
+      action: inv.role === "OWNER" ? "workspace.ownership_transfer_accepted" : "workspace.invite_accepted",
+      targetType: "workspace_invite",
+      targetId: inv.id,
+      details: { role: inv.role, previousOwnerId: inv.role === "OWNER" ? inv.createdBy : null },
     });
+  });
 
   return { success: true, workspaceName: inv.workspaceName };
 }
 
 // 6. Revoke active invite link
 export async function revokeWorkspaceInviteAction(inviteId: string) {
-  const { workspace } = await requireWorkspaceRole(WORKSPACE_ADMINS);
+  const { user, workspace } = await requireWorkspaceRole(WORKSPACE_ADMINS, "manage_team");
 
   // Scope the delete to the caller's workspace — the role check alone would let
   // an admin in one workspace revoke another workspace's invites by id.
@@ -320,6 +377,8 @@ export async function revokeWorkspaceInviteAction(inviteId: string) {
         eq(workspaceInvites.workspaceId, workspace.id)
       )
     );
+
+  await db.insert(auditLogs).values({ workspaceId: workspace.id, actorId: user.id, action: "workspace.invite_revoked", targetType: "workspace_invite", targetId: inviteId });
 
   return { success: true };
 }
@@ -340,24 +399,36 @@ export async function getCustomRolesAction() {
 
 // 8. Create custom permission role
 export async function createCustomRoleAction(name: string, permissions: string[]) {
-  const { user, workspace } = await requireWorkspaceRole(WORKSPACE_ADMINS);
+  const { user, workspace } = await requireWorkspaceRole(WORKSPACE_ADMINS, "manage_team");
+
+  const cleanName = name.trim().slice(0, 80);
+  if (!cleanName) throw new Error("Enter a custom role name.");
+  const allowedPermissions = new Set<string>(WORKSPACE_PERMISSIONS);
+  const cleanPermissions = [...new Set(permissions)].filter((permission) =>
+    allowedPermissions.has(permission)
+  );
+  if (cleanPermissions.length === 0) {
+    throw new Error("Select at least one valid permission.");
+  }
 
   const [role] = await db
     .insert(customRoles)
     .values({
       workspaceId: workspace.id,
-      name,
-      permissions,
+      name: cleanName,
+      permissions: cleanPermissions,
       createdBy: user.id,
     })
     .returning();
+
+  await db.insert(auditLogs).values({ workspaceId: workspace.id, actorId: user.id, action: "workspace.custom_role_created", targetType: "custom_role", targetId: role.id, details: { name: cleanName, permissions: cleanPermissions } });
 
   return role;
 }
 
 // 9. Delete custom role
 export async function deleteCustomRoleAction(roleId: string) {
-  const { workspace } = await requireWorkspaceRole(WORKSPACE_ADMINS);
+  const { workspace } = await requireWorkspaceRole(WORKSPACE_ADMINS, "manage_team");
 
   await db
     .delete(customRoles)
@@ -368,7 +439,7 @@ export async function deleteCustomRoleAction(roleId: string) {
 
 // 10. Remove workspace member
 export async function removeWorkspaceMemberAction(memberId: string) {
-  const { user, workspace } = await requireWorkspaceRole(WORKSPACE_ADMINS);
+  const { user, workspace } = await requireWorkspaceRole(WORKSPACE_ADMINS, "manage_team");
 
   // Prevent deleting oneself
   const [member] = await db
@@ -426,6 +497,8 @@ export async function removeWorkspaceMemberAction(memberId: string) {
       and(eq(workspaceMembers.id, memberId), eq(workspaceMembers.workspaceId, workspace.id))
     );
 
+  await db.insert(auditLogs).values({ workspaceId: workspace.id, actorId: user.id, action: "workspace.member_removed", targetType: "workspace_member", targetId: member.id, details: { removedUserId: member.userId, previousRole: member.role } });
+
   return { success: true };
 }
 
@@ -435,11 +508,13 @@ export async function updateWorkspaceMemberRoleAction(
   role: "OWNER" | "ADMIN" | "EVENT_MANAGER" | "JUDGE" | "REVIEWER" | "SECRETARY" | "PRO" | "VOLUNTEER",
   customRoleId?: string | null
 ) {
-  const { workspace, member: actor } = await requireWorkspaceRole(WORKSPACE_ADMINS);
+  const { user, workspace, member: actor } = await requireWorkspaceRole(WORKSPACE_ADMINS, "manage_team");
 
-  // Only an OWNER may promote another member to OWNER.
-  if (role === "OWNER" && actor.role !== "OWNER") {
-    throw new Error("Unauthorized: only an OWNER can grant the OWNER role");
+  // Ownership changes require the current owner to create a targeted OWNER
+  // invitation and the recipient to accept it. A direct role edit would skip
+  // the recipient's confirmation and is therefore never allowed here.
+  if (role === "OWNER") {
+    throw new Error("Transfer ownership with a targeted owner invitation.");
   }
 
   // The guard above is one-directional: it blocked *granting* OWNER but not
@@ -462,7 +537,7 @@ export async function updateWorkspaceMemberRoleAction(
     throw new Error("Member not found in this workspace");
   }
 
-  if (target.role === "OWNER" && role !== "OWNER") {
+  if (target.role === "OWNER") {
     if (actor.role !== "OWNER") {
       throw new Error("Unauthorized: only an OWNER can change another OWNER's role");
     }
@@ -521,6 +596,8 @@ export async function updateWorkspaceMemberRoleAction(
   if (updated.length === 0) {
     throw new Error("Member not found in this workspace");
   }
+
+  await db.insert(auditLogs).values({ workspaceId: workspace.id, actorId: user.id, action: "workspace.member_role_updated", targetType: "workspace_member", targetId: memberId, details: { previousRole: target.role, role, customRoleId: customRoleId || null } });
 
   return { success: true };
 }

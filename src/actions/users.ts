@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "./workspaces";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
 
 export async function getUserProfileAction() {
   const user = await getCurrentUser();
@@ -101,8 +100,8 @@ export async function updateUserProfileFormAction(formData: FormData) {
     revalidatePath("/settings/profile");
     revalidatePath("/dashboard");
     return { success: true, message: "Profile updated successfully!" };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Failed to update user profile:", err);
-    return { success: false, message: err?.message || "Failed to update profile." };
+    return { success: false, message: "Failed to update profile." };
   }
 }

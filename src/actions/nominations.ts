@@ -2,10 +2,8 @@
 
 import { db } from "@/lib/db";
 import { suggestedCategories, categories, nominations, events, nominees } from "@/lib/db/schema";
-import { eq, and, count, desc, sql, isNull, inArray } from "drizzle-orm";
-import { getOrCreateWorkspaceAction } from "./workspaces";
-import { requireWorkspaceRole, CONTENT_MODERATORS } from "./_rbac";
-import { normalizeCapitalization } from "@/lib/ai/cleanup";
+import { eq, and, count, desc, sql, isNull } from "drizzle-orm";
+import { requireEventAccess, requireWorkspaceRole, CONTENT_MODERATORS } from "./_rbac";
 import { syncNomineesForEvent } from "@/lib/nominations/sync";
 
 /**
@@ -14,7 +12,7 @@ import { syncNomineesForEvent } from "@/lib/nominations/sync";
  * without this an eventId from another workspace would be accepted verbatim.
  */
 async function requireEventInWorkspace(eventId: string) {
-  const { workspace } = await requireWorkspaceRole(CONTENT_MODERATORS);
+  const { workspace } = await requireWorkspaceRole(CONTENT_MODERATORS, "manage_nominees");
 
   const [event] = await db
     .select({ id: events.id })
@@ -56,6 +54,64 @@ export async function getSuggestedCategoriesAction(eventId: string) {
     count: s.count,
     status: "PENDING" as const,
   }));
+}
+
+export async function getEventNominationsAction(eventId: string) {
+  const { event } = await requireEventAccess(eventId, CONTENT_MODERATORS, "manage_nominees");
+
+  const [rawNominations, suggestions, eventNominees] = await Promise.all([
+    db
+      .select({
+        id: nominations.id,
+        categoryId: nominations.categoryId,
+        categoryName: categories.name,
+        nomineeText: nominations.nomineeText,
+        resolvedNomineeId: nominations.resolvedNomineeId,
+        sessionId: nominations.sessionId,
+        submissionNumber: nominations.submissionNumber,
+        isLatest: nominations.isLatest,
+        createdAt: nominations.createdAt,
+      })
+      .from(nominations)
+      .innerJoin(categories, eq(nominations.categoryId, categories.id))
+      .where(eq(nominations.eventId, eventId))
+      .orderBy(desc(nominations.createdAt)),
+    db
+      .select({
+        id: suggestedCategories.id,
+        suggestionText: suggestedCategories.suggestionText,
+        status: suggestedCategories.status,
+        sessionId: suggestedCategories.sessionId,
+        createdAt: suggestedCategories.createdAt,
+      })
+      .from(suggestedCategories)
+      .where(eq(suggestedCategories.eventId, eventId))
+      .orderBy(desc(suggestedCategories.createdAt)),
+    db
+      .select({
+        id: nominees.id,
+        categoryId: nominees.categoryId,
+        categoryName: categories.name,
+        categoryOrder: categories.displayOrder,
+        name: nominees.name,
+        bio: nominees.bio,
+        status: nominees.status,
+        source: nominees.source,
+        nominationCount: nominees.nominationCount,
+        displayOrder: nominees.displayOrder,
+      })
+      .from(nominees)
+      .innerJoin(categories, eq(nominees.categoryId, categories.id))
+      .where(eq(nominees.eventId, eventId))
+      .orderBy(categories.displayOrder, nominees.displayOrder),
+  ]);
+
+  return {
+    event: { id: event.id, name: event.name, slug: event.slug, status: event.status },
+    rawNominations,
+    suggestedCategories: suggestions,
+    nominees: eventNominees,
+  };
 }
 
 export async function approveSuggestionAction(eventId: string, suggestionText: string, approvedName: string) {
@@ -117,7 +173,7 @@ export async function ensureNomineesForRawNominationsAction(eventId: string) {
 }
 
 export async function getWorkspaceNominationsAction() {
-  const { workspace } = await requireWorkspaceRole(CONTENT_MODERATORS);
+  const { workspace } = await requireWorkspaceRole(CONTENT_MODERATORS, "manage_nominees");
 
   // Query nominations across workspace events
   const rawNomList = await db

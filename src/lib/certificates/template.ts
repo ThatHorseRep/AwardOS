@@ -101,7 +101,7 @@ export function generateCertificateSVG(data: CertificateData): string {
     <circle cx="50" cy="50" r="42" fill="none" stroke="url(#goldBorder)" stroke-width="2" />
     <circle cx="50" cy="50" r="36" fill="none" stroke="url(#goldBorder)" stroke-width="1" stroke-dasharray="4 2" />
     <text x="50" y="46" font-family="'Inter', sans-serif" font-size="10" font-weight="800" fill="#fbbf24" text-anchor="middle">OFFICIAL</text>
-    <text x="50" y="62" font-family="'Inter', sans-serif" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">VERIFIED</text>
+    <text x="50" y="62" font-family="'Inter', sans-serif" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">WINNER</text>
   </g>
 
   <!-- Signatures & Verification Footer -->
@@ -117,7 +117,7 @@ export function generateCertificateSVG(data: CertificateData): string {
     <text x="100" y="40" font-family="'Inter', sans-serif" font-size="11" fill="#9ca3af" text-anchor="middle">Date of Issuance</text>
   </g>
 
-  <!-- Verification ID Barcode Placeholder -->
+  <!-- Official result reference -->
   <text x="600" y="790" font-family="'Courier New', monospace" font-size="11" fill="#6b7280" text-anchor="middle">
     VERIFICATION ID: ${certificateId} • AWARDOS COMPLIANCE AUTHENTICATED
   </text>

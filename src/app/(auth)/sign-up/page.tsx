@@ -29,7 +29,7 @@ function SignUpForm() {
           redirectTo: `${origin}/api/auth/callback`,
         },
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Google sign up error:", err);
     }
   };
@@ -37,19 +37,19 @@ function SignUpForm() {
   return (
     <div className="w-full space-y-3.5 font-sans select-none">
       <div className="text-center space-y-0.5">
-        <h1 className="text-2xl font-bold text-white tracking-tight">Create your account</h1>
-        <p className="text-xs text-zinc-400">Start organizing award events in minutes</p>
+        <h1 className="text-xl font-bold text-content tracking-tight">Create your account</h1>
+        <p className="text-xs text-content-secondary">Start organizing award events in minutes</p>
       </div>
 
       {error && (
-        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-xs font-medium">
+        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive text-xs font-medium">
           {error}
         </div>
       )}
 
       <form action={handleSubmit} className="space-y-3">
         <div>
-          <label htmlFor="name" className="block text-xs font-semibold text-zinc-300 mb-1">
+          <label htmlFor="name" className="block text-xs font-semibold text-content mb-1">
             Full name
           </label>
           <input
@@ -57,13 +57,13 @@ function SignUpForm() {
             name="name"
             type="text"
             required
-            placeholder="John Doe"
-            className="w-full px-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-2xl text-white placeholder:text-zinc-500 text-xs focus:outline-none focus:border-blue-500 transition-all font-medium"
+            placeholder="Jane Doe"
+            className="w-full px-3.5 py-2 bg-surface-raised border border-border-subtle rounded-xl text-content placeholder:text-content-muted text-xs focus:outline-none focus:border-accent transition-all font-normal"
           />
         </div>
 
         <div>
-          <label htmlFor="email" className="block text-xs font-semibold text-zinc-300 mb-1">
+          <label htmlFor="email" className="block text-xs font-semibold text-content mb-1">
             Email address
           </label>
           <input
@@ -72,12 +72,12 @@ function SignUpForm() {
             type="email"
             required
             placeholder="you@example.com"
-            className="w-full px-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-2xl text-white placeholder:text-zinc-500 text-xs focus:outline-none focus:border-blue-500 transition-all font-medium"
+            className="w-full px-3.5 py-2 bg-surface-raised border border-border-subtle rounded-xl text-content placeholder:text-content-muted text-xs focus:outline-none focus:border-accent transition-all font-normal"
           />
         </div>
 
         <div>
-          <label htmlFor="password" className="block text-xs font-semibold text-zinc-300 mb-1">
+          <label htmlFor="password" className="block text-xs font-semibold text-content mb-1">
             Password
           </label>
           <div className="relative">
@@ -87,12 +87,13 @@ function SignUpForm() {
               type={showPassword ? "text" : "password"}
               required
               placeholder="••••••••"
-              className="w-full px-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-2xl text-white placeholder:text-zinc-500 text-xs focus:outline-none focus:border-blue-500 transition-all pr-10 font-mono"
+              className="w-full px-3.5 py-2 bg-surface-raised border border-border-subtle rounded-xl text-content placeholder:text-content-muted text-xs focus:outline-none focus:border-accent transition-all pr-10 font-mono"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-300 p-0.5"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-secondary hover:text-content p-0.5"
             >
               {showPassword ? (
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-.722-3.25"/><path d="M2 8a10.645 10.645 0 0 0 20 0"/><path d="m20 15-1.726-2.05"/><path d="m4 15 1.726-2.05"/><path d="m9 18 .722-3.25"/></svg>
@@ -106,29 +107,29 @@ function SignUpForm() {
         <button
           type="submit"
           disabled={isPending}
-          className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-full transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-1 shadow-lg shadow-blue-600/25"
+          className="w-full py-2.5 px-4 bg-accent hover:bg-accent-hover text-accent-contrast font-semibold text-xs rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-1 shadow-sm active:scale-[0.97]"
         >
           {isPending ? (
             <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
           ) : (
-            "Create Account"
+            "Create account"
           )}
         </button>
       </form>
 
       <div className="relative py-0.5">
         <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-zinc-700/50"></div>
+          <div className="w-full border-t border-border-subtle"></div>
         </div>
-        <div className="relative flex justify-center text-[10px]">
-          <span className="px-2 bg-zinc-900 text-zinc-400">— or continue with —</span>
+        <div className="relative flex justify-center text-xs">
+          <span className="px-2 bg-surface text-content-secondary font-medium">— or continue with —</span>
         </div>
       </div>
 
       <button
         onClick={handleGoogleSignIn}
         type="button"
-        className="w-full py-2.5 px-4 bg-white hover:bg-zinc-100 text-zinc-900 font-bold text-xs rounded-full transition-all duration-200 flex items-center justify-center gap-2 shadow-sm"
+        className="w-full py-2.5 px-4 bg-surface-raised hover:bg-surface-muted border border-border-subtle text-content font-semibold text-xs rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-sm active:scale-[0.97]"
       >
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="18px" height="18px">
           <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/>
@@ -139,9 +140,9 @@ function SignUpForm() {
         <span>Continue with Google</span>
       </button>
 
-      <p className="text-center text-zinc-400 text-xs">
+      <p className="text-center text-content-secondary text-xs">
         Already have an account?{" "}
-        <Link href="/sign-in" className="text-blue-400 hover:text-blue-300 transition-colors font-semibold">
+        <Link href="/sign-in" className="text-accent hover:underline transition-colors font-semibold">
           Sign in
         </Link>
       </p>
@@ -156,3 +157,4 @@ export default function SignUpPage() {
     </Suspense>
   );
 }
+

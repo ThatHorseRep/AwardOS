@@ -18,9 +18,10 @@ import { getClientIp } from "@/lib/request-ip";
 import {
   votedCookieName,
   votedCookieOptions,
-  isCookieEnforcedMethod,
-  resolveVotedBallot,
 } from "@/lib/voting-cookie";
+import { canSubmitBallotAt } from "@/lib/voting-window";
+import { consumeRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { issueBallotReceipt } from "@/lib/ballot-receipt";
 
 export async function POST(
   request: NextRequest,
@@ -28,8 +29,8 @@ export async function POST(
 ) {
   try {
     const { slug } = await params;
-    const votedCookie = request.cookies.get(votedCookieName(slug))?.value;
-
+    const contentLength = Number(request.headers.get("content-length") ?? 0);
+    if (contentLength > 64 * 1024) return NextResponse.json({ error: "Request payload is too large." }, { status: 413 });
     const body = await request.json();
     const parseResult = submitVotesSchema.safeParse(body);
 
@@ -66,9 +67,12 @@ export async function POST(
 
     const event = eventList[0];
 
+    const sharedLimit = await consumeRateLimit(`public-votes:${event.id}`, ipAddress, { limit: 10, windowMs: 5 * 60 * 1000 });
+    if (!sharedLimit.allowed) return NextResponse.json({ error: "Too many ballot attempts. Please try again later." }, { status: 429, headers: rateLimitHeaders(sharedLimit) });
+
     // A private or unlisted event must not accept ballots from someone who
     // merely guessed the slug.
-    if (event.visibility && event.visibility !== "PUBLIC") {
+    if (event.visibility === "PRIVATE") {
       return NextResponse.json({ error: "Event not found." }, { status: 404 });
     }
 
@@ -106,14 +110,13 @@ export async function POST(
         );
       }
       if (votingStage.endsAt && now > new Date(votingStage.endsAt).getTime()) {
-        return NextResponse.json(
-          { error: "Voting has closed for this event." },
-          { status: 403 }
-        );
+        const deadline = new Date(votingStage.endsAt);
+        const [startedSession] = await db.select({ startedAt: voteSessions.startedAt }).from(voteSessions).where(and(eq(voteSessions.eventId, event.id), eq(voteSessions.sessionToken, ballotId), eq(voteSessions.status, "IN_PROGRESS"))).limit(1);
+        if (!canSubmitBallotAt({ now: new Date(now), startsAt: votingStage.startsAt, endsAt: deadline, startedAt: startedSession?.startedAt ?? null })) return NextResponse.json({ error: "Voting has closed for this event." }, { status: 403 });
       }
     }
 
-    const verificationConfig = (event.verificationConfig as any) || {};
+    const verificationConfig = (event.verificationConfig as { method?: "NONE" | "EMAIL_OTP" | "INVITATION_CODE" } | null) ?? {};
     const expectedMethod = verificationConfig.method || "NONE";
 
     // No cookie gate here. The voted cookie is now scoped to /e/<slug>, so the
@@ -336,7 +339,8 @@ export async function POST(
         .where(
           and(
             eq(voteSessions.eventId, event.id),
-            eq(voteSessions.deviceFingerprint, deviceFingerprint)
+            eq(voteSessions.deviceFingerprint, deviceFingerprint),
+            eq(voteSessions.status, "SUBMITTED")
           )
         )
         .limit(1);
@@ -361,9 +365,8 @@ export async function POST(
         }
       }
 
-      const newSessionList = await tx
-        .insert(voteSessions)
-        .values({
+      const existingStarted = await tx.select({ id: voteSessions.id }).from(voteSessions).where(and(eq(voteSessions.eventId, event.id), eq(voteSessions.sessionToken, ballotId), eq(voteSessions.status, "IN_PROGRESS"))).limit(1);
+      const sessionValues = {
           eventId: event.id,
           sessionToken: ballotId,
           deviceFingerprint,
@@ -374,8 +377,10 @@ export async function POST(
           invitationCode: usedInvitationCode,
           status: "SUBMITTED",
           submittedAt: new Date(),
-        })
-        .returning({ id: voteSessions.id });
+        } as const;
+      const newSessionList = existingStarted.length
+        ? await tx.update(voteSessions).set(sessionValues).where(eq(voteSessions.id, existingStarted[0].id)).returning({ id: voteSessions.id })
+        : await tx.insert(voteSessions).values(sessionValues).returning({ id: voteSessions.id });
 
       if (newSessionList.length === 0) {
         throw new Error("Failed to record vote session.");
@@ -430,10 +435,15 @@ export async function POST(
       return { voteSessionId, categoriesVoted };
     });
 
+    const receipt = issueBallotReceipt({
+      eventId: event.id,
+      sessionId: result.voteSessionId,
+      issuedAt: new Date().toISOString(),
+    });
     const successResponse = NextResponse.json({
       success: true,
-      message: "Ballot cast successfully!",
-      ballotId,
+      message: "Ballot cast successfully.",
+      receipt,
       voteCount: result.categoriesVoted,
       timestamp: new Date().toISOString(),
     });

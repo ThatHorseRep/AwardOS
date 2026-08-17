@@ -2,41 +2,34 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useParams } from "next/navigation";
-import {
-  Palette,
-  Sparkles,
-  ArrowLeft,
-  Check,
-  Eye,
-  Layout,
-  Sun,
-  Moon,
-  Zap,
-  Crown,
-  Save,
-  Loader2,
-  Image as ImageIcon,
-} from "lucide-react";
+import { Palette, Sparkles, ArrowLeft, Check, Eye, Layout, Sun, Moon, Zap, Crown, Save, Loader2 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ImageUpload } from "@/components/ui/image-upload";
+import { uploadEventBrandingAssetAction } from "@/actions/uploads";
 import { getEventDetailsAction, updateEventBrandingAction } from "@/actions/events";
 
 import { useToast } from "@/components/ui/toast";
+import { LoadError } from "@/components/shared/load-error";
 export default function EventBrandingPage() {
   const toast = useToast();
   const params = useParams();
   const eventId = params.id as string;
 
   const [loading, setLoading] = useState(true);
-  const [eventData, setEventData] = useState<any | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [eventData, setEventData] = useState<Awaited<ReturnType<typeof getEventDetailsAction>> | null>(null);
   const [selectedPreset, setSelectedPreset] = useState("dark-glass");
   const [primaryColor, setPrimaryColor] = useState("#6366f1");
+  const [secondaryColor, setSecondaryColor] = useState("#1e293b");
   const [accentColor, setAccentColor] = useState("#a855f7");
   const [logoUrl, setLogoUrl] = useState("");
   const [bannerUrl, setBannerUrl] = useState("");
+  const [ogImageUrl, setOgImageUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -49,23 +42,27 @@ export default function EventBrandingPage() {
 
   useEffect(() => {
     async function loadData() {
+      setLoading(true); setLoadError(false);
       try {
         const data = await getEventDetailsAction(eventId);
         setEventData(data);
         if (data?.branding) {
           if (data.branding.primaryColor) setPrimaryColor(data.branding.primaryColor);
+          if (data.branding.secondaryColor) setSecondaryColor(data.branding.secondaryColor);
           if (data.branding.accentColor) setAccentColor(data.branding.accentColor);
           if (data.branding.logoUrl) setLogoUrl(data.branding.logoUrl);
           if (data.branding.bannerUrl) setBannerUrl(data.branding.bannerUrl);
+          if (data.branding.ogImageUrl) setOgImageUrl(data.branding.ogImageUrl);
         }
       } catch (err) {
         console.error("Failed to load event details for branding:", err);
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
     }
     loadData();
-  }, [eventId]);
+  }, [eventId, loadAttempt]);
 
   const handleSelectPreset = (preset: typeof presets[0]) => {
     setSelectedPreset(preset.id);
@@ -80,9 +77,10 @@ export default function EventBrandingPage() {
         eventId,
         primaryColor,
         accentColor,
-        secondaryColor: primaryColor,
+        secondaryColor,
         logoUrl,
         bannerUrl,
+        ogImageUrl,
       });
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 2500);
@@ -101,6 +99,7 @@ export default function EventBrandingPage() {
       </div>
     );
   }
+  if (loadError) return <LoadError onRetry={() => setLoadAttempt((value) => value + 1)} />;
 
   if (!eventData) {
     return (
@@ -242,6 +241,29 @@ export default function EventBrandingPage() {
                     <span className="text-xs font-mono text-slate-300 uppercase">{accentColor}</span>
                   </div>
                 </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-200 block">Social sharing image</label>
+                  <ImageUpload
+                    upload={(formData) => uploadEventBrandingAssetAction(eventId, "og", formData)}
+                    value={ogImageUrl}
+                    onChange={(url) => setOgImageUrl(url)}
+                    onRemove={() => setOgImageUrl("")}
+                    label="Upload social preview image"
+                    description="Use a clear 1200 by 630 image for link previews."
+                    maxWidth={1200}
+                    maxHeight={630}
+                    aspectRatio="landscape"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-slate-300">Secondary Surface Color</label>
+                  <div className="flex items-center gap-3 bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                    <input type="color" value={secondaryColor} onChange={(e) => setSecondaryColor(e.target.value)} className="w-8 h-8 rounded-lg border-0 bg-transparent cursor-pointer" />
+                    <span className="text-xs font-mono text-slate-300 uppercase">{secondaryColor}</span>
+                  </div>
+                </div>
               </div>
 
               {/* Upload Brand Assets */}
@@ -249,6 +271,7 @@ export default function EventBrandingPage() {
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-200 block">Event Program Logo Photo</label>
                   <ImageUpload
+                    upload={(formData) => uploadEventBrandingAssetAction(eventId, "logo", formData)}
                     value={logoUrl}
                     onChange={(url) => setLogoUrl(url)}
                     onRemove={() => setLogoUrl("")}
@@ -263,6 +286,7 @@ export default function EventBrandingPage() {
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-200 block">Custom Hero Cover Banner Photo</label>
                   <ImageUpload
+                    upload={(formData) => uploadEventBrandingAssetAction(eventId, "banner", formData)}
                     value={bannerUrl}
                     onChange={(url) => setBannerUrl(url)}
                     onRemove={() => setBannerUrl("")}
@@ -301,7 +325,7 @@ export default function EventBrandingPage() {
                 >
                   {bannerUrl && <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[1px]" />}
                   <div className="relative z-10">
-                    {logoUrl && <img src={logoUrl} alt="Logo" className="w-10 h-10 object-contain mx-auto mb-1 rounded-lg" />}
+                    {logoUrl && <Image src={logoUrl} alt={`${eventData.name} logo`} width={40} height={40} className="w-10 h-10 object-contain mx-auto mb-1 rounded-lg" />}
                     <span className="text-[10px] font-bold text-white uppercase tracking-wider block">
                       {eventData.name}
                     </span>

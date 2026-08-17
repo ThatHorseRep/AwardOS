@@ -1,36 +1,18 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import {
-  Award,
-  ArrowLeft,
-  Globe,
-  ExternalLink,
-  Loader2,
-  Trophy,
-  CheckCircle,
-  AlertTriangle,
-  Ban,
-  Undo2,
-  Plus,
-  Trash2,
-  Sparkles,
-} from "lucide-react";
+import { Award, ArrowLeft, Globe, ExternalLink, Loader2, Trophy, Ban, Undo2, Plus, Trash2, Save } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
-import {
-  getEventResultsAction,
-  publishResultsAction,
-  disqualifyNomineeAction,
-  createSpecialAwardAction,
-  getSpecialAwardsAction,
-  deleteSpecialAwardAction,
-  updateNomineeJudgeScoreAction,
-} from "@/actions/results";
+import { LoadError } from "@/components/shared/load-error";
+import { getEventResultsAction, publishResultsAction, disqualifyNomineeAction, createSpecialAwardAction, getSpecialAwardsAction, deleteSpecialAwardAction, updateOfficialResultOverrideAction } from "@/actions/results";
+
+type EventResults = Awaited<ReturnType<typeof getEventResultsAction>>;
+type SpecialAward = Awaited<ReturnType<typeof getSpecialAwardsAction>>[number];
 
 export default function OrganizerResultsPage() {
   const toast = useToast();
@@ -38,8 +20,9 @@ export default function OrganizerResultsPage() {
   const eventId = params.id as string;
 
   const [loading, setLoading] = useState(true);
-  const [resultsData, setResultsData] = useState<any | null>(null);
-  const [specialAwardsList, setSpecialAwardsList] = useState<any[]>([]);
+  const [loadError, setLoadError] = useState(false);
+  const [resultsData, setResultsData] = useState<EventResults | null>(null);
+  const [specialAwardsList, setSpecialAwardsList] = useState<SpecialAward[]>([]);
   const [publishing, setPublishing] = useState(false);
   const [disqualifyingId, setDisqualifyingId] = useState<string | null>(null);
 
@@ -49,7 +32,8 @@ export default function OrganizerResultsPage() {
   const [awardDescription, setAwardDescription] = useState("");
   const [submittingAward, setSubmittingAward] = useState(false);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    setLoading(true); setLoadError(false);
     try {
       const [data, awards] = await Promise.all([
         getEventResultsAction(eventId),
@@ -59,14 +43,17 @@ export default function OrganizerResultsPage() {
       setSpecialAwardsList(awards);
     } catch (err) {
       console.error("Failed to load results payload:", err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
-  };
+  }, [eventId]);
 
   useEffect(() => {
-    loadData();
-  }, [eventId]);
+    void loadData();
+  }, [loadData]);
+
+  if (loadError) return <LoadError onRetry={() => void loadData()} />;
 
   const handlePublishToggle = async () => {
     if (!resultsData) return;
@@ -275,7 +262,7 @@ export default function OrganizerResultsPage() {
             No categories or voting tallies found. Make sure categories and nominees exist, and votes are submitted.
           </Card>
         ) : (
-          resultsData.categoriesResults.map((cat: any) => (
+          resultsData.categoriesResults.map((cat) => (
             <Card key={cat.id} className="border-slate-800 bg-slate-950/20">
               <CardHeader className="pb-3 border-b border-slate-900/60">
                 <div className="flex items-center justify-between gap-3">
@@ -297,14 +284,14 @@ export default function OrganizerResultsPage() {
                         <tr className="border-b border-slate-800/80 text-slate-500 font-medium">
                           <th className="py-2.5 font-semibold">Rank</th>
                           <th className="py-2.5 font-semibold">Candidate</th>
-                          <th className="py-2.5 font-semibold text-center">Public Votes</th>
+                          <th className="py-2.5 font-semibold text-center">Official Votes</th>
                           <th className="py-2.5 font-semibold text-center">Vote %</th>
-                          <th className="py-2.5 font-semibold text-center">Judge Score (0-100)</th>
+                          <th className="py-2.5 font-semibold text-center">Raw Submitted</th>
                           <th className="py-2.5 font-semibold text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {cat.winners.map((win: any) => {
+                        {cat.winners.map((win) => {
                           const isDisqualified = win.status === "DISQUALIFIED";
                           const isToggling = disqualifyingId === win.id;
 
@@ -339,24 +326,17 @@ export default function OrganizerResultsPage() {
                               </td>
                               <td className="py-3 text-center font-bold text-white">{win.votes}</td>
                               <td className="py-3 text-center font-bold text-amber-300">{win.percent}</td>
-                              <td className="py-3 text-center">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={100}
-                                  defaultValue={win.judgeScore ?? ""}
-                                  placeholder="N/A"
-                                  onBlur={async (e) => {
-                                    const val = parseFloat(e.target.value);
-                                    if (!isNaN(val)) {
-                                      await updateNomineeJudgeScoreAction(eventId, cat.id, win.id, val);
-                                      await loadData();
-                                    }
-                                  }}
-                                  className="w-16 bg-slate-900 text-center text-slate-200 text-xs font-mono rounded-lg py-1 border border-slate-800 focus:outline-none focus:border-indigo-500"
-                                />
-                              </td>
+                              <td className="py-3 text-center font-mono text-slate-300">{win.rawVotes}</td>
                               <td className="py-3 text-right">
+                                {win.officialResultId && (
+                                  <OverrideEditor
+                                    eventId={eventId}
+                                    resultId={win.officialResultId}
+                                    rank={win.overrideRank}
+                                    reason={win.overrideReason}
+                                    onSaved={loadData}
+                                  />
+                                )}
                                 {isDisqualified ? (
                                   <Button
                                     variant="ghost"
@@ -401,6 +381,41 @@ export default function OrganizerResultsPage() {
           ))
         )}
       </div>
+    </div>
+  );
+}
+
+function OverrideEditor({ eventId, resultId, rank, reason, onSaved }: { eventId: string; resultId: string; rank: number | null; reason: string | null; onSaved: () => Promise<void> }) {
+  const toast = useToast();
+  const [nextRank, setNextRank] = useState(rank?.toString() ?? "");
+  const [nextReason, setNextReason] = useState(reason ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await updateOfficialResultOverrideAction({
+        eventId,
+        officialResultId: resultId,
+        rank: nextRank.trim() ? Number(nextRank) : null,
+        reason: nextReason,
+      });
+      toast.success(nextRank.trim() ? "Official rank override saved." : "Official rank override removed.");
+      await onSaved();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save the rank override.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mb-2 flex items-center justify-end gap-1.5">
+      <input aria-label="Official rank override" type="number" min={1} max={999} value={nextRank} onChange={(event) => setNextRank(event.target.value)} placeholder="Rank" className="w-14 rounded-md border border-border-subtle bg-surface px-2 py-1 text-xs text-content" />
+      <input aria-label="Rank override reason" value={nextReason} onChange={(event) => setNextReason(event.target.value)} placeholder="Reason" className="w-28 rounded-md border border-border-subtle bg-surface px-2 py-1 text-xs text-content" />
+      <Button type="button" variant="ghost" size="icon" aria-label="Save rank override" disabled={saving} onClick={() => void save()}>
+        {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+      </Button>
     </div>
   );
 }

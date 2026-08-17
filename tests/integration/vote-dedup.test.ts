@@ -33,17 +33,27 @@ describe("vote deduplication", () => {
     eventId: string,
     categoryId: string,
     nomineeId: string,
-    opts: { fingerprint: string; ip: string; email?: string; token?: string }
+    opts: {
+      fingerprint: string;
+      ip: string;
+      email?: string;
+      token?: string;
+      invitationCode?: string;
+      method?: "NONE" | "EMAIL_OTP" | "INVITATION_CODE";
+    }
   ) {
     const session = await db.query<{ id: string }>(
       `INSERT INTO vote_sessions
-         (event_id, session_token, verified_email, device_fingerprint, ip_address, status, submitted_at)
-       VALUES ($1, $2, $3, $4, $5, 'SUBMITTED', now())
+         (event_id, session_token, verified_email, invitation_code,
+          verification_method, device_fingerprint, ip_address, status, submitted_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'SUBMITTED', now())
        RETURNING id`,
       [
         eventId,
         opts.token ?? `tok_${Math.random().toString(36).slice(2)}`,
         opts.email ?? null,
+        opts.invitationCode ?? null,
+        opts.method ?? "NONE",
         opts.fingerprint,
         opts.ip,
       ] as never[]
@@ -201,5 +211,143 @@ describe("vote deduplication", () => {
         [sessionId, fx.eventId, fx.categoryId, fx.nomineeId] as never[]
       )
     ).rejects.toThrow();
+  });
+
+  /**
+   * Shared-IP regressions (audit F-01).
+   *
+   * `device_fingerprint` is `sha256(ip + slug)` — the IP is its only input. The
+   * partial unique index on (event_id, device_fingerprint) therefore enforced
+   * one ballot per *IP address*, not per voter, in every verification mode.
+   *
+   * On campus Wi-Fi, an office network, or carrier-grade NAT that means the
+   * first person to vote locks out everyone behind that address. PRD
+   * EDGE-VOT-06 anticipates shared IPs and requires the opposite behaviour.
+   *
+   * The two tests below are the ones that were failing.
+   */
+  it("lets two OTP-verified voters behind one NAT both vote", async () => {
+    const fx = await seedVotingFixture(db, { verificationMethod: "EMAIL_OTP" });
+
+    // Same public IP — two students on the same campus Wi-Fi.
+    const sharedIp = "41.66.216.10";
+    const fp = fingerprintFor(sharedIp, "UA", fx.slug);
+
+    await castBallot(fx.eventId, fx.categoryId, fx.nomineeId, {
+      fingerprint: fp,
+      ip: sharedIp,
+      email: "ama@university.edu.gh",
+      method: "EMAIL_OTP",
+    });
+
+    // A distinct, independently verified person. Must not be rejected.
+    await expect(
+      castBallot(fx.eventId, fx.categoryId, fx.nomineeId, {
+        fingerprint: fp,
+        ip: sharedIp,
+        email: "kwame@university.edu.gh",
+        method: "EMAIL_OTP",
+      })
+    ).resolves.toBeTruthy();
+
+    expect(await submittedCount(fx.eventId)).toBe(2);
+  });
+
+  it("lets two invitation-code voters behind one NAT both vote", async () => {
+    const fx = await seedVotingFixture(db, {
+      verificationMethod: "INVITATION_CODE",
+    });
+
+    const sharedIp = "41.66.216.11";
+    const fp = fingerprintFor(sharedIp, "UA", fx.slug);
+
+    await castBallot(fx.eventId, fx.categoryId, fx.nomineeId, {
+      fingerprint: fp,
+      ip: sharedIp,
+      invitationCode: "CODE-AAAA",
+      method: "INVITATION_CODE",
+    });
+
+    // A different single-use code is a different voter by definition.
+    await expect(
+      castBallot(fx.eventId, fx.categoryId, fx.nomineeId, {
+        fingerprint: fp,
+        ip: sharedIp,
+        invitationCode: "CODE-BBBB",
+        method: "INVITATION_CODE",
+      })
+    ).resolves.toBeTruthy();
+
+    expect(await submittedCount(fx.eventId)).toBe(2);
+  });
+
+  it("still blocks a second NONE-mode ballot from the same fingerprint", async () => {
+    // The carve-out above must not weaken frictionless mode, which has no
+    // other identity signal to dedup on.
+    const fx = await seedVotingFixture(db, { verificationMethod: "NONE" });
+    const fp = fingerprintFor("203.0.113.77", "UA", fx.slug);
+
+    await castBallot(fx.eventId, fx.categoryId, fx.nomineeId, {
+      fingerprint: fp,
+      ip: "203.0.113.77",
+      method: "NONE",
+    });
+
+    await expect(
+      castBallot(fx.eventId, fx.categoryId, fx.nomineeId, {
+        fingerprint: fp,
+        ip: "203.0.113.77",
+        method: "NONE",
+      })
+    ).rejects.toThrow();
+
+    expect(await submittedCount(fx.eventId)).toBe(1);
+  });
+
+  it("still blocks a duplicate email even when the fingerprint differs", async () => {
+    // The email index is what carries dedup in OTP mode once the fingerprint
+    // constraint no longer applies there.
+    const fx = await seedVotingFixture(db, { verificationMethod: "EMAIL_OTP" });
+
+    await castBallot(fx.eventId, fx.categoryId, fx.nomineeId, {
+      fingerprint: fingerprintFor("203.0.113.20", "UA", fx.slug),
+      ip: "203.0.113.20",
+      email: "repeat@example.com",
+      method: "EMAIL_OTP",
+    });
+
+    await expect(
+      castBallot(fx.eventId, fx.categoryId, fx.nomineeId, {
+        // Different network entirely — only the email ties these together.
+        fingerprint: fingerprintFor("198.51.100.44", "UA", fx.slug),
+        ip: "198.51.100.44",
+        email: "repeat@example.com",
+        method: "EMAIL_OTP",
+      })
+    ).rejects.toThrow();
+
+    expect(await submittedCount(fx.eventId)).toBe(1);
+  });
+
+  it("survives concurrent submissions with the same invitation code", async () => {
+    const fx = await seedVotingFixture(db, { verificationMethod: "INVITATION_CODE" });
+    await db.query(`INSERT INTO invitation_codes (event_id, code, status) VALUES ($1, 'RACE-CODE', 'UNUSED')`, [fx.eventId] as never[]);
+    const attempt = () => db.query(`UPDATE invitation_codes SET status = 'USED', used_at = now() WHERE event_id = $1 AND code = 'RACE-CODE' AND status = 'UNUSED' RETURNING id`, [fx.eventId] as never[]);
+    const outcomes = await Promise.allSettled([attempt(), attempt()]);
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(2);
+    const claimed = outcomes.filter((outcome) => outcome.status === "fulfilled" && outcome.value.rows.length === 1);
+    expect(claimed).toHaveLength(1);
+  });
+
+  it("survives concurrent NONE-mode submissions from one fingerprint", async () => {
+    const fx = await seedVotingFixture(db, { verificationMethod: "NONE" });
+    const attempt = () => castBallot(fx.eventId, fx.categoryId, fx.nomineeId, {
+      fingerprint: fingerprintFor("198.51.100.89", "UA", fx.slug),
+      ip: "198.51.100.89",
+      method: "NONE",
+    });
+    const outcomes = await Promise.allSettled([attempt(), attempt()]);
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    expect(await submittedCount(fx.eventId)).toBe(1);
   });
 });

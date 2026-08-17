@@ -1,60 +1,101 @@
 @import "tailwindcss";
 
 /*
- * Class-based dark mode. Tailwind v4 has no tailwind.config.js, so the variant
- * is declared here; next-themes puts `.dark` on <html>.
+ * Class-based dark mode variant for Tailwind v4
  */
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * Semantic tokens.
- *
- * Components should reach for these (bg-surface, text-muted, border-subtle)
- * rather than raw palette values. Before this, every card repeated
- * `bg-white border-slate-200/80` and every dark surface repeated its own
- * zinc/slate mix, so a theme change meant editing ~20 files by hand.
- *
- * Accent is blue-600 (#2563eb) — the colour already used by the logo gradient
- * and the sign-in page.
+ * Redesign Design Tokens
+ * Single source of truth for color surfaces, borders, and typography.
  */
 @theme {
-  --color-canvas: #f4f5f8;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+
+  /* Light theme tokens */
+  --color-canvas: #fafafa;
   --color-surface: #ffffff;
-  --color-surface-muted: #f8fafc;
-  --color-border-subtle: #e2e8f0;
-  --color-content: #09090b;
-  --color-content-muted: #64748b;
+  --color-surface-raised: #f5f5f5;
+  --color-surface-muted: #f0f0f0;
+  --color-border-subtle: #e5e5e5;
+  --color-border-strong: #d4d4d4;
+  --color-content: #0a0a0a;
+  --color-content-secondary: #525252;
+  --color-content-muted: #737373;
   --color-accent: #2563eb;
   --color-accent-hover: #1d4ed8;
   --color-accent-contrast: #ffffff;
+  --color-destructive: #dc2626;
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --color-pink: #db2777;
+  --color-violet: #7c3aed;
+  --color-cyan: #0891b2;
+
+  /* Skill-mandated motion curve */
+  --ease-redesign: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @layer theme {
   .dark {
-    --color-canvas: #0a0a0f;
-    --color-surface: #18181b;
-    --color-surface-muted: #27272a;
-    --color-border-subtle: #27272a;
-    --color-content: #fafafa;
-    --color-content-muted: #a1a1aa;
-    --color-accent: #3b82f6;
-    --color-accent-hover: #60a5fa;
-    --color-accent-contrast: #ffffff;
+    /* Dark theme tokens */
+    --color-canvas: #181818;
+    --color-surface: #1f1f1f;
+    --color-surface-raised: #272727;
+    --color-surface-muted: #313131;
+    --color-border-subtle: #313131;
+    --color-border-strong: #404040;
+    --color-content: #f5f5f5;
+    --color-content-secondary: #a3a3a3;
+    --color-content-muted: #a3a3a3;
+    --color-accent: #60a5fa;
+    --color-accent-hover: #93c5fd;
+    --color-accent-contrast: #0a0a0a;
+    --color-destructive: #ef4444;
+    --color-success: #22c55e;
+    --color-warning: #f59e0b;
+    --color-pink: #f472b6;
+    --color-violet: #a78bfa;
+    --color-cyan: #22d3ee;
   }
 }
 
 @layer base {
-  :root {
-    --canvas: #f4f5f8;
-    --canvas-dark: #0e0f12;
-    --card-dark: #18181b;
-    --card-light: #ffffff;
-    --accent-blue: #2563eb;
-    --accent-blue-hover: #1d4ed8;
-    --text-main: #09090b;
-    --text-muted: #64748b;
-    --border-light: #e2e8f0;
-    --border-dark: #27272a;
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-content);
+    font-family: var(--font-sans);
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    text-wrap: balance;
+    letter-spacing: 0;
+    overflow-wrap: anywhere;
+  }
+
+  p {
+    text-wrap: pretty;
+    overflow-wrap: anywhere;
+  }
+
+  /* Accessible focus indicators for keyboard navigation */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Data-heavy numbers align cleanly */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -63,15 +104,7 @@
   navigation: auto;
 }
 
-body {
-  background-color: var(--color-canvas);
-  color: var(--color-content);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  overflow-x: hidden;
-  -webkit-font-smoothing: antialiased;
-}
-
-/* Custom Scrollbar */
+/* Custom Scrollbar (Single cohesive neutral family) */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -82,38 +115,38 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #d4d4d4;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #a3a3a3;
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: #3f3f46;
+  background: #404040;
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: #52525b;
+  background: #525252;
 }
 
 /* Keyframe Animations */
 @keyframes pageEntrance {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.995);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 
 @keyframes slideUpFade {
   from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -124,7 +157,7 @@ body {
 @keyframes scaleUpIn {
   from {
     opacity: 0;
-    transform: scale(0.95);
+    transform: scale(0.97);
   }
   to {
     opacity: 1;
@@ -132,57 +165,35 @@ body {
   }
 }
 
-@keyframes pulseGlow {
-  0%, 100% {
-    box-shadow: 0 0 15px rgba(37, 99, 235, 0.2);
-  }
-  50% {
-    box-shadow: 0 0 25px rgba(37, 99, 235, 0.45);
-  }
-}
-
-@keyframes floatSmooth {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-4px);
-  }
-}
-
-/* Utility Animation Classes */
+/* Utility Animation Classes using the approved cubic bezier */
 .animate-page-entrance {
-  animation: pageEntrance 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: pageEntrance 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards;
 }
 
 .animate-slide-up {
-  animation: slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: slideUpFade 0.4s cubic-bezier(0.32, 0.72, 0, 1) forwards;
 }
 
 .animate-scale-in {
-  animation: scaleUpIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.animate-pulse-glow {
-  animation: pulseGlow 2.5s infinite ease-in-out;
-}
-
-.animate-float {
-  animation: floatSmooth 3s infinite ease-in-out;
+  animation: scaleUpIn 0.25s cubic-bezier(0.32, 0.72, 0, 1) forwards;
 }
 
 /* Card & Button Lift & Active Micro-Interactions */
 .hover-lift {
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1), box-shadow 0.3s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .hover-lift:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 24px -6px rgba(0, 0, 0, 0.08), 0 4px 8px -4px rgba(0, 0, 0, 0.04);
+  transform: translateY(-2px) scale(1.008);
+  box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.06), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+}
+
+.dark .hover-lift:hover {
+  box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
 }
 
 .btn-interactive {
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.2s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .btn-interactive:hover {
@@ -190,23 +201,33 @@ body {
 }
 
 .btn-interactive:active {
-  transform: translateY(1px) scale(0.97);
+  transform: scale(0.97);
 }
 
-/* Royal Blue Primary Button Utility */
-.btn-royal-blue {
-  background-color: #2563eb;
-  color: #ffffff;
-  border-radius: 9999px;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+/* Hero text gradient token per design values */
+.text-hero-gradient {
+  background: linear-gradient(90deg, #0a0a0a 0%, #525252 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.btn-royal-blue:hover {
-  background-color: #1d4ed8;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.3);
+.dark .text-hero-gradient {
+  background: linear-gradient(90deg, #ffffff 0%, #9b9b9b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.btn-royal-blue:active {
-  transform: translateY(1px) scale(0.97);
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }

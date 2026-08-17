@@ -1,8 +1,15 @@
-import { type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import { VOTED_COOKIE_PREFIX } from "@/lib/voting-cookie";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
+  // API routes perform their own authentication, cron-secret validation, or
+  // public rate limiting. Passing their POST bodies through Supabase's session
+  // refresh can consume the request stream before the route handler reads it.
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.next();
+  }
+
   const response = await updateSession(request);
 
   // Self-heal legacy root-scoped ballot cookies.
@@ -37,6 +44,6 @@ export const config = {
      * - public files (images, etc.)
      * - API public routes are handled inside the middleware logic
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!api(?:/|$)|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

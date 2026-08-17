@@ -39,8 +39,6 @@ export function truncate(str: string, maxLength: number): string {
 
 export function toTitleCase(str: string): string {
   const exceptions = ["van", "de", "der", "von", "la", "le", "du", "des"];
-  const prefixes = ["mc", "mac", "o'"];
-
   return str
     .toLowerCase()
     .split(" ")

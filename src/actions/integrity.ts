@@ -8,6 +8,7 @@ import { requireEventAccess, requireWorkspaceRole, CONTENT_MODERATORS, EVENT_ADM
 import { events } from "@/lib/db/schema/events";
 import { eq, and, desc, inArray, isNull, sql } from "drizzle-orm";
 import { sendAlertNotifications } from "@/lib/notifier";
+import { auditLogs } from "@/lib/db/schema";
 
 /**
  * Resolve the event that owns `alertId` and authorize against it.
@@ -75,7 +76,7 @@ async function requireSessionAccess(
 
 // Trigger integrity audit check
 export async function triggerIntegrityScanAction(eventId: string) {
-  await requireEventAccess(eventId, EVENT_ADMINS);
+  await requireEventAccess(eventId, EVENT_ADMINS, "manage_events");
 
   // 1. Get all submitted vote sessions for this event
   const sessions = await db
@@ -106,7 +107,7 @@ export async function triggerIntegrityScanAction(eventId: string) {
       )
     );
 
-  const pendingAlerts: any[] = [];
+  const pendingAlerts: Array<typeof integrityAlerts.$inferInsert> = [];
 
   // --- DETECTOR 1: IP Clustering ---
   const ipMap: { [ip: string]: string[] } = {};
@@ -241,7 +242,7 @@ export async function triggerIntegrityScanAction(eventId: string) {
 
 // Get all integrity alerts for event dashboard
 export async function getIntegrityAlertsAction(eventId: string) {
-  await requireEventAccess(eventId, CONTENT_MODERATORS);
+  await requireEventAccess(eventId, CONTENT_MODERATORS, "manage_nominees");
 
   return await db
     .select({
@@ -269,7 +270,7 @@ export async function getIntegrityAlertsAction(eventId: string) {
 // Get event vote sessions with statuses
 export async function getEventVoteSessionsAction(eventId: string) {
   // Session rows carry voter PII (email, IP, fingerprint) — moderators only.
-  await requireEventAccess(eventId, CONTENT_MODERATORS);
+  await requireEventAccess(eventId, CONTENT_MODERATORS, "manage_nominees");
 
   return await db
     .select()
@@ -288,7 +289,7 @@ export async function resolveAlertAction(
   }
 ) {
   const { status, note, disqualifySessions } = options;
-  const { user, event } = await requireAlertAccess(alertId, EVENT_ADMINS);
+  const { user, event, workspace } = await requireAlertAccess(alertId, EVENT_ADMINS);
 
   // `disqualifySessions` invalidates ballots by raw id. Authorizing the alert
   // says nothing about those ids, so confirm they belong to the same event
@@ -324,6 +325,7 @@ export async function resolveAlertAction(
         })
         .where(inArray(voteSessions.id, disqualifySessions));
     }
+    await tx.insert(auditLogs).values({ workspaceId: workspace.id, eventId: event.id, actorId: user.id, action: status === "DISMISSED" ? "integrity.alert_dismissed" : "integrity.alert_resolved", targetType: "integrity_alert", targetId: alertId, details: { note, invalidatedSessionIds: disqualifySessions ?? [] } });
   });
 
   return { success: true };
@@ -331,7 +333,7 @@ export async function resolveAlertAction(
 
 // Acknowledge an alert (mark as seen by an admin)
 export async function acknowledgeAlertAction(alertId: string, note?: string) {
-  const { user } = await requireAlertAccess(alertId, EVENT_ADMINS);
+  const { user, event, workspace } = await requireAlertAccess(alertId, EVENT_ADMINS);
 
   await db
     .update(integrityAlerts)
@@ -342,6 +344,7 @@ export async function acknowledgeAlertAction(alertId: string, note?: string) {
       resolvedBy: user?.id || null,
     })
     .where(eq(integrityAlerts.id, alertId));
+  await db.insert(auditLogs).values({ workspaceId: workspace.id, eventId: event.id, actorId: user.id, action: "integrity.alert_acknowledged", targetType: "integrity_alert", targetId: alertId, details: { note: note?.trim() || null } });
 
   return { success: true };
 }
@@ -349,24 +352,26 @@ export async function acknowledgeAlertAction(alertId: string, note?: string) {
 // Quarantine vote sessions for manual review
 export async function quarantineSessionsAction(sessionIds: string[]) {
   if (!sessionIds || sessionIds.length === 0) return { success: true };
-  await requireSessionAccess(sessionIds, EVENT_ADMINS);
+  const { user, event, workspace } = await requireSessionAccess(sessionIds, EVENT_ADMINS);
 
   await db
     .update(voteSessions)
-    .set({ status: "FLAGGED" as any })
+    .set({ status: "FLAGGED" })
     .where(inArray(voteSessions.id, sessionIds));
+  await db.insert(auditLogs).values({ workspaceId: workspace.id, eventId: event.id, actorId: user.id, action: "integrity.sessions_quarantined", targetType: "vote_session", details: { sessionIds: [...new Set(sessionIds)] } });
   return { success: true };
 }
 
 // Restore invalidated or quarantined vote sessions back to SUBMITTED
 export async function restoreSessionsAction(sessionIds: string[]) {
   if (!sessionIds || sessionIds.length === 0) return { success: true };
-  await requireSessionAccess(sessionIds, EVENT_ADMINS);
+  const { user, event, workspace } = await requireSessionAccess(sessionIds, EVENT_ADMINS);
 
   await db
     .update(voteSessions)
     .set({ status: "SUBMITTED" })
     .where(inArray(voteSessions.id, sessionIds));
+  await db.insert(auditLogs).values({ workspaceId: workspace.id, eventId: event.id, actorId: user.id, action: "integrity.sessions_restored", targetType: "vote_session", details: { sessionIds: [...new Set(sessionIds)] } });
   return { success: true };
 }
 
@@ -380,7 +385,7 @@ export async function restoreSessionsAction(sessionIds: string[]) {
  * measured.
  */
 export async function getWorkspaceIntegritySummaryAction() {
-  const { workspace } = await requireWorkspaceRole(CONTENT_MODERATORS);
+  const { workspace } = await requireWorkspaceRole(CONTENT_MODERATORS, "manage_nominees");
 
   const eventList = await db
     .select({ id: events.id, name: events.name, slug: events.slug, status: events.status })

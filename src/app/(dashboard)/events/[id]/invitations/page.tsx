@@ -1,45 +1,29 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import {
-  ArrowLeft,
-  Key,
-  ShieldCheck,
-  Plus,
-  Loader2,
-  Trash2,
-  Lock,
-  Calendar,
-  Layers,
-  Sparkles,
-  Download,
-  Search,
-  Filter,
-  Copy,
-  Check,
-} from "lucide-react";
+import { ArrowLeft, Key, Plus, Loader2, Trash2, Download, Search, Copy, Check } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  generateInvitationCodesAction,
-  getInvitationCodesAction,
-  revokeInvitationCodeAction,
-} from "@/actions/voting";
+import { generateInvitationCodesAction, getInvitationCodesAction, revokeInvitationCodeAction } from "@/actions/voting";
 import { getAppOrigin } from "@/lib/app-url";
 import { getEventDetailsAction } from "@/actions/events";
+import { LoadError } from "@/components/shared/load-error";
 
 import { useToast } from "@/components/ui/toast";
+type EventDetails = Awaited<ReturnType<typeof getEventDetailsAction>>;
+type InvitationCode = Awaited<ReturnType<typeof getInvitationCodesAction>>[number];
 export default function InvitationCodesPanelPage() {
   const toast = useToast();
   const params = useParams();
   const eventId = params.id as string;
 
-  const [event, setEvent] = useState<any | null>(null);
-  const [codes, setCodes] = useState<any[]>([]);
+  const [event, setEvent] = useState<EventDetails>(null);
+  const [codes, setCodes] = useState<InvitationCode[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -51,7 +35,8 @@ export default function InvitationCodesPanelPage() {
   const [codePrefix, setCodePrefix] = useState("");
   const [expiresDays, setExpiresDays] = useState(30);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    setLoading(true); setLoadError(false);
     try {
       const eventDetails = await getEventDetailsAction(eventId);
       setEvent(eventDetails);
@@ -60,14 +45,17 @@ export default function InvitationCodesPanelPage() {
       setCodes(codesList);
     } catch (err) {
       console.error("Failed to load invitation codes details:", err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
-  };
+  }, [eventId]);
 
   useEffect(() => {
-    loadData();
-  }, [eventId]);
+    void loadData();
+  }, [loadData]);
+
+  if (loadError) return <LoadError onRetry={() => void loadData()} />;
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -319,7 +307,7 @@ export default function InvitationCodesPanelPage() {
                   </div>
                   <select
                     value={statusFilter}
-                    onChange={(e: any) => setStatusFilter(e.target.value)}
+                    onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
                     className="bg-slate-900 text-slate-200 text-[11px] rounded-lg px-2.5 py-1.5 border border-slate-800 focus:outline-none"
                   >
                     <option value="ALL">All Statuses</option>

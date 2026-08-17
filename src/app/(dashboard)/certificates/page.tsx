@@ -1,20 +1,47 @@
 "use client";
 
-import React, { useState } from "react";
-import { Award, Download, Printer, Share2, Sparkles, Check, RefreshCw, Eye } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Award, Download, Printer, Eye } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { generateCertificateSVG } from "@/lib/certificates/template";
-import { escapeXml } from "@/lib/sanitize";
+import { getPublishedCertificateCandidatesAction } from "@/actions/results";
 
 export default function CertificatesPage() {
-  const [winnerName, setWinnerName] = useState("Alexandre Kwame Mensah");
-  const [categoryName, setCategoryName] = useState("Innovator of the Year");
-  const [eventName, setEventName] = useState("Annual Campus Recognition Gala 2026");
-  const [rankText, setRankText] = useState("1st Place Winner");
-  const [organizationName, setOrganizationName] = useState("AwardOS Honors Committee");
-  const [issueDate, setIssueDate] = useState("August 15, 2026");
+  const [candidates, setCandidates] = useState<Awaited<ReturnType<typeof getPublishedCertificateCandidatesAction>>>([]);
+  const [selectedId, setSelectedId] = useState("");
+  const [winnerName, setWinnerName] = useState("");
+  const [categoryName, setCategoryName] = useState("");
+  const [eventName, setEventName] = useState("");
+  const [rankText, setRankText] = useState("Winner");
+  const [organizationName, setOrganizationName] = useState("");
+  const [issueDate, setIssueDate] = useState(() => new Date().toLocaleDateString());
+  const selected = candidates.find((candidate) => candidate.officialResultId === selectedId);
+
+  useEffect(() => {
+    void getPublishedCertificateCandidatesAction().then((rows) => {
+      setCandidates(rows);
+      const first = rows[0];
+      if (first) {
+        setSelectedId(first.officialResultId);
+        setWinnerName(first.winnerName);
+        setCategoryName(first.categoryName);
+        setEventName(first.eventName);
+        setOrganizationName(first.eventName);
+      }
+    });
+  }, []);
+
+  function selectCandidate(id: string) {
+    const candidate = candidates.find((row) => row.officialResultId === id);
+    if (!candidate) return;
+    setSelectedId(id);
+    setWinnerName(candidate.winnerName);
+    setCategoryName(candidate.categoryName);
+    setEventName(candidate.eventName);
+    setOrganizationName(candidate.eventName);
+  }
 
   const certificateSvg = generateCertificateSVG({
     winnerName,
@@ -22,7 +49,7 @@ export default function CertificatesPage() {
     eventName,
     rankText,
     issueDate,
-    certificateId: "AWD-2026-99482-VERIFIED",
+    certificateId: selected?.officialResultId ?? "",
     organizationName,
   });
 
@@ -39,28 +66,15 @@ export default function CertificatesPage() {
   };
 
   const handlePrint = () => {
-    const printWindow = window.open("", "_blank");
-    if (printWindow) {
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Print Certificate - ${escapeXml(winnerName)}</title>
-            <style>
-              body { margin: 0; padding: 0; background: #090d16; display: flex; align-items: center; justify-content: center; height: 100vh; }
-              svg { max-width: 100%; max-height: 100vh; }
-            </style>
-          </head>
-          <body>
-            ${certificateSvg}
-            <script>
-              window.onload = function() { window.print(); window.close(); }
-            </script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-    }
+    const frame = document.createElement("iframe");
+    frame.title = "Certificate print preview";
+    frame.style.position = "fixed";
+    frame.style.width = "1px";
+    frame.style.height = "1px";
+    frame.style.opacity = "0";
+    frame.srcdoc = `<html><head><title>Certificate</title><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh}svg{max-width:100%;max-height:100vh}</style></head><body>${certificateSvg}</body></html>`;
+    document.body.appendChild(frame);
+    frame.onload = () => { frame.contentWindow?.print(); window.setTimeout(() => frame.remove(), 1000); };
   };
 
   return (
@@ -75,15 +89,15 @@ export default function CertificatesPage() {
           </div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Winner Certificates</h1>
           <p className="text-slate-600 text-xs mt-1 font-medium">
-            Generate, customize, and export high-resolution verified SVG/PDF award certificates for winners and finalists.
+            Generate and print certificates for published official winners.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handlePrint} className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm font-semibold">
+          <Button variant="outline" size="sm" onClick={handlePrint} disabled={!selected} className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm font-semibold">
             <Printer className="w-4 h-4 mr-2" /> Print
           </Button>
-          <Button variant="primary" size="sm" onClick={handleDownloadSVG} className="rounded-full bg-amber-600 hover:bg-amber-500 text-white font-bold shadow-md shadow-amber-600/20">
+          <Button variant="primary" size="sm" onClick={handleDownloadSVG} disabled={!selected} className="rounded-full bg-amber-600 hover:bg-amber-500 text-white font-bold shadow-md shadow-amber-600/20">
             <Download className="w-4 h-4 mr-2" /> Export Certificate
           </Button>
         </div>
@@ -103,6 +117,13 @@ export default function CertificatesPage() {
             </CardHeader>
 
             <CardContent className="space-y-4 text-xs pt-4">
+              <label className="grid gap-1.5 font-semibold text-slate-700">
+                Published winner
+                <select value={selectedId} onChange={(event) => selectCandidate(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                  <option value="">Select a published winner</option>
+                  {candidates.map((candidate) => <option key={candidate.officialResultId} value={candidate.officialResultId}>{candidate.eventName} - {candidate.categoryName} - {candidate.winnerName}</option>)}
+                </select>
+              </label>
               <div className="space-y-1.5">
                 <label className="font-semibold text-slate-700">Recipient / Winner Name</label>
                 <input

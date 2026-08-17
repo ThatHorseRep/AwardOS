@@ -1,5 +1,4 @@
 import React from "react";
-import Link from "next/link";
 import { db } from "@/lib/db";
 import { nominees, categories, events } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -12,7 +11,7 @@ export default async function NomineeEmbedPage({
 }) {
   const { id } = await params;
 
-  let nomineeData: any = null;
+  let nomineeData: { nomineeId: string; nomineeName: string; photoUrl: string | null; categoryName: string; eventName: string; eventSlug: string } | null = null;
 
   try {
     const list = await db

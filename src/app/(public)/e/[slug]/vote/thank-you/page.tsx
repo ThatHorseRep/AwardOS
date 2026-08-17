@@ -3,24 +3,13 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import {
-  CheckCircle2,
-  Share2,
-  Home,
-  Lock,
-  ShieldCheck,
-  Search,
-  Copy,
-  Check,
-  Loader2,
-  QrCode,
-  FileText,
-} from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { CheckCircle2, Share2, Home, ShieldCheck, Search, Copy, Check, Loader2 } from "lucide-react";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { verifyBallotReceiptAction } from "@/actions/voting";
 import { ShareKitModal } from "@/components/sharing/share-kit-modal";
+type ReceiptVerification = Awaited<ReturnType<typeof verifyBallotReceiptAction>>;
 
 export default function VotingThankYouPage() {
   const params = useParams();
@@ -33,7 +22,7 @@ export default function VotingThankYouPage() {
   // Public Verification Tool state
   const [searchCode, setSearchCode] = useState("");
   const [verifying, setVerifying] = useState(false);
-  const [verificationResult, setVerificationResult] = useState<any | null>(null);
+  const [verificationResult, setVerificationResult] = useState<ReceiptVerification | null>(null);
 
   const eventTitle = slug
     .split("-")
@@ -41,11 +30,8 @@ export default function VotingThankYouPage() {
     .join(" ");
 
   useEffect(() => {
-    const saved = localStorage.getItem("awardos_session_id");
-    if (saved) {
-      setReceiptCode(`ballot-${saved}`);
-    }
-  }, []);
+    setReceiptCode(localStorage.getItem(`awardos_receipt_${slug}`));
+  }, [slug]);
 
   const handleCopyReceipt = () => {
     if (!receiptCode) return;
@@ -78,10 +64,10 @@ export default function VotingThankYouPage() {
 
       <div className="space-y-2">
         <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-          Vote Cast & Verified!
+          Vote cast and verified
         </h1>
         <p className="text-slate-600 text-xs leading-relaxed max-w-sm mx-auto font-medium">
-          Your ballot for <strong className="text-slate-900">{eventTitle}</strong> has been encrypted, write-locked, and permanently counted in the official database.
+          Your ballot for <strong className="text-slate-900">{eventTitle}</strong> is recorded as immutable and included in the event tally.
         </p>
       </div>
 
@@ -130,7 +116,7 @@ export default function VotingThankYouPage() {
             <input
               type="text"
               required
-              placeholder="Paste receipt token (e.g. ballot-sess_...)"
+              placeholder="Paste an AwardOS receipt token"
               value={searchCode}
               onChange={(e) => setSearchCode(e.target.value)}
               className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-3.5 py-2.5 border border-slate-200 focus:outline-none focus:border-purple-500 font-mono font-medium"
@@ -158,7 +144,7 @@ export default function VotingThankYouPage() {
                     <div>Event: <strong className="text-slate-900">{verificationResult.eventName}</strong></div>
                     <div>Status: <span className="text-emerald-600 font-bold">{verificationResult.status}</span></div>
                     <div>Categories Voted: <strong className="text-slate-900">{verificationResult.categoriesVoted}</strong></div>
-                    <div>Submitted At: <span className="text-slate-500">{new Date(verificationResult.submittedAt).toLocaleString()}</span></div>
+                    <div>Submitted At: <span className="text-slate-500">{verificationResult.submittedAt ? new Date(verificationResult.submittedAt).toLocaleString() : "Not available"}</span></div>
                   </div>
                 </div>
               ) : (

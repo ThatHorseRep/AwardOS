@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { workspaceMembers, events } from "@/lib/db/schema";
+import { workspaceMembers, customRoles, events } from "@/lib/db/schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { getCurrentUser, getOrCreateWorkspaceAction } from "./workspaces";
 
@@ -16,6 +16,21 @@ export type WorkspaceRole =
   | "SECRETARY"
   | "PRO"
   | "VOLUNTEER";
+
+export const WORKSPACE_PERMISSIONS = [
+  "manage_team",
+  "manage_events",
+  "manage_categories",
+  "manage_nominees",
+  "manage_workflow",
+  "manage_branding",
+  "view_results",
+  "publish_results",
+  "view_analytics",
+  "manage_integrity",
+] as const;
+
+export type WorkspacePermission = (typeof WORKSPACE_PERMISSIONS)[number];
 
 /**
  * Role presets used across the action layer. Keep these coarse — one named
@@ -66,7 +81,8 @@ export const ALL_MEMBERS: WorkspaceRole[] = [
 export async function requireRole(
   allowedRoles: WorkspaceRole[],
   workspaceId: string,
-  userId: string
+  userId: string,
+  permission?: WorkspacePermission
 ) {
   const member = await db
     .select()
@@ -83,6 +99,35 @@ export async function requireRole(
     throw new Error("Unauthorized: not an active member of this workspace");
   }
 
+  if (member[0].customRoleId) {
+    const [customRole] = await db
+      .select({ permissions: customRoles.permissions })
+      .from(customRoles)
+      .where(
+        and(
+          eq(customRoles.id, member[0].customRoleId),
+          eq(customRoles.workspaceId, workspaceId)
+        )
+      )
+      .limit(1);
+
+    const permissions = Array.isArray(customRole?.permissions)
+      ? customRole.permissions.filter((value): value is string => typeof value === "string")
+      : [];
+
+    // Custom roles replace the broad base-role preset. The base role remains
+    // on the membership for compatibility, but it must never silently grant
+    // permissions that the workspace owner omitted from the custom role.
+    if (permission && !permissions.includes(permission)) {
+      throw new Error("Unauthorized: custom role does not grant this permission");
+    }
+    if (!permission && allowedRoles !== ALL_MEMBERS) {
+      throw new Error("Unauthorized: this action has no custom-role permission mapping");
+    }
+
+    return member[0];
+  }
+
   if (!allowedRoles.includes(member[0].role as WorkspaceRole)) {
     throw new Error("Unauthorized: insufficient role");
   }
@@ -97,7 +142,10 @@ export async function requireRole(
  * Returns the workspace, user, and membership row so callers can reuse them
  * instead of re-fetching (both lookups are request-cached).
  */
-export async function requireWorkspaceRole(allowedRoles: WorkspaceRole[]) {
+export async function requireWorkspaceRole(
+  allowedRoles: WorkspaceRole[],
+  permission?: WorkspacePermission
+) {
   const user = await getCurrentUser();
   if (!user) {
     throw new Error("Unauthorized");
@@ -115,7 +163,7 @@ export async function requireWorkspaceRole(allowedRoles: WorkspaceRole[]) {
     throw new Error("No active workspace");
   }
 
-  const member = await requireRole(allowedRoles, workspace.id, user.id);
+  const member = await requireRole(allowedRoles, workspace.id, user.id, permission);
 
   return { user, workspace, member };
 }
@@ -134,9 +182,10 @@ export async function requireWorkspaceRole(allowedRoles: WorkspaceRole[]) {
  */
 export async function requireEventAccess(
   eventId: string,
-  allowedRoles: WorkspaceRole[]
+  allowedRoles: WorkspaceRole[],
+  permission?: WorkspacePermission
 ) {
-  const { user, workspace, member } = await requireWorkspaceRole(allowedRoles);
+  const { user, workspace, member } = await requireWorkspaceRole(allowedRoles, permission);
 
   const [event] = await db
     .select()

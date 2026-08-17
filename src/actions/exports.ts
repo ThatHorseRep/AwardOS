@@ -2,18 +2,33 @@
 
 import { db } from "@/lib/db";
 import { exportJobs, auditLogs } from "@/lib/db/schema/exports";
-import { events, categories, nominees, votes, voteSessions, invitationCodes } from "@/lib/db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
-import { getCurrentUser, getOrCreateWorkspaceAction } from "./workspaces";
+import { eq, desc } from "drizzle-orm";
 import { ensureUserRecord } from "@/lib/ensure-user";
 import { requireEventAccess, EVENT_ADMINS, CONTENT_MODERATORS } from "./_rbac";
+import { buildExportPayload, type ExportType } from "@/lib/export-payload";
+import { estimateExportRows } from "@/lib/export-payload";
+import { after } from "next/server";
+
+const BACKGROUND_EXPORT_THRESHOLD = 10_000;
+
+async function completeExportJob(jobId: string, eventId: string, type: ExportType, includeSensitiveFields: boolean) {
+  try {
+    const payload = await buildExportPayload(eventId, type, includeSensitiveFields);
+    await db.update(exportJobs).set({ status: "COMPLETED", rowCount: payload.length, payloadSnapshot: payload, completedAt: new Date() }).where(eq(exportJobs.id, jobId));
+    return payload.length;
+  } catch (error: unknown) {
+    await db.update(exportJobs).set({ status: "FAILED", errorMessage: error instanceof Error ? error.message.slice(0, 1024) : "Export failed" }).where(eq(exportJobs.id, jobId));
+    throw error;
+  }
+}
 
 export async function createExportJobAction(
   eventId: string,
-  type: "OFFICIAL_RESULTS" | "VOTE_TALLIES" | "AUDIT_TRAIL" | "INVITATION_CODES",
-  format: "CSV" | "JSON" | "PDF" | "XLSX"
+  type: ExportType,
+  format: "CSV" | "XLSX" | "JSON" | "PDF",
+  includeSensitiveFields = false
 ) {
-  const { user } = await requireEventAccess(eventId, EVENT_ADMINS);
+  const { user } = await requireEventAccess(eventId, EVENT_ADMINS, "manage_events");
 
   await ensureUserRecord(user.id, user.email, user.displayName);
 
@@ -23,108 +38,35 @@ export async function createExportJobAction(
     .values({
       eventId,
       requestedBy: user.id,
-      exportType: type as any,
-      format: format as any,
+      exportType: type,
+      format,
       status: "PROCESSING",
+      includeSensitiveFields,
     })
     .returning();
 
   try {
-    let payload: any[] = [];
-
-    if (type === "OFFICIAL_RESULTS" || type === "VOTE_TALLIES") {
-      // Fetch categories & nominee vote totals
-      const cats = await db
-        .select()
-        .from(categories)
-        .where(eq(categories.eventId, eventId))
-        .orderBy(categories.displayOrder);
-
-      for (const cat of cats) {
-        const nomList = await db
-          .select()
-          .from(nominees)
-          .where(eq(nominees.categoryId, cat.id))
-          .orderBy(desc(nominees.nominationCount));
-
-        for (const nom of nomList) {
-          const voteCountResult = await db
-            .select({ count: sql<number>`count(${votes.id})::int` })
-            .from(votes)
-            .innerJoin(voteSessions, eq(votes.voteSessionId, voteSessions.id))
-            .where(
-              and(
-                eq(votes.nomineeId, nom.id),
-                eq(voteSessions.status, "SUBMITTED")
-              )
-            );
-
-          const totalCount = voteCountResult[0]?.count || 0;
-
-          payload.push({
-            Category: cat.name,
-            Nominee: nom.name,
-            Status: nom.status,
-            Source: nom.source,
-            TotalVotes: totalCount,
-          });
-        }
-      }
-    } else if (type === "INVITATION_CODES") {
-      const codes = await db
-        .select()
-        .from(invitationCodes)
-        .where(eq(invitationCodes.eventId, eventId))
-        .orderBy(desc(invitationCodes.createdAt));
-
-      payload = codes.map((c) => ({
-        Code: c.code,
-        Status: c.status,
-        CreatedAt: c.createdAt.toISOString(),
-        ExpiresAt: c.expiresAt ? c.expiresAt.toISOString() : "Never",
-      }));
-    } else {
-      // AUDIT_TRAIL
-      const logs = await db
-        .select()
-        .from(auditLogs)
-        .where(eq(auditLogs.eventId, eventId))
-        .orderBy(desc(auditLogs.createdAt));
-
-      payload = logs.map((l) => ({
-        Action: l.action,
-        TargetType: l.targetType,
-        TargetId: l.targetId,
-        IPAddress: l.ipAddress,
-        Timestamp: l.createdAt.toISOString(),
-      }));
+    const estimatedRows = await estimateExportRows(eventId, type);
+    if (estimatedRows > BACKGROUND_EXPORT_THRESHOLD) {
+      after(async () => { try { await completeExportJob(job.id, eventId, type, includeSensitiveFields); } catch (error) { console.error("Background export generation failed:", error); } });
+      return { success: true, jobId: job.id, rowCount: estimatedRows, ready: false };
     }
 
-    const rowCount = payload.length;
-
-    // Update job status to COMPLETED
-    await db
-      .update(exportJobs)
-      .set({
-        status: "COMPLETED",
-        rowCount,
-        completedAt: new Date(),
-      })
-      .where(eq(exportJobs.id, job.id));
+    const rowCount = await completeExportJob(job.id, eventId, type, includeSensitiveFields);
 
     return {
       success: true,
       jobId: job.id,
       rowCount,
-      data: payload,
+      ready: true,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Export generation error:", error);
     await db
       .update(exportJobs)
       .set({
         status: "FAILED",
-        errorMessage: error?.message || "Export failed",
+        errorMessage: error instanceof Error ? error.message : "Export failed",
       })
       .where(eq(exportJobs.id, job.id));
 
@@ -133,7 +75,7 @@ export async function createExportJobAction(
 }
 
 export async function getExportJobsAction(eventId: string) {
-  await requireEventAccess(eventId, CONTENT_MODERATORS);
+  await requireEventAccess(eventId, CONTENT_MODERATORS, "manage_nominees");
 
   return await db
     .select()
@@ -144,7 +86,7 @@ export async function getExportJobsAction(eventId: string) {
 
 export async function getAuditLogsAction(eventId: string) {
   // Audit rows include actor IPs — event admins only.
-  await requireEventAccess(eventId, EVENT_ADMINS);
+  await requireEventAccess(eventId, EVENT_ADMINS, "manage_events");
 
   return await db
     .select()

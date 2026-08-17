@@ -17,6 +17,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "./workspaces";
 import { DEV_BYPASS_USER_ID } from "@/lib/dev-mode";
+import { getClientIp } from "@/lib/request-ip";
 import {
   ACCOUNT_DELETION_CONFIRM_PHRASE,
   ACCOUNT_DELETION_GRACE_DAYS,
@@ -110,16 +111,6 @@ async function verifyPassword(email: string, password: string): Promise<boolean>
 
   const { error } = await probe.auth.signInWithPassword({ email, password });
   return !error;
-}
-
-async function getClientIp(): Promise<string | null> {
-  try {
-    const headerList = await headers();
-    const forwarded = headerList.get("x-forwarded-for");
-    return forwarded ? forwarded.split(",")[0].trim() : headerList.get("x-real-ip");
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -336,7 +327,7 @@ export async function requestAccountDeletionAction(input: {
 
   // 4. Record the request in every workspace the account touches, before the
   //    memberships disappear at purge time.
-  const ipAddress = await getClientIp();
+  const ipAddress = getClientIp(await headers());
   const memberships = await db
     .select({ workspaceId: workspaceMembers.workspaceId })
     .from(workspaceMembers)
@@ -415,7 +406,7 @@ export async function cancelAccountDeletionAction() {
     })
     .where(and(eq(users.id, user.id), isNull(users.deletedAt)));
 
-  const ipAddress = await getClientIp();
+  const ipAddress = getClientIp(await headers());
   const memberships = await db
     .select({ workspaceId: workspaceMembers.workspaceId })
     .from(workspaceMembers)

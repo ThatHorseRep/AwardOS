@@ -9,3 +9,4 @@ export * from './integrity';
 export * from './results';
 export * from './ai-assistant';
 export * from './exports';
+export * from './rate-limits';

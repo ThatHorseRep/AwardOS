@@ -1,58 +1,40 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import {
-  ArrowLeft,
-  ShieldAlert,
-  ShieldCheck,
-  CheckCircle,
-  AlertTriangle,
-  RefreshCw,
-  Lock,
-  Globe,
-  Smartphone,
-  Check,
-  Plus,
-  Loader2,
-  Trash2,
-  HelpCircle,
-  Clock,
-  Layers,
-  ChevronDown,
-  ChevronUp,
-} from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { ArrowLeft, ShieldAlert, ShieldCheck, AlertTriangle, RefreshCw, Lock, Globe, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getEventDetailsAction } from "@/actions/events";
 import { useToast } from "@/components/ui/toast";
-import {
-  triggerIntegrityScanAction,
-  getIntegrityAlertsAction,
-  getEventVoteSessionsAction,
-  resolveAlertAction,
-  quarantineSessionsAction,
-  restoreSessionsAction,
-} from "@/actions/integrity";
+import { LoadError } from "@/components/shared/load-error";
+import { triggerIntegrityScanAction, getIntegrityAlertsAction, getEventVoteSessionsAction, resolveAlertAction, quarantineSessionsAction, restoreSessionsAction } from "@/actions/integrity";
+
+type EventDetails = Awaited<ReturnType<typeof getEventDetailsAction>>;
+type IntegrityAlert = Awaited<ReturnType<typeof getIntegrityAlertsAction>>[number];
+type VoteSession = Awaited<ReturnType<typeof getEventVoteSessionsAction>>[number];
+type AffectedVotes = { sessionIds?: string[] };
 
 export default function VotingIntegrityDashboardPage() {
   const toast = useToast();
   const params = useParams();
   const eventId = params.id as string;
 
-  const [event, setEvent] = useState<any | null>(null);
-  const [alerts, setAlerts] = useState<any[]>([]);
-  const [sessions, setSessions] = useState<any[]>([]);
+  const [event, setEvent] = useState<EventDetails>(null);
+  const [alerts, setAlerts] = useState<IntegrityAlert[]>([]);
+  const [sessions, setSessions] = useState<VoteSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState<{ scanned: number; alerts: number } | null>(null);
 
   // Resolution Modal / Form State
-  const [selectedAlert, setSelectedAlert] = useState<any | null>(null);
+  const [selectedAlert, setSelectedAlert] = useState<IntegrityAlert | null>(null);
   const [resolutionAction, setResolutionAction] = useState<"RESOLVE" | "DISMISS">("RESOLVE");
   const [resolutionNote, setResolutionNote] = useState("");
+  const [invalidateAffected, setInvalidateAffected] = useState(false);
   const [submittingResolution, setSubmittingResolution] = useState(false);
 
   const [sessionActionLoading, setSessionActionLoading] = useState(false);
@@ -61,7 +43,8 @@ export default function VotingIntegrityDashboardPage() {
   // UI State: track which alerts have expanded detail panels
   const [expandedAlerts, setExpandedAlerts] = useState<{ [alertId: string]: boolean }>({});
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    setLoading(true); setLoadError(false);
     try {
       const eventDetails = await getEventDetailsAction(eventId);
       setEvent(eventDetails);
@@ -73,14 +56,17 @@ export default function VotingIntegrityDashboardPage() {
       setSessions(sessionList);
     } catch (err) {
       console.error("Failed to load integrity page details:", err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
-  };
+  }, [eventId]);
 
   useEffect(() => {
-    loadData();
-  }, [eventId]);
+    void loadData();
+  }, [loadData]);
+
+  if (loadError) return <LoadError onRetry={() => void loadData()} />;
 
   const toggleExpandAlert = (alertId: string) => {
     setExpandedAlerts((prev) => ({
@@ -109,10 +95,11 @@ export default function VotingIntegrityDashboardPage() {
     }
   };
 
-  const openResolution = (alert: any, action: "RESOLVE" | "DISMISS") => {
+  const openResolution = (alert: IntegrityAlert, action: "RESOLVE" | "DISMISS") => {
     setSelectedAlert(alert);
     setResolutionAction(action);
     setResolutionNote("");
+    setInvalidateAffected(false);
   };
 
   const handleResolve = async (e: React.FormEvent) => {
@@ -122,16 +109,16 @@ export default function VotingIntegrityDashboardPage() {
 
     try {
       // If resolving as VALIDATE/DISQUALIFY, gather session IDs from affectedVotes
-      const affected = selectedAlert.affectedVotes as any;
+      const affected = selectedAlert.affectedVotes as AffectedVotes | null;
       const disqualifySessions =
-        resolutionAction === "RESOLVE" && affected && affected.sessionIds
+        resolutionAction === "RESOLVE" && invalidateAffected && affected && affected.sessionIds
           ? affected.sessionIds
           : [];
 
       await resolveAlertAction(selectedAlert.id, {
         status: resolutionAction === "RESOLVE" ? "RESOLVED" : "DISMISSED",
         note: resolutionNote.trim(),
-        disqualifySessions,
+        disqualifySessions: disqualifySessions ?? [],
       });
 
       setSelectedAlert(null);
@@ -302,7 +289,7 @@ export default function VotingIntegrityDashboardPage() {
           ) : (
             activeAlerts.map((alert) => {
               const isExpanded = !!expandedAlerts[alert.id];
-              const affected = alert.affectedVotes as any;
+              const affected = alert.affectedVotes as AffectedVotes | null;
 
               return (
                 <Card key={alert.id} className="border-slate-800 bg-slate-950/20 overflow-hidden">
@@ -399,7 +386,7 @@ export default function VotingIntegrityDashboardPage() {
                       <div className="text-[10px] text-slate-500 font-semibold uppercase block">Affected Vote Sessions</div>
                       <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                         {sessions
-                          .filter((s) => affected.sessionIds.includes(s.id))
+                          .filter((s) => affected.sessionIds?.includes(s.id))
                           .map((s) => (
                             <div key={s.id} className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                               <div className="space-y-1">
@@ -512,7 +499,7 @@ export default function VotingIntegrityDashboardPage() {
                           <div className="text-slate-300 font-mono font-medium truncate">{s.invitationCode}</div>
                         )}
                         <div className="text-[10px] text-slate-500 font-mono truncate">
-                          IP: {s.ipAddress || "127.0.0.1"}
+                          IP: {s.ipAddress || "Unknown"}
                         </div>
                       </div>
                       <div className="flex flex-col items-start gap-2 sm:items-end">
@@ -578,7 +565,7 @@ export default function VotingIntegrityDashboardPage() {
             <p className="text-xs text-slate-400 leading-relaxed">
               {resolutionAction === "RESOLVE" ? (
                 <span>
-                  Resolving this alert will change its status to <strong className="text-white">RESOLVED</strong> and automatically <strong className="text-rose-400">DISQUALIFY</strong> all affected vote sessions ({selectedAlert.affectedVotes?.sessionIds?.length || 0} ballots).
+                  Resolving this alert records your investigation decision. Ballots remain counted unless you explicitly invalidate the affected sessions below.
                 </span>
               ) : (
                 <span>
@@ -599,6 +586,13 @@ export default function VotingIntegrityDashboardPage() {
                   className="w-full bg-slate-950 text-slate-200 text-xs rounded-xl px-3 py-2 border border-slate-800 focus:outline-none focus:border-indigo-500"
                 />
               </div>
+
+              {resolutionAction === "RESOLVE" && (
+                <label className="flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 text-xs text-slate-300">
+                  <input type="checkbox" checked={invalidateAffected} onChange={(event) => setInvalidateAffected(event.target.checked)} className="mt-0.5" />
+                  <span>Invalidate all {(selectedAlert.affectedVotes as AffectedVotes | null)?.sessionIds?.length || 0} affected ballots. This excludes them from official totals and is recorded in the audit log.</span>
+                </label>
+              )}
 
               <div className="flex items-center gap-3 pt-2">
                 <Button type="button" variant="outline" size="md" onClick={() => setSelectedAlert(null)} className="flex-1">

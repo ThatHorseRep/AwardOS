@@ -1,23 +1,25 @@
-import { Trophy, Loader2 } from 'lucide-react'
+interface LoadingBlockProps {
+  className?: string;
+}
+
+function LoadingBlock({ className = "h-24" }: LoadingBlockProps) {
+  return <div aria-hidden="true" className={`animate-pulse rounded-lg bg-surface-raised ${className}`} />;
+}
 
 export function PageLoading() {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0a0f]/80 backdrop-blur-sm">
-      <div className="flex flex-col items-center gap-4 animate-in fade-in duration-300">
-        <div className="relative">
-          <div className="absolute inset-0 blur-xl bg-indigo-500/30 rounded-full animate-pulse" />
-          <Trophy className="w-12 h-12 text-indigo-500 animate-bounce relative z-10" />
-        </div>
-        <p className="text-zinc-400 text-sm font-medium tracking-wide animate-pulse">
-          Loading AwardOS...
-        </p>
+    <div role="status" aria-label="Loading page" className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8 sm:px-6">
+      <span className="sr-only">Loading page</span>
+      <div className="space-y-3">
+        <LoadingBlock className="h-8 w-56" />
+        <LoadingBlock className="h-4 w-full max-w-md" />
       </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        <LoadingBlock className="h-28" />
+        <LoadingBlock className="h-28" />
+        <LoadingBlock className="h-28" />
+      </div>
+      <LoadingBlock className="h-72" />
     </div>
-  )
-}
-
-export function InlineLoading() {
-  return (
-    <Loader2 className="w-5 h-5 text-indigo-500 animate-spin" />
-  )
+  );
 }

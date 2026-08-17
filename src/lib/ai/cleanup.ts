@@ -19,10 +19,23 @@ export interface MergeSuggestion {
 }
 
 export interface CleanupResult {
-  cleanedItems: Array<{ original: string; normalized: string; categoryId: string }>;
+  cleanedItems: Array<{
+    original: string;
+    normalized: string;
+    categoryId: string;
+  }>;
   mergeSuggestions: MergeSuggestion[];
   blankRemovedCount: number;
   normalizedCount: number;
+}
+
+export function batchCleanupItems<T>(items: T[], batchSize = 500): T[][] {
+  if (!Number.isInteger(batchSize) || batchSize < 1)
+    throw new Error("Cleanup batch size must be a positive integer.");
+  const batches: T[][] = [];
+  for (let offset = 0; offset < items.length; offset += batchSize)
+    batches.push(items.slice(offset, offset + batchSize));
+  return batches;
 }
 
 /**
@@ -77,7 +90,7 @@ export function calculateLevenshteinSimilarity(s1: string, s2: string): number {
         matrix[i][j] = Math.min(
           matrix[i - 1][j - 1] + 1,
           matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
+          matrix[i - 1][j] + 1,
         );
       }
     }
@@ -92,7 +105,7 @@ export function calculateLevenshteinSimilarity(s1: string, s2: string): number {
  * Runs the complete AI Nomination Cleanup Pipeline
  */
 export async function runAINominationCleanup(
-  nominations: RawNominationItem[]
+  nominations: RawNominationItem[],
 ): Promise<CleanupResult> {
   // Step 1: Remove blank & junk entries
   const valid = nominations.filter((item) => {
@@ -113,7 +126,10 @@ export async function runAINominationCleanup(
   const hasGeminiKey = !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 
   // Group by category to process deduplication per-category
-  const itemsByCategory: Record<string, { categoryName: string; list: typeof valid }> = {};
+  const itemsByCategory: Record<
+    string,
+    { categoryName: string; list: typeof valid }
+  > = {};
   for (const item of valid) {
     if (!itemsByCategory[item.categoryId]) {
       itemsByCategory[item.categoryId] = {
@@ -126,7 +142,15 @@ export async function runAINominationCleanup(
 
   for (const categoryId of Object.keys(itemsByCategory)) {
     const { categoryName, list } = itemsByCategory[categoryId];
-    const uniqueNames = Array.from(new Set(list.map(item => normalizeCapitalization(item.nomineeText))));
+    const rawNamesByNormalized = new Map<string, Set<string>>();
+    for (const item of list) {
+      const normalized = normalizeCapitalization(item.nomineeText);
+      const rawNames =
+        rawNamesByNormalized.get(normalized) ?? new Set<string>();
+      rawNames.add(item.nomineeText);
+      rawNamesByNormalized.set(normalized, rawNames);
+    }
+    const uniqueNames = [...rawNamesByNormalized.keys()];
 
     if (uniqueNames.length < 2) continue;
 
@@ -165,7 +189,10 @@ Only return merges you are confident in. If there are no duplicates, return an e
         // Strip markdown code blocks if present
         let cleanText = text.trim();
         if (cleanText.startsWith("```")) {
-          cleanText = cleanText.replace(/^```json\s*/, "").replace(/```$/, "").trim();
+          cleanText = cleanText
+            .replace(/^```json\s*/, "")
+            .replace(/```$/, "")
+            .trim();
         }
 
         const data = JSON.parse(cleanText);
@@ -176,20 +203,34 @@ Only return merges you are confident in. If there are no duplicates, return an e
               Array.isArray(item.sourceNominees) &&
               item.sourceNominees.length >= 2
             ) {
+              const proposedSources = item.sourceNominees as string[];
+              const rawSources: string[] = [
+                ...new Set(
+                  proposedSources.flatMap((name) => [
+                    ...(rawNamesByNormalized.get(
+                      normalizeCapitalization(name),
+                    ) ?? [name]),
+                  ]),
+                ),
+              ];
               categorySuggestions.push({
                 categoryId,
                 categoryName,
-                sourceNominees: item.sourceNominees,
+                sourceNominees: rawSources,
                 suggestedName: item.suggestedName,
                 confidence: item.confidence || 80,
                 confidenceTier: item.confidenceTier || "MEDIUM",
-                matchReason: item.matchReason || "Semantic match resolved by AI",
+                matchReason:
+                  item.matchReason || "Semantic match resolved by AI",
               });
             }
           }
         }
       } catch (err) {
-        console.error("Gemini cleanup failed, falling back to Levenshtein:", err);
+        console.error(
+          "Gemini cleanup failed, falling back to Levenshtein:",
+          err,
+        );
       }
     }
 
@@ -206,7 +247,12 @@ Only return merges you are confident in. If there are no duplicates, return an e
             categorySuggestions.push({
               categoryId,
               categoryName,
-              sourceNominees: [nameA, nameB],
+              sourceNominees: [
+                ...new Set([
+                  ...(rawNamesByNormalized.get(nameA) ?? [nameA]),
+                  ...(rawNamesByNormalized.get(nameB) ?? [nameB]),
+                ]),
+              ],
               suggestedName: nameA, // default to first one
               confidence: score,
               confidenceTier: tier,

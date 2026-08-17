@@ -13,9 +13,9 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
     | "warning"
     | "danger"
     | "info"
+    | "neutral"
     | "purple"
-    | "gold"
-    | "neutral";
+    | "gold";
   size?: "sm" | "md";
 }
 
@@ -31,25 +31,25 @@ export function Badge({
 
   const variants = {
     default:
-      "bg-indigo-500/10 text-indigo-400 border-indigo-500/30",
+      "bg-surface-raised text-content border-border-subtle",
     success:
-      "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
+      "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
     warning:
-      "bg-amber-500/10 text-amber-400 border-amber-500/30",
+      "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
     danger:
-      "bg-rose-500/10 text-rose-400 border-rose-500/30",
+      "bg-destructive/10 text-destructive border-destructive/20",
     info:
-      "bg-sky-500/10 text-sky-400 border-sky-500/30",
-    purple:
-      "bg-purple-500/10 text-purple-400 border-purple-500/30",
-    gold:
-      "bg-amber-400/10 text-amber-300 border-amber-400/40 shadow-sm shadow-amber-500/10",
+      "bg-accent/10 text-accent border-accent/20",
     neutral:
-      "bg-slate-800 text-slate-400 border-slate-700/60",
+      "bg-surface-muted text-content-secondary border-border-subtle",
+    purple:
+      "bg-surface-raised text-content border-border-subtle",
+    gold:
+      "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
   };
 
   const sizes = {
-    sm: "text-[10px] px-2 py-0.5 gap-1",
+    sm: "text-xs px-2 py-0.5 gap-1",
     md: "text-xs px-2.5 py-1 gap-1.5",
   };
 
@@ -59,3 +59,4 @@ export function Badge({
     </span>
   );
 }
+

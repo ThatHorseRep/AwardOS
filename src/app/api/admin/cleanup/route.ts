@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     // This route takes its input from the body and touches no event row, so
     // there is nothing narrower than the workspace to scope against.
     try {
-      await requireWorkspaceRole(EVENT_ADMINS);
+      await requireWorkspaceRole(EVENT_ADMINS, "manage_events");
     } catch {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -32,9 +32,10 @@ export async function POST(request: NextRequest) {
       message: "AI Nomination Cleanup completed successfully",
       data: result,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    console.error("Admin cleanup failed:", error);
     return NextResponse.json(
-      { error: error?.message || "Internal server error during AI cleanup" },
+      { error: "Internal server error during AI cleanup" },
       { status: 500 }
     );
   }

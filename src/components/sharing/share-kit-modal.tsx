@@ -6,17 +6,14 @@ import {
   Copy,
   Check,
   Code,
-  ExternalLink,
   X,
   Trophy,
   Award,
-  Sparkles,
   MessageCircle,
 } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { getAppOrigin } from "@/lib/app-url";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 // Custom SVG Social Icons
 const TwitterIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -188,7 +185,7 @@ export function ShareKitModal({
                 </div>
 
                 <div className="pt-2 border-t border-white/20 flex items-center justify-between text-[11px] text-blue-100 font-mono">
-                  <span>awardos.io/e/{eventSlug}</span>
+                  <span>{getAppOrigin()}/e/{eventSlug}</span>
                   <span className="font-bold text-white">Cast Your Vote →</span>
                 </div>
               </div>

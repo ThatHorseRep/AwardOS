@@ -16,11 +16,11 @@ describe("test harness", () => {
     await truncateAll(db);
   });
 
-  it("applies the real baseline migration", async () => {
+  it("applies every journaled migration", async () => {
     const res = await db.query<{ n: number }>(
       `SELECT count(*)::int AS n FROM information_schema.tables WHERE table_schema = 'public'`
     );
-    expect(res.rows[0].n).toBe(28);
+    expect(res.rows[0].n).toBe(31);
   });
 
   it("has the tables the voting path depends on", async () => {
@@ -37,6 +37,8 @@ describe("test harness", () => {
       "voter_otps",
       "invitation_codes",
       "workflow_stages",
+      "rate_limit_buckets",
+      "import_runs",
     ]) {
       expect(tables).toContain(t);
     }

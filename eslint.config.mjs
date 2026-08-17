@@ -12,7 +12,15 @@ const eslintConfig = [
   // Default ignores of eslint-config-next, restated because a flat config
   // replaces them rather than extending them.
   {
-    ignores: [".next/**", "out/**", "build/**", "next-env.d.ts"],
+    ignores: [
+      ".next/**",
+      "out/**",
+      "build/**",
+      "playwright-report/**",
+      "test-results/**",
+      ".tmp-ai-design-skills/**",
+      "next-env.d.ts",
+    ],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {

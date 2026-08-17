@@ -1,62 +1,46 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import {
-  Users,
-  UserPlus,
-  ShieldCheck,
-  Mail,
-  Copy,
-  Check,
-  Trash2,
-  Lock,
-  Plus,
-  Settings,
-  ShieldAlert,
-  Loader2,
-  Calendar,
-  X,
-  Undo2,
-  Info,
-} from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import { Users, UserPlus, Copy, Check, Trash2, Plus, Settings, Loader2, X } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
-import {
-  getWorkspaceMembersAction,
-  getWorkspaceInvitesAction,
-  generateWorkspaceInviteAction,
-  revokeWorkspaceInviteAction,
-  getCustomRolesAction,
-  createCustomRoleAction,
-  deleteCustomRoleAction,
-  removeWorkspaceMemberAction,
-  updateWorkspaceMemberRoleAction,
-} from "@/actions/members";
+import { getWorkspaceMembersAction, getWorkspaceInvitesAction, getWorkspaceAuditLogsAction, generateWorkspaceInviteAction, revokeWorkspaceInviteAction, getCustomRolesAction, createCustomRoleAction, deleteCustomRoleAction, removeWorkspaceMemberAction, updateWorkspaceMemberRoleAction } from "@/actions/members";
 import { getAppOrigin } from "@/lib/app-url";
-
 import { useToast } from "@/components/ui/toast";
+import { LoadError } from "@/components/shared/load-error";
+
+type WorkspaceMember = Awaited<ReturnType<typeof getWorkspaceMembersAction>>[number];
+type WorkspaceInvite = Awaited<ReturnType<typeof getWorkspaceInvitesAction>>[number];
+type WorkspaceAuditLog = Awaited<ReturnType<typeof getWorkspaceAuditLogsAction>>[number];
+type CustomRole = Awaited<ReturnType<typeof getCustomRolesAction>>[number];
+type InviteRole = "OWNER" | "ADMIN" | "EVENT_MANAGER" | "JUDGE" | "REVIEWER" | "SECRETARY" | "PRO" | "VOLUNTEER" | "CUSTOM";
+type GeneratedInvite = Awaited<ReturnType<typeof generateWorkspaceInviteAction>> & { url: string };
+type MemberWithStatus = WorkspaceMember & { statusBadge: "neutral" | "success" | "default" };
+
 export default function WorkspaceTeamPage() {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState<"members" | "invites" | "roles">("members");
+  const [activeTab, setActiveTab] = useState<"members" | "invites" | "roles" | "audit">("members");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   // Data states
-  const [members, setMembers] = useState<any[]>([]);
-  const [invites, setInvites] = useState<any[]>([]);
-  const [customRolesList, setCustomRolesList] = useState<any[]>([]);
+  const [members, setMembers] = useState<MemberWithStatus[]>([]);
+  const [invites, setInvites] = useState<WorkspaceInvite[]>([]);
+  const [customRolesList, setCustomRolesList] = useState<CustomRole[]>([]);
+  const [auditLogs, setAuditLogs] = useState<WorkspaceAuditLog[]>([]);
 
   // Invite form states
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<any>("EVENT_MANAGER");
+  const [inviteRole, setInviteRole] = useState<InviteRole>("EVENT_MANAGER");
   const [selectedCustomRoleId, setSelectedCustomRoleId] = useState<string>("");
   const [inviteMaxUses, setInviteMaxUses] = useState(1);
   const [inviteExpiresDays, setInviteExpiresDays] = useState(7);
   const [inviteDomains, setInviteDomains] = useState("");
   const [generatingLink, setGeneratingLink] = useState(false);
-  const [generatedInviteResult, setGeneratedInviteResult] = useState<any | null>(null);
+  const [generatedInviteResult, setGeneratedInviteResult] = useState<GeneratedInvite | null>(null);
 
   // Copied links state
   const [copiedLinkUrl, setCopiedLinkUrl] = useState<string | null>(null);
@@ -70,6 +54,7 @@ export default function WorkspaceTeamPage() {
   const [submittingActionId, setSubmittingActionId] = useState<string | null>(null);
 
   const permissionCatalog = [
+    { key: "manage_team", label: "Manage Team", desc: "Invite, remove, and change workspace members." },
     { key: "manage_events", label: "Manage Events", desc: "Create, duplicate, or delete events." },
     { key: "manage_categories", label: "Manage Categories", desc: "Add, update, or remove event categories." },
     { key: "manage_nominees", label: "Manage Nominees", desc: "Configure nominee profiles and photos." },
@@ -81,35 +66,41 @@ export default function WorkspaceTeamPage() {
     { key: "manage_integrity", label: "Security & Integrity", desc: "Disqualify IP clusters, audit duplicate profiles." },
   ];
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    setLoading(true); setLoadError(false);
     try {
-      const [membersData, invitesData, rolesData] = await Promise.all([
+      const [membersData, invitesData, rolesData, auditData] = await Promise.all([
         getWorkspaceMembersAction(),
         getWorkspaceInvitesAction(),
         getCustomRolesAction(),
+        getWorkspaceAuditLogsAction(),
       ]);
       setMembers(membersListWithStatus(membersData));
       setInvites(invitesData);
       setCustomRolesList(rolesData);
+      setAuditLogs(auditData);
     } catch (err) {
       console.error("Failed to load workspace team access details:", err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const membersListWithStatus = (list: any[]) => {
+  const membersListWithStatus = (list: WorkspaceMember[]): MemberWithStatus[] => {
     return list.map(m => {
       let statusBadge = "neutral";
       if (m.status === "ACTIVE") statusBadge = "success";
-      if (m.status === "PENDING") statusBadge = "purple";
-      return { ...m, statusBadge };
+      if (m.status === "PENDING") statusBadge = "default";
+      return { ...m, statusBadge: statusBadge as "neutral" | "success" | "default" };
     });
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    void loadData();
+  }, [loadData]);
+
+  if (loadError) return <LoadError onRetry={() => void loadData()} />;
 
   const handleGenerateInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,7 +116,7 @@ export default function WorkspaceTeamPage() {
 
       const invite = await generateWorkspaceInviteAction({
         email: inviteEmail.trim() || undefined,
-        role: inviteRole,
+        role: inviteRole === "CUSTOM" ? "EVENT_MANAGER" : inviteRole,
         customRoleId: selectedCustomRoleId || undefined,
         maxUses: isEmailTargeted ? 1 : inviteMaxUses,
         expiresDays: inviteExpiresDays,
@@ -173,9 +164,22 @@ export default function WorkspaceTeamPage() {
     try {
       await removeWorkspaceMemberAction(memberId);
       await loadData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error removing member:", err);
-      toast.error(err.message || "Failed to remove member.");
+      toast.error(err instanceof Error ? err.message : "Failed to remove member.");
+    } finally {
+      setSubmittingActionId(null);
+    }
+  };
+
+  const handleRoleChange = async (memberId: string, value: string) => {
+    setSubmittingActionId(memberId);
+    try {
+      await updateWorkspaceMemberRoleAction(memberId, value as Exclude<InviteRole, "CUSTOM">);
+      await loadData();
+      toast.success("Member role updated.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update member role.");
     } finally {
       setSubmittingActionId(null);
     }
@@ -228,7 +232,7 @@ export default function WorkspaceTeamPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="animate-spin rounded-full h-8 w-8 text-blue-600" />
+        <Loader2 className="animate-spin rounded-full h-8 w-8 text-accent" />
       </div>
     );
   }
@@ -236,16 +240,16 @@ export default function WorkspaceTeamPage() {
   const isEmailTargeted = Boolean(inviteEmail && inviteEmail.trim().length > 0);
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto font-sans pb-12 select-none">
+    <div className="space-y-6 max-w-5xl mx-auto font-sans pb-12 select-none animate-page-entrance text-content">
       {/* Header bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            <Users className="w-6 h-6 text-blue-600" />
-            <span>Workspace Team & Access Control</span>
+          <h1 className="text-2xl font-bold text-content tracking-tight flex items-center gap-2">
+            <Users className="w-6 h-6 text-accent" />
+            <span>Workspace team & access control</span>
           </h1>
-          <p className="text-slate-600 text-xs mt-1 font-medium">
-            Configure permission roles, monitor active members, and generate restricted access invitation links.
+          <p className="text-content-secondary text-xs mt-1 font-normal">
+            Configure permission roles, monitor active members, and create restricted access links.
           </p>
         </div>
 
@@ -256,32 +260,33 @@ export default function WorkspaceTeamPage() {
             setGeneratedInviteResult(null);
             setShowInviteModal(true);
           }}
-          className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20"
+          className="rounded-xl font-semibold text-xs px-4"
         >
           <UserPlus className="w-4 h-4 mr-2" />
-          <span>Generate Invite Link</span>
+          <span>Generate invite link</span>
         </Button>
       </div>
 
       {/* Navigation tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto pb-1">
+      <div className="flex items-center gap-2 border-b border-border-subtle overflow-x-auto pb-1">
         {[
-          { id: "members", label: "Active Members", icon: Users },
-          { id: "invites", label: "Invitations & Links", icon: Copy },
-          { id: "roles", label: "Custom Roles Manager", icon: Settings },
+          { id: "members", label: "Active members", icon: Users },
+          { id: "invites", label: "Invitations & links", icon: Copy },
+          { id: "roles", label: "Custom roles manager", icon: Settings },
+          { id: "audit", label: "Audit log", icon: Settings },
         ].map((tab) => {
           const isActive = activeTab === tab.id;
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-2xl text-xs font-bold shrink-0 transition-all border-b-2 ${
+              onClick={() => setActiveTab(tab.id as typeof activeTab)}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-t-xl text-xs font-semibold shrink-0 transition-all border-b-2 ${
                 isActive
-                  ? "bg-blue-50 text-blue-600 border-blue-600"
-                  : "text-slate-600 border-transparent hover:text-slate-900 hover:bg-slate-100"
+                  ? "bg-accent/10 text-accent border-accent"
+                  : "text-content-secondary border-transparent hover:text-content hover:bg-surface-raised"
               }`}
             >
-              <tab.icon className={`w-4 h-4 ${isActive ? "text-blue-600" : "text-slate-500"}`} />
+              <tab.icon className={`w-4 h-4 ${isActive ? "text-accent" : "text-content-secondary"}`} />
               <span>{tab.label}</span>
             </button>
           );
@@ -290,12 +295,12 @@ export default function WorkspaceTeamPage() {
 
       {/* Tab content 1: Members list */}
       {activeTab === "members" && (
-        <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
+        <Card className="border-border-subtle bg-surface rounded-2xl shadow-sm text-content">
           <CardContent className="pt-6">
             {members.length === 0 ? (
-              <div className="text-center text-slate-500 py-8 text-xs italic font-medium">No members assigned to this workspace.</div>
+              <div className="text-center text-content-secondary py-8 text-xs italic font-normal">No members assigned to this workspace.</div>
             ) : (
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-border-subtle">
                 {members.map((m) => {
                   const isCurrentAction = submittingActionId === m.id;
                   return (
@@ -303,25 +308,43 @@ export default function WorkspaceTeamPage() {
                       <div className="flex items-center gap-3">
                         <Avatar name={m.userName || m.userEmail || "M"} size="sm" />
                         <div>
-                          <div className="font-bold text-slate-900 text-sm">{m.userName || "Pending User"}</div>
-                          <div className="text-[11px] text-slate-500 mt-0.5 font-medium">{m.userEmail}</div>
+                          <div className="font-bold text-content text-sm">{m.userName || "Pending User"}</div>
+                          <div className="text-xs text-content-secondary mt-0.5 font-normal">{m.userEmail}</div>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2.5">
                         <Badge variant={m.statusBadge} size="sm">
-                          {m.status}
+                          {m.status.toLowerCase()}
                         </Badge>
-                        <Badge variant="purple" size="sm" className="font-mono text-[10px]">
+                        <Badge variant="default" size="sm" className="font-mono text-xs">
                           {m.customRoleName ? m.customRoleName : m.role}
                         </Badge>
+
+                        <select
+                          aria-label={`Change role for ${m.userName || m.userEmail}`}
+                          value={m.role}
+                          disabled={isCurrentAction || m.status !== "ACTIVE"}
+                          onChange={(event) => void handleRoleChange(m.id, event.target.value)}
+                          className="h-8 rounded-md border border-border-subtle bg-surface px-2 text-xs text-content disabled:opacity-50"
+                        >
+                          <option value="OWNER" disabled={m.role !== "OWNER"}>Owner (transfer by invitation)</option>
+                          <option value="ADMIN">Admin</option>
+                          <option value="EVENT_MANAGER">Event manager</option>
+                          <option value="JUDGE">Judge</option>
+                          <option value="REVIEWER">Reviewer</option>
+                          <option value="SECRETARY">Secretary</option>
+                          <option value="PRO">Pro</option>
+                          <option value="VOLUNTEER">Volunteer</option>
+                        </select>
 
                         <Button
                           variant="ghost"
                           size="sm"
                           disabled={isCurrentAction}
                           onClick={() => handleRemoveMember(m.id)}
-                          className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 h-8 px-2"
+                          aria-label="Remove member"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 px-2 rounded-xl"
                         >
                           {isCurrentAction ? (
                             <Loader2 className="animate-spin w-3.5 h-3.5" />
@@ -341,11 +364,11 @@ export default function WorkspaceTeamPage() {
 
       {/* Tab content 2: Invites list */}
       {activeTab === "invites" && (
-        <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
+        <Card className="border-border-subtle bg-surface rounded-2xl shadow-sm text-content">
           <CardContent className="pt-6 space-y-4">
-            <h3 className="text-sm font-bold text-slate-900">Active Invitation Links</h3>
+            <h3 className="text-sm font-bold text-content">Active invitation links</h3>
             {invites.length === 0 ? (
-              <div className="text-center text-slate-500 py-8 text-xs italic font-medium">No workspace invitation links logged.</div>
+              <div className="text-center text-content-secondary py-8 text-xs italic font-normal">No workspace invitation links logged.</div>
             ) : (
               <div className="space-y-3">
                 {invites.map((inv) => {
@@ -354,12 +377,12 @@ export default function WorkspaceTeamPage() {
                   const isCopied = copiedLinkUrl === inviteUrl;
 
                   return (
-                    <div key={inv.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
+                    <div key={inv.id} className="p-4 rounded-xl bg-surface-raised border border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
                       <div className="space-y-1.5 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-slate-900">Role: {inv.customRoleName || inv.role}</span>
+                          <span className="font-bold text-content">Role: {inv.customRoleName || inv.role}</span>
                           {inv.email && (
-                            <Badge variant="purple" size="sm" className="font-mono text-[10px]">
+                            <Badge variant="default" size="sm" className="font-mono text-xs">
                               Direct: {inv.email}
                             </Badge>
                           )}
@@ -367,45 +390,47 @@ export default function WorkspaceTeamPage() {
                             {inv.usesCount} / {inv.maxUses === 9999 ? "∞" : inv.maxUses} used
                           </Badge>
                           {inv.expiresAt && (
-                            <span className="text-[10px] text-slate-500 font-medium">
+                            <span className="text-xs text-content-secondary font-normal">
                               Expires: {new Date(inv.expiresAt).toLocaleDateString()}
                             </span>
                           )}
                         </div>
-                        <div className="font-mono text-[11px] text-blue-600 truncate max-w-lg select-all">
+                        <div className="font-mono text-xs text-accent truncate max-w-lg select-all">
                           {inviteUrl}
                         </div>
-                        {inv.domainRestrictions?.length > 0 && (
-                          <div className="text-[10px] text-slate-500 font-medium">
-                            Restricted to: <strong className="text-slate-700">{inv.domainRestrictions.join(", ")}</strong>
+                        {Array.isArray(inv.domainRestrictions) && inv.domainRestrictions.length > 0 && (
+                          <div className="text-xs text-content-secondary font-normal">
+                            Restricted to: <strong className="text-content">{inv.domainRestrictions.filter((d): d is string => typeof d === "string").join(", ")}</strong>
                           </div>
                         )}
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
-                        <button
+                        <Button
                           type="button"
+                          variant="outline"
+                          size="sm"
                           onClick={() => handleCopyLink(inviteUrl)}
-                          className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all active:scale-95 border border-slate-800"
+                          className="rounded-xl font-semibold text-xs"
                         >
                           {isCopied ? (
                             <>
-                              <Check className="w-3.5 h-3.5 text-emerald-400" />
-                              <span className="text-emerald-400">Copied!</span>
+                              <Check className="w-3.5 h-3.5 text-success mr-1" />
+                              <span className="text-success">Copied</span>
                             </>
                           ) : (
                             <>
-                              <Copy className="w-3.5 h-3.5 text-blue-400" />
+                              <Copy className="w-3.5 h-3.5 text-accent mr-1" />
                               <span>Copy</span>
                             </>
                           )}
-                        </button>
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
                           disabled={isCurrentAction}
                           onClick={() => handleRevokeInvite(inv.id)}
-                          className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 h-8"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 rounded-xl"
                         >
                           {isCurrentAction ? (
                             <Loader2 className="animate-spin w-3.5 h-3.5" />
@@ -428,30 +453,30 @@ export default function WorkspaceTeamPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Create custom role */}
           <div className="lg:col-span-1">
-            <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
+            <Card className="border-border-subtle bg-surface rounded-2xl shadow-sm text-content">
               <CardHeader>
-                <CardTitle className="text-sm font-bold text-slate-900">Create Custom Role</CardTitle>
-                <CardDescription className="text-xs text-slate-600 font-medium">
-                  Create roles with target fine-grained permission configs.
+                <CardTitle className="text-sm font-bold text-content">Create custom role</CardTitle>
+                <CardDescription className="text-xs text-content-secondary font-normal">
+                  Create roles with fine-grained permission configs.
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-2">
                 <form onSubmit={handleCreateCustomRole} className="space-y-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-700">Role Name</label>
+                    <label className="text-xs font-semibold text-content">Role name</label>
                     <input
                       type="text"
                       required
                       placeholder="e.g. Auditor"
                       value={newRoleName}
                       onChange={(e) => setNewRoleName(e.target.value)}
-                      className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-3.5 py-2.5 border border-slate-200 focus:outline-none focus:border-blue-500 font-medium"
+                      className="w-full bg-surface-raised text-content text-xs rounded-xl px-3.5 py-2 border border-border-subtle focus:outline-none focus:border-accent font-normal"
                     />
                   </div>
 
                   <div className="space-y-2.5">
-                    <label className="text-xs font-semibold text-slate-700 block">Permissions Catalog</label>
-                    <div className="max-h-60 overflow-y-auto space-y-2 border border-slate-200 p-3 rounded-2xl bg-slate-50">
+                    <label className="text-xs font-semibold text-content block">Permissions catalog</label>
+                    <div className="max-h-60 overflow-y-auto space-y-2 border border-border-subtle p-3 rounded-xl bg-surface-raised">
                       {permissionCatalog.map((p) => {
                         const checked = selectedPerms.includes(p.key);
                         return (
@@ -460,15 +485,15 @@ export default function WorkspaceTeamPage() {
                             onClick={() => togglePermission(p.key)}
                             className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
                               checked
-                                ? "bg-blue-500/10 border-blue-500 text-blue-700 font-semibold"
-                                : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
+                                ? "bg-accent/10 border-accent text-accent font-semibold"
+                                : "bg-surface border-border-subtle text-content hover:bg-surface-raised"
                             }`}
                           >
-                            <div className="font-bold text-[11px] flex items-center justify-between">
+                            <div className="font-bold text-xs flex items-center justify-between">
                               <span>{p.label}</span>
-                              {checked && <span className="text-blue-600 font-bold">✓</span>}
+                              {checked && <span className="text-accent font-bold">✓</span>}
                             </div>
-                            <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">{p.desc}</p>
+                            <p className="text-xs text-content-secondary mt-0.5 leading-snug font-normal">{p.desc}</p>
                           </div>
                         );
                       })}
@@ -478,14 +503,14 @@ export default function WorkspaceTeamPage() {
                   <Button
                     type="submit"
                     disabled={creatingRole}
-                    className="w-full rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20"
+                    className="w-full rounded-xl font-semibold text-xs px-4"
                   >
                     {creatingRole ? (
                       <Loader2 className="animate-spin w-4 h-4 mr-2" />
                     ) : (
                       <Plus className="w-4 h-4 mr-2" />
                     )}
-                    <span>Create Custom Role</span>
+                    <span>Create custom role</span>
                   </Button>
                 </form>
               </CardContent>
@@ -494,28 +519,28 @@ export default function WorkspaceTeamPage() {
 
           {/* List custom roles */}
           <div className="lg:col-span-2">
-            <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
+            <Card className="border-border-subtle bg-surface rounded-2xl shadow-sm text-content">
               <CardHeader>
-                <CardTitle className="text-sm font-bold text-slate-900">Custom Roles Directory</CardTitle>
-                <CardDescription className="text-xs text-slate-600 font-medium">
+                <CardTitle className="text-sm font-bold text-content">Custom roles directory</CardTitle>
+                <CardDescription className="text-xs text-content-secondary font-normal">
                   Active roles catalogue defined in this workspace.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
                 {customRolesList.length === 0 ? (
-                  <div className="text-center text-slate-500 py-8 text-xs italic font-medium">No custom roles created yet.</div>
+                  <div className="text-center text-content-secondary py-8 text-xs italic font-normal">No custom roles created yet.</div>
                 ) : (
                   customRolesList.map((cr) => {
                     const isCurrentAction = submittingActionId === cr.id;
                     const perms = cr.permissions as string[];
 
                     return (
-                      <div key={cr.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-start justify-between gap-4 text-xs">
+                      <div key={cr.id} className="p-4 rounded-xl bg-surface-raised border border-border-subtle flex items-start justify-between gap-4 text-xs">
                         <div className="space-y-2 min-w-0">
-                          <h4 className="font-bold text-slate-900 text-sm">{cr.name}</h4>
+                          <h4 className="font-bold text-content text-sm">{cr.name}</h4>
                           <div className="flex flex-wrap gap-1.5">
                             {perms.map((p) => (
-                              <Badge key={p} variant="purple" size="sm" className="font-mono text-[9px] lowercase">
+                              <Badge key={p} variant="default" size="sm" className="font-mono text-xs lowercase">
                                 {p.replace("manage_", "").replace("view_", "").replace("_", " ")}
                               </Badge>
                             ))}
@@ -527,7 +552,8 @@ export default function WorkspaceTeamPage() {
                           size="sm"
                           disabled={isCurrentAction}
                           onClick={() => handleDeleteCustomRole(cr.id)}
-                          className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 h-8 px-2 shrink-0"
+                          aria-label="Delete custom role"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 px-2 rounded-xl shrink-0"
                         >
                           {isCurrentAction ? (
                             <Loader2 className="animate-spin w-3.5 h-3.5" />
@@ -545,102 +571,131 @@ export default function WorkspaceTeamPage() {
         </div>
       )}
 
+      {activeTab === "audit" && (
+        <Card className="border-border-subtle bg-surface rounded-2xl shadow-sm text-content">
+          <CardHeader>
+            <CardTitle className="text-sm font-bold text-content">Workspace audit log</CardTitle>
+            <CardDescription className="text-xs text-content-secondary font-normal">Recent governance and workspace activity visible to owners and admins.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {auditLogs.length === 0 ? (
+              <div className="py-8 text-center text-xs text-content-secondary">No audit activity recorded yet.</div>
+            ) : (
+              <div className="divide-y divide-border-subtle">
+                {auditLogs.map((log) => (
+                  <div key={log.id} className="flex items-start justify-between gap-4 py-3 text-xs">
+                    <div>
+                      <div className="font-semibold text-content">{log.action}</div>
+                      <div className="mt-1 text-content-secondary">{log.actorName || log.actorEmail || "System actor"}{log.targetType ? ` · ${log.targetType}` : ""}</div>
+                    </div>
+                    <time className="shrink-0 text-content-secondary" dateTime={log.createdAt.toISOString()}>{new Date(log.createdAt).toLocaleString()}</time>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Invite Member Link Generator Modal */}
       {showInviteModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full font-sans shadow-2xl relative p-6 space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-surface border border-border-subtle rounded-2xl max-w-md w-full font-sans shadow-xl relative p-6 space-y-4 text-content animate-page-entrance">
             <button
               onClick={() => setShowInviteModal(false)}
-              className="absolute right-4 top-4 p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100"
+              aria-label="Close modal"
+              className="absolute right-4 top-4 p-1 text-content-secondary hover:text-content rounded-xl hover:bg-surface-raised"
             >
               <X className="w-4 h-4" />
             </button>
 
             <div>
-              <h3 className="text-base font-bold text-slate-900">Workspace Invitation Studio</h3>
-              <p className="text-xs text-slate-600 font-medium mt-0.5">
-                Send direct invitations via email or generate shareable access links.
+              <h3 className="text-base font-bold text-content">Workspace invitation studio</h3>
+              <p className="text-xs text-content-secondary font-normal mt-0.5">
+                Create a targeted link for a recipient or a shareable access link. AwardOS does not send email from this screen.
               </p>
             </div>
 
             <div className="pt-2">
               {generatedInviteResult ? (
-                <div className="space-y-4 animate-in fade-in duration-300">
-                  <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 space-y-3">
-                    <p className="text-blue-950 text-xs leading-relaxed font-semibold flex items-start gap-2">
-                      <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="space-y-4 animate-page-entrance">
+                  <div className="p-4 rounded-xl bg-accent/10 border border-accent/20 space-y-3">
+                    <p className="text-content text-xs leading-relaxed font-semibold flex items-start gap-2">
+                      <Check className="w-4 h-4 text-success shrink-0 mt-0.5" />
                       <span>
                         {generatedInviteResult.directMemberAdded
-                          ? `Direct invitation issued for ${generatedInviteResult.targetEmail}! They have been added to the workspace and can accept via AwardOS or the link below.`
+                          ? `A restricted invitation link was created for ${generatedInviteResult.targetEmail}. Share the link with them to finish joining.`
                           : generatedInviteResult.targetEmail
-                          ? `Direct invitation link generated for ${generatedInviteResult.targetEmail}! Share this single-use link with them:`
-                          : `Shareable invitation link generated successfully! Share this link with your team:`}
+                          ? `Targeted invitation link generated for ${generatedInviteResult.targetEmail}:`
+                          : `Shareable invitation link generated successfully:`}
                       </span>
                     </p>
-                    <div className="p-3 bg-white rounded-xl text-blue-600 font-mono text-[11px] select-all break-all border border-blue-200 shadow-sm font-semibold">
+                    <div className="p-3 bg-surface rounded-xl text-accent font-mono text-xs select-all break-all border border-border-subtle shadow-sm font-semibold">
                       {generatedInviteResult.url}
                     </div>
                   </div>
 
-                  <div className="flex gap-3">
-                    <button
+                  <div className="flex gap-2.5">
+                    <Button
                       type="button"
+                      variant="primary"
                       onClick={() => handleCopyLink(generatedInviteResult.url)}
-                      className="flex-1 py-3 px-4 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 border border-slate-800"
+                      className="flex-1 rounded-xl font-semibold text-xs px-4"
                     >
                       {copiedLinkUrl === generatedInviteResult.url ? (
                         <>
-                          <Check className="w-4 h-4 text-emerald-400" />
-                          <span className="text-emerald-400">Copied!</span>
+                          <Check className="w-4 h-4 text-success mr-1.5" />
+                          <span>Copied</span>
                         </>
                       ) : (
                         <>
-                          <Copy className="w-4 h-4 text-blue-400" />
-                          <span>Copy Link</span>
+                          <Copy className="w-4 h-4 mr-1.5" />
+                          <span>Copy link</span>
                         </>
                       )}
-                    </button>
+                    </Button>
 
-                    <button
+                    <Button
                       type="button"
+                      variant="outline"
                       onClick={() => setGeneratedInviteResult(null)}
-                      className="flex-1 py-3 px-4 rounded-2xl bg-slate-100 text-slate-800 hover:bg-slate-200 font-bold text-xs flex items-center justify-center transition-colors"
+                      className="flex-1 rounded-xl font-semibold text-xs px-4"
                     >
-                      <span>Create Another</span>
-                    </button>
+                      <span>Create another</span>
+                    </Button>
                   </div>
                 </div>
               ) : (
                 <form onSubmit={handleGenerateInvite} className="space-y-4 text-xs">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5 col-span-2">
-                      <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
-                        <span>Target Recipient Email</span>
-                        <span className="text-[10px] text-slate-500 font-normal">Optional</span>
+                      <label className="text-xs font-semibold text-content flex items-center justify-between">
+                        <span>Target recipient email</span>
+                        <span className="text-xs text-content-secondary font-normal">Optional</span>
                       </label>
                       <input
                         type="email"
                         placeholder="e.g. colleague@university.edu"
                         value={inviteEmail}
                         onChange={(e) => setInviteEmail(e.target.value)}
-                        className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-3.5 py-2.5 border border-slate-200 focus:outline-none focus:border-blue-500 font-medium"
+                        className="w-full bg-surface-raised text-content text-xs rounded-xl px-3.5 py-2 border border-border-subtle focus:outline-none focus:border-accent font-normal"
                       />
-                      <p className="text-[10px] text-slate-500 font-medium">
+                      <p className="text-xs text-content-secondary font-normal">
                         {isEmailTargeted
-                          ? "✓ Direct Email Targeted: Restricted to 1 recipient."
+                          ? "✓ Direct email targeted: Restricted to 1 recipient."
                           : "Leave empty to generate a shareable open link."}
                       </p>
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-700">Select Member Role</label>
+                      <label className="text-xs font-semibold text-content">Select member role</label>
                       <select
                         value={inviteRole}
-                        onChange={(e: any) => {
-                          setInviteRole(e.target.value);
+                        onChange={(e) => {
+                          setInviteRole(e.target.value as InviteRole);
                           if (e.target.value !== "CUSTOM") setSelectedCustomRoleId("");
                         }}
-                        className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-3.5 py-2.5 border border-slate-200 focus:outline-none font-medium"
+                        className="w-full bg-surface-raised text-content text-xs rounded-xl px-3.5 py-2 border border-border-subtle focus:outline-none font-normal"
                       >
                         <option value="EVENT_MANAGER">Event Manager</option>
                         <option value="ADMIN">Administrator</option>
@@ -650,12 +705,12 @@ export default function WorkspaceTeamPage() {
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-700">Custom Role Profile</label>
+                      <label className="text-xs font-semibold text-content">Custom role profile</label>
                       <select
                         disabled={inviteRole !== "CUSTOM"}
                         value={selectedCustomRoleId}
                         onChange={(e) => setSelectedCustomRoleId(e.target.value)}
-                        className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-3.5 py-2.5 border border-slate-200 focus:outline-none disabled:opacity-40 font-medium"
+                        className="w-full bg-surface-raised text-content text-xs rounded-xl px-3.5 py-2 border border-border-subtle focus:outline-none disabled:opacity-40 font-normal"
                       >
                         <option value="">Select custom role...</option>
                         {customRolesList.map((cr) => (
@@ -667,11 +722,11 @@ export default function WorkspaceTeamPage() {
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-700">Expiration Timeline</label>
+                      <label className="text-xs font-semibold text-content">Expiration timeline</label>
                       <select
                         value={inviteExpiresDays}
-                        onChange={(e: any) => setInviteExpiresDays(Number(e.target.value))}
-                        className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-3.5 py-2.5 border border-slate-200 focus:outline-none font-medium"
+                        onChange={(e) => setInviteExpiresDays(Number(e.target.value))}
+                        className="w-full bg-surface-raised text-content text-xs rounded-xl px-3.5 py-2 border border-border-subtle focus:outline-none font-normal"
                       >
                         <option value={1}>1 Day</option>
                         <option value={7}>7 Days</option>
@@ -681,15 +736,15 @@ export default function WorkspaceTeamPage() {
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
-                        <span>Max Usage Budget</span>
-                        {isEmailTargeted && <span className="text-[10px] text-blue-600 font-bold">1 Use</span>}
+                      <label className="text-xs font-semibold text-content flex items-center justify-between">
+                        <span>Max usage budget</span>
+                        {isEmailTargeted && <span className="text-xs text-accent font-semibold">1 Use</span>}
                       </label>
                       <select
                         disabled={isEmailTargeted}
                         value={isEmailTargeted ? 1 : inviteMaxUses}
-                        onChange={(e: any) => setInviteMaxUses(Number(e.target.value))}
-                        className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-3.5 py-2.5 border border-slate-200 focus:outline-none disabled:opacity-50 font-medium"
+                        onChange={(e) => setInviteMaxUses(Number(e.target.value))}
+                        className="w-full bg-surface-raised text-content text-xs rounded-xl px-3.5 py-2 border border-border-subtle focus:outline-none disabled:opacity-50 font-normal"
                       >
                         <option value={1}>1 Usage (Single User)</option>
                         <option value={5}>5 Usages</option>
@@ -699,13 +754,13 @@ export default function WorkspaceTeamPage() {
                     </div>
 
                     <div className="space-y-1.5 col-span-2">
-                      <label className="text-xs font-semibold text-slate-700">Allowed Email Domains Restriction</label>
+                      <label className="text-xs font-semibold text-content">Allowed email domains</label>
                       <input
                         type="text"
-                        placeholder="e.g. university.edu, company.com (comma separated)"
+                        placeholder="e.g. university.edu, company.com"
                         value={inviteDomains}
                         onChange={(e) => setInviteDomains(e.target.value)}
-                        className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-3.5 py-2.5 border border-slate-200 focus:outline-none focus:border-blue-500 font-mono font-medium"
+                        className="w-full bg-surface-raised text-content text-xs rounded-xl px-3.5 py-2 border border-border-subtle focus:outline-none focus:border-accent font-mono font-normal"
                       />
                     </div>
                   </div>
@@ -714,14 +769,14 @@ export default function WorkspaceTeamPage() {
                     <Button
                       type="submit"
                       disabled={generatingLink}
-                      className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20"
+                      className="rounded-xl font-semibold text-xs px-4"
                     >
                       {generatingLink ? (
                         <Loader2 className="animate-spin w-4 h-4 mr-2" />
                       ) : (
                         <UserPlus className="w-4 h-4 mr-2" />
                       )}
-                      <span>{isEmailTargeted ? "Send Direct Invitation" : "Create Invitation Link"}</span>
+                      <span>{isEmailTargeted ? "Create targeted link" : "Create invitation link"}</span>
                     </Button>
                   </div>
                 </form>
@@ -733,3 +788,4 @@ export default function WorkspaceTeamPage() {
     </div>
   );
 }
+

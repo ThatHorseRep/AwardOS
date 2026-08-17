@@ -1,17 +1,20 @@
 "use client";
 
 import React, { useState } from "react";
-import { Upload, FileText, Check, AlertCircle, Loader2, X, Download, Table } from "lucide-react";
+import { AlertCircle, Check, Download, FileText, Loader2, Table, Upload } from "lucide-react";
+import { bulkImportCategoriesAndNomineesAction, parsePdfBulkImportAction, previewBulkImportAction, type BulkImportItem, type ImportExistingBehavior } from "@/actions/import";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { bulkImportCategoriesAndNomineesAction, BulkImportItem } from "@/actions/import";
+import { Modal } from "@/components/ui/modal";
 
-interface BulkImportModalProps {
-  eventId: string;
-  isOpen: boolean;
-  onClose: () => void;
-  onSuccess: () => void;
+interface BulkImportModalProps { eventId: string; isOpen: boolean; onClose: () => void; onSuccess: () => void; }
+
+function parseCsv(text: string): BulkImportItem[] {
+  const lines = text.split(/\r?\n/).filter((line) => line.trim());
+  const start = lines[0] && /category|nominee/i.test(lines[0]) ? 1 : 0;
+  return lines.slice(start).map((line) => {
+    const columns = line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map((cell) => cell.replace(/^"|"$/g, "").replace(/""/g, '"').trim());
+    return { categoryName: columns[0] ?? "", nomineeName: columns[1] ?? "", nomineeBio: columns[2] ?? "", nomineePhotoUrl: columns[3] ?? "" };
+  });
 }
 
 export function BulkImportModal({ eventId, isOpen, onClose, onSuccess }: BulkImportModalProps) {
@@ -19,217 +22,101 @@ export function BulkImportModal({ eventId, isOpen, onClose, onSuccess }: BulkImp
   const [parsedItems, setParsedItems] = useState<BulkImportItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [resultSummary, setResultSummary] = useState<any | null>(null);
+  const [existingBehavior, setExistingBehavior] = useState<ImportExistingBehavior>("UPDATE");
+  const [result, setResult] = useState<Awaited<ReturnType<typeof bulkImportCategoriesAndNomineesAction>> | null>(null);
+  const [preview, setPreview] = useState<Awaited<ReturnType<typeof previewBulkImportAction>> | null>(null);
 
-  if (!isOpen) return null;
+  const clearPreview = () => { setParsedItems([]); setPreview(null); setResult(null); };
 
-  const parseCSV = (csvText: string): BulkImportItem[] => {
-    const lines = csvText.split(/\r?\n/).filter((l) => l.trim().length > 0);
-    if (lines.length === 0) return [];
-
-    const results: BulkImportItem[] = [];
-    const hasHeader = lines[0].toLowerCase().includes("category") || lines[0].toLowerCase().includes("nominee");
-    const startIndex = hasHeader ? 1 : 0;
-
-    for (let i = startIndex; i < lines.length; i++) {
-      const cols = lines[i].split(/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/).map((c) => c.replace(/^"|"$/g, "").trim());
-      if (cols.length >= 2) {
-        results.push({
-          categoryName: cols[0],
-          nomineeName: cols[1],
-          nomineeBio: cols[2] || "",
-          nomineePhotoUrl: cols[3] || "",
-          nomineeEmail: cols[4] || "",
-        });
-      }
-    }
-    return results;
-  };
-
-  const handleParse = () => {
-    setErrorMsg(null);
-    setResultSummary(null);
+  const handleParse = async () => {
+    setErrorMsg(null); setResult(null);
     try {
-      if (rawInput.trim().startsWith("[") || rawInput.trim().startsWith("{")) {
-        const json = JSON.parse(rawInput);
-        const list = Array.isArray(json) ? json : [json];
-        setParsedItems(
-          list.map((item: any) => ({
-            categoryName: item.categoryName || item.category || "General",
-            nomineeName: item.nomineeName || item.name || "",
-            nomineeBio: item.nomineeBio || item.bio || "",
-            nomineePhotoUrl: item.nomineePhotoUrl || item.photoUrl || "",
-            nomineeEmail: item.nomineeEmail || item.email || "",
-          }))
-        );
-      } else {
-        const items = parseCSV(rawInput);
-        if (items.length === 0) {
-          throw new Error("Could not parse valid columns. Expected format: Category, Nominee Name, Bio, Photo URL");
-        }
-        setParsedItems(items);
-      }
-    } catch (err: any) {
-      setErrorMsg(err.message || "Failed to parse input");
-    }
+      let items: BulkImportItem[];
+      if (/^[\s]*[\[{]/.test(rawInput)) {
+        const input: unknown = JSON.parse(rawInput);
+        const rows = Array.isArray(input) ? input : [input];
+        items = rows.map((value) => {
+          const row = value && typeof value === "object" ? value as Record<string, unknown> : {};
+          return { categoryName: String(row.categoryName ?? row.category ?? ""), categoryDescription: String(row.categoryDescription ?? ""), nomineeName: String(row.nomineeName ?? row.name ?? ""), nomineeBio: String(row.nomineeBio ?? row.bio ?? ""), nomineePhotoUrl: String(row.nomineePhotoUrl ?? row.photoUrl ?? "") };
+        });
+      } else items = parseCsv(rawInput);
+      if (items.length === 0) throw new Error("No rows could be parsed.");
+      setParsedItems(items);
+      setPreview(await previewBulkImportAction(eventId, items));
+    } catch (error: unknown) { setErrorMsg(error instanceof Error ? error.message : "Failed to parse input."); }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
-
+    if (file.size > 5 * 1024 * 1024) { setErrorMsg("Import files are limited to 5 MB."); event.target.value = ""; return; }
+    if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+      setLoading(true); setErrorMsg(null); clearPreview();
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        const extracted = await parsePdfBulkImportAction(eventId, btoa(binary));
+        const items: BulkImportItem[] = extracted.items.map((item) => ({
+          categoryName: item.categoryName,
+          categoryDescription: item.categoryDescription,
+          nomineeName: item.nomineeName,
+          nomineeBio: item.nomineeBio,
+          nomineePhotoUrl: item.nomineePhotoUrl ?? undefined,
+        }));
+        setParsedItems(items);
+        setPreview(await previewBulkImportAction(eventId, items));
+        setRawInput("Machine-readable PDF extracted successfully.");
+      } catch (error) {
+        setErrorMsg(error instanceof Error ? error.message : "The PDF could not be extracted.");
+      } finally { setLoading(false); event.target.value = ""; }
+      return;
+    }
     const reader = new FileReader();
-    reader.onload = (evt) => {
-      const text = evt.target?.result as string;
-      setRawInput(text);
-    };
+    reader.onload = () => { setRawInput(String(reader.result ?? "")); clearPreview(); };
+    reader.onerror = () => setErrorMsg("The selected file could not be read.");
     reader.readAsText(file);
   };
 
-  const handleImportSubmit = async () => {
-    if (parsedItems.length === 0) return;
-    setLoading(true);
-    setErrorMsg(null);
-
+  const handleImport = async () => {
+    if (!preview || preview.validRows === 0) return;
+    setLoading(true); setErrorMsg(null);
     try {
-      const res = await bulkImportCategoriesAndNomineesAction(eventId, parsedItems);
-      setResultSummary(res);
-      setTimeout(() => {
-        onSuccess();
-      }, 1500);
-    } catch (err: any) {
-      console.error("Bulk Import Error:", err);
-      setErrorMsg(err.message || "Failed to process bulk import");
-    } finally {
-      setLoading(false);
+      const canonical = JSON.stringify({ existingBehavior, items: parsedItems });
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+      const idempotencyKey = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+      setResult(await bulkImportCategoriesAndNomineesAction(eventId, parsedItems, existingBehavior, idempotencyKey));
     }
+    catch (error: unknown) { setErrorMsg(error instanceof Error ? error.message : "Import failed and was rolled back."); }
+    finally { setLoading(false); }
   };
 
-  const sampleCSV = `Category,Nominee Name,Nominee Bio,Photo URL
-Student Leader of the Year,Ama Mensah,SRC Vice President & Tech Lead,https://images.unsplash.com/photo-1534528741775-53994a69daeb
-Tech Innovator Award,Kwame Osei,Creator of Campus Ride App,https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d`;
+  const downloadErrors = () => {
+    const errors = result?.failedRows ?? preview?.errors ?? [];
+    if (errors.length === 0) return;
+    const csv = ["Row,Error", ...errors.map(({ row, message }) => `${row},"${message.replace(/"/g, '""')}"`)].join("\r\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a"); anchor.href = url; anchor.download = "awardos-import-errors.csv"; anchor.click(); URL.revokeObjectURL(url);
+  };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 select-none">
-      <Card className="border-slate-200/80 bg-white max-w-2xl w-full font-sans shadow-2xl relative rounded-3xl">
-        <button
-          onClick={onClose}
-          className="absolute right-4 top-4 p-1.5 text-slate-400 hover:text-slate-900 rounded-xl hover:bg-slate-100 font-bold"
-        >
-          <X className="w-4 h-4" />
-        </button>
-
-        <CardHeader className="border-b border-slate-100 pb-4">
-          <CardTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <Upload className="w-5 h-5 text-purple-600" /> Bulk Import Categories & Nominees
-          </CardTitle>
-          <CardDescription className="text-slate-600 text-xs font-medium">
-            Import hundreds of categories and nominees instantly via CSV format or JSON payload.
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-4 text-xs pt-4">
-          {resultSummary ? (
-            <div className="p-6 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-3 animate-in zoom-in-95 duration-200">
-              <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
-                <Check className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-bold text-slate-900">Import Completed Successfully!</h3>
-              <div className="flex justify-center gap-4 text-slate-700 text-xs font-medium">
-                <span>Created Categories: <strong className="text-emerald-700 font-bold">{resultSummary.categoriesCreated}</strong></span>
-                <span>Imported Nominees: <strong className="text-emerald-700 font-bold">{resultSummary.nomineesImported}</strong></span>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between gap-2">
-                <label className="font-bold text-slate-900 flex items-center gap-1.5">
-                  <FileText className="w-4 h-4 text-purple-600" /> Paste CSV / JSON Data
-                </label>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      setRawInput(sampleCSV);
-                      setParsedItems(parseCSV(sampleCSV));
-                    }}
-                    className="text-[10px] text-purple-600 font-bold hover:underline flex items-center gap-1"
-                  >
-                    Load Sample CSV
-                  </button>
-                  <label className="px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer border border-slate-200">
-                    Upload .CSV File
-                    <input type="file" accept=".csv,.json,.txt" onChange={handleFileUpload} className="hidden" />
-                  </label>
-                </div>
-              </div>
-
-              <textarea
-                rows={5}
-                value={rawInput}
-                onChange={(e) => setRawInput(e.target.value)}
-                placeholder={`Format: Category, Nominee Name, Bio, Photo URL\ne.g. Student Leader, Ama Mensah, SRC Vice President, https://...`}
-                className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl p-3.5 border border-slate-200 focus:outline-none focus:border-purple-500 font-mono font-medium"
-              />
-
-              <div className="flex justify-between items-center">
-                <Button variant="ghost" size="sm" onClick={handleParse} className="text-purple-600 hover:text-purple-700 font-bold">
-                  <Table className="w-3.5 h-3.5 mr-1" /> Parse & Preview ({parsedItems.length} items ready)
-                </Button>
-              </div>
-
-              {/* Parsed Items Preview Table */}
-              {parsedItems.length > 0 && (
-                <div className="max-h-44 overflow-y-auto border border-slate-200 rounded-2xl divide-y divide-slate-100 bg-slate-50">
-                  <div className="p-2.5 bg-slate-100 font-bold text-[10px] text-slate-600 grid grid-cols-12 gap-2 uppercase tracking-wider">
-                    <span className="col-span-4">Category</span>
-                    <span className="col-span-4">Nominee Name</span>
-                    <span className="col-span-4">Bio / Extra Info</span>
-                  </div>
-                  {parsedItems.slice(0, 20).map((item, idx) => (
-                    <div key={idx} className="p-2.5 text-[11px] text-slate-700 grid grid-cols-12 gap-2 items-center font-medium">
-                      <span className="col-span-4 font-bold text-purple-700 truncate">{item.categoryName}</span>
-                      <span className="col-span-4 font-bold text-slate-900 truncate">{item.nomineeName}</span>
-                      <span className="col-span-4 text-slate-500 truncate text-[10px]">{item.nomineeBio || "No bio"}</span>
-                    </div>
-                  ))}
-                  {parsedItems.length > 20 && (
-                    <div className="p-2 text-center text-[10px] text-slate-500 font-mono font-bold">
-                      + {parsedItems.length - 20} more entries ready to import
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {errorMsg && (
-                <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
-                  <span>{errorMsg}</span>
-                </div>
-              )}
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                <Button variant="ghost" size="sm" onClick={onClose} className="text-slate-600 hover:text-slate-900 font-medium">
-                  Cancel
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  disabled={loading || parsedItems.length === 0}
-                  onClick={handleImportSubmit}
-                  className="rounded-full bg-purple-600 hover:bg-purple-500 text-white font-bold px-5"
-                >
-                  {loading ? (
-                    <Loader2 className="animate-spin w-4 h-4 mr-2" />
-                  ) : (
-                    <Upload className="w-4 h-4 mr-2" />
-                  )}
-                  <span>Import {parsedItems.length} Entries</span>
-                </Button>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+    <Modal open={isOpen} onClose={onClose} size="lg" title="Bulk import categories and nominees" description="Import up to 5,000 rows from CSV, JSON, or pasted data.">
+      <div className="space-y-4 text-xs">
+        {result ? <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center">
+          <Check className="mx-auto h-8 w-8 text-emerald-600" /><h3 className="text-base font-bold text-slate-900">Import complete</h3>
+          <div className="flex flex-wrap justify-center gap-4 text-slate-700"><span>Categories created: <strong>{result.categoriesCreated}</strong></span><span>Nominees created: <strong>{result.nomineesImported}</strong></span><span>Nominees updated: <strong>{result.nomineesUpdated}</strong></span><span>Rows skipped: <strong>{result.nomineesSkipped}</strong></span></div>
+          <div className="flex flex-wrap justify-center gap-2">{result.failedRows.length > 0 && <Button variant="outline" size="sm" onClick={downloadErrors}><Download className="mr-1.5 h-4 w-4" />Download error report</Button>}<Button variant="primary" size="sm" onClick={onSuccess}>Done</Button></div>
+        </div> : <>
+          <div className="flex items-center justify-between gap-3"><label htmlFor="bulk-import-input" className="flex items-center gap-1.5 font-bold text-slate-900"><FileText className="h-4 w-4 text-purple-600" />Paste CSV or JSON data</label><label className="cursor-pointer rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 font-bold text-slate-700 hover:bg-slate-200">Upload file<input type="file" accept=".csv,.json,.txt,.pdf,text/csv,application/json,application/pdf" onChange={(event) => void handleFileUpload(event)} className="sr-only" /></label></div>
+          <textarea id="bulk-import-input" rows={6} value={rawInput} onChange={(event) => { setRawInput(event.target.value); clearPreview(); }} placeholder="Category, Nominee Name, Bio, Photo URL" className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-xs text-slate-900 focus:border-purple-500 focus:outline-none" />
+          <Button variant="ghost" size="sm" onClick={() => void handleParse()} disabled={!rawInput.trim()}><Table className="mr-1.5 h-4 w-4" />Parse and preview</Button>
+          <label className="grid gap-1.5 text-slate-700"><span className="font-bold text-slate-900">When a nominee already exists</span><select value={existingBehavior} onChange={(event) => setExistingBehavior(event.target.value as ImportExistingBehavior)} className="h-9 rounded-lg border border-slate-200 bg-white px-3 font-medium focus:outline-none focus:ring-2 focus:ring-purple-500"><option value="UPDATE">Update the existing nominee</option><option value="SKIP">Skip the existing nominee</option></select></label>
+          {parsedItems.length > 0 && <div className="max-h-44 overflow-auto rounded-xl border border-slate-200"><table className="w-full text-left"><thead className="sticky top-0 bg-slate-100 text-[10px] uppercase"><tr><th className="p-2">Category</th><th className="p-2">Nominee</th><th className="p-2">Bio</th></tr></thead><tbody>{parsedItems.slice(0, 50).map((item, index) => <tr key={`${index}-${item.categoryName}-${item.nomineeName}`} className="border-t border-slate-100"><td className="p-2 font-bold text-purple-700">{item.categoryName || "Missing"}</td><td className="p-2 font-bold text-slate-900">{item.nomineeName || "Missing"}</td><td className="max-w-48 truncate p-2 text-slate-500">{item.nomineeBio || ""}</td></tr>)}</tbody></table></div>}
+          {preview && <div className="space-y-2"><div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-4"><span>Create categories: <strong>{preview.categoriesToCreate}</strong></span><span>Create nominees: <strong>{preview.nomineesToCreate}</strong></span><span>{existingBehavior === "UPDATE" ? "Update" : "Skip"} existing: <strong>{preview.nomineesToUpdate}</strong></span><span>Rejected rows: <strong>{preview.errors.length}</strong></span></div>{preview.errors.length > 0 && <Button variant="outline" size="sm" onClick={downloadErrors}><Download className="mr-1.5 h-4 w-4" />Download error report</Button>}</div>}
+          {errorMsg && <div role="alert" className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 font-bold text-amber-800"><AlertCircle className="h-4 w-4 shrink-0" />{errorMsg}</div>}
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3"><Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button><Button variant="primary" size="sm" disabled={loading || !preview || preview.validRows === 0} onClick={() => void handleImport()}>{loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}Import {preview?.validRows ?? 0} rows</Button></div>
+        </>}
+      </div>
+    </Modal>
   );
 }

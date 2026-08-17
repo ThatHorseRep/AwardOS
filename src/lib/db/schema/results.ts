@@ -62,3 +62,17 @@ export const archiveConfigs = pgTable('archive_configs', {
   updatedBy: uuid('updated_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const nomineePrivacyRequests = pgTable('nominee_privacy_requests', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  nomineeId: uuid('nominee_id').references(() => nominees.id, { onDelete: 'set null' }),
+  requesterEmail: varchar('requester_email', { length: 255 }).notNull(),
+  requestType: varchar('request_type', { length: 32 }).notNull(),
+  reason: text('reason').notNull(),
+  status: varchar('status', { length: 32 }).default('PENDING').notNull(),
+  resolutionNote: text('resolution_note'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  resolvedBy: uuid('resolved_by').references(() => users.id, { onDelete: 'set null' }),
+});

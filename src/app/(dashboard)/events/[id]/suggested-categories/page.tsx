@@ -1,44 +1,34 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import {
-  ArrowLeft,
-  Sparkles,
-  CheckCircle,
-  XCircle,
-  MessageSquare,
-  Loader2,
-  Inbox,
-} from "lucide-react";
+import { useParams } from "next/navigation";
+import { ArrowLeft, Sparkles, CheckCircle, XCircle, MessageSquare, Loader2, Inbox } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  getSuggestedCategoriesAction,
-  approveSuggestionAction,
-  rejectSuggestionAction,
-} from "@/actions/nominations";
+import { getSuggestedCategoriesAction, approveSuggestionAction, rejectSuggestionAction } from "@/actions/nominations";
 import { getEventDetailsAction } from "@/actions/events";
+import { LoadError } from "@/components/shared/load-error";
 
 import { useToast } from "@/components/ui/toast";
 export default function SuggestedCategoriesInboxPage() {
   const toast = useToast();
   const params = useParams();
-  const router = useRouter();
   const eventId = params.id as string;
 
-  const [event, setEvent] = useState<any | null>(null);
-  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [event, setEvent] = useState<Awaited<ReturnType<typeof getEventDetailsAction>> | null>(null);
+  const [suggestions, setSuggestions] = useState<Awaited<ReturnType<typeof getSuggestedCategoriesAction>>>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Approval Modal/Form State
   const [approvalText, setApprovalText] = useState<string | null>(null);
   const [categoryName, setCategoryName] = useState("");
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    setLoading(true); setLoadError(false);
     try {
       const eventData = await getEventDetailsAction(eventId);
       setEvent(eventData);
@@ -47,14 +37,17 @@ export default function SuggestedCategoriesInboxPage() {
       setSuggestions(suggestionList);
     } catch (err) {
       console.error("Failed to load suggested categories page details:", err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
-  };
+  }, [eventId]);
 
   useEffect(() => {
-    loadData();
-  }, [eventId]);
+    void loadData();
+  }, [loadData]);
+
+  if (loadError) return <LoadError onRetry={() => void loadData()} />;
 
   const handleApproveClick = (text: string) => {
     setApprovalText(text);

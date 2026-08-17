@@ -9,9 +9,8 @@ import {
   nominees,
   voteSessions,
 } from "@/lib/db/schema";
-import { eq, and, desc, sql, isNull, gt, inArray } from "drizzle-orm";
-import { cookies } from "next/headers";
-import { getOrCreateWorkspaceAction } from "./workspaces";
+import { eq, and, desc, isNull, gt, inArray } from "drizzle-orm";
+import { cookies, headers } from "next/headers";
 import { requireWorkspaceRole, requireEventAccess, EVENT_ADMINS, WORKSPACE_ADMINS } from "./_rbac";
 import {
   votedCookieName,
@@ -28,6 +27,12 @@ import {
 import { escapeXml } from "@/lib/sanitize";
 import { INVITATION_CODE_LENGTH } from "@/lib/constants";
 import { randomInt } from "crypto";
+import { getClientIp } from "@/lib/request-ip";
+import { consumeRateLimit } from "@/lib/rate-limit";
+import { z } from "zod";
+import { verifyBallotReceipt } from "@/lib/ballot-receipt";
+
+const voterEmailSchema = z.string().trim().toLowerCase().email().max(255);
 
 export async function updateEventSettingsAction(
   eventId: string,
@@ -40,7 +45,37 @@ export async function updateEventSettingsAction(
   }
 ) {
   // Verification method and whitelists gate who may vote — admins only.
-  const { workspace } = await requireWorkspaceRole(WORKSPACE_ADMINS);
+  const { workspace } = await requireWorkspaceRole(WORKSPACE_ADMINS, "manage_team");
+
+  const [currentEvents, submittedBallots] = await Promise.all([
+    db
+      .select({ verificationConfig: events.verificationConfig })
+      .from(events)
+      .where(and(eq(events.id, eventId), eq(events.workspaceId, workspace.id)))
+      .limit(1),
+    db
+      .select({ id: voteSessions.id })
+      .from(voteSessions)
+      .where(
+        and(
+          eq(voteSessions.eventId, eventId),
+          eq(voteSessions.status, "SUBMITTED"),
+        ),
+      )
+      .limit(1),
+  ]);
+  if (!currentEvents[0]) throw new Error("Event not found.");
+  const currentMethod =
+    (currentEvents[0].verificationConfig as { method?: string } | null)
+      ?.method ?? "NONE";
+  if (
+    submittedBallots.length > 0 &&
+    currentMethod !== config.verificationMethod
+  ) {
+    throw new Error(
+      "The voter verification method is locked after the first ballot is submitted.",
+    );
+  }
 
   await db
     .update(events)
@@ -66,7 +101,7 @@ export async function generateInvitationCodesAction(
   count: number,
   options?: { prefix?: string; expiresDays?: number }
 ) {
-  await requireEventAccess(eventId, EVENT_ADMINS);
+  await requireEventAccess(eventId, EVENT_ADMINS, "manage_events");
 
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Removed ambiguous O,0,I,1
   const insertValues = [];
@@ -101,7 +136,7 @@ export async function generateInvitationCodesAction(
 
 export async function getInvitationCodesAction(eventId: string) {
   // Codes are bearer credentials for casting a ballot — admins only.
-  await requireEventAccess(eventId, EVENT_ADMINS);
+  await requireEventAccess(eventId, EVENT_ADMINS, "manage_events");
 
   return await db
     .select()
@@ -123,7 +158,7 @@ export async function revokeInvitationCodeAction(codeId: string) {
     throw new Error("Invitation code not found");
   }
 
-  await requireEventAccess(owner.eventId, EVENT_ADMINS);
+  await requireEventAccess(owner.eventId, EVENT_ADMINS, "manage_events");
 
   await db
     .update(invitationCodes)
@@ -137,7 +172,16 @@ export async function revokeInvitationCodeAction(codeId: string) {
 
 // Public OTP: Send Action
 export async function sendEmailOtpAction(eventId: string, email: string) {
-  const cleanEmail = email.trim().toLowerCase();
+  const parsedEmail = voterEmailSchema.safeParse(email);
+  if (!parsedEmail.success) throw new Error("Enter a valid email address.");
+  const cleanEmail = parsedEmail.data;
+  const requestHeaders = await headers();
+  const ipAddress = getClientIp(requestHeaders);
+  const [ipLimit, emailLimit] = await Promise.all([
+    consumeRateLimit(`otp-ip:${eventId}`, ipAddress, { limit: 10, windowMs: 10 * 60 * 1000 }),
+    consumeRateLimit(`otp-email:${eventId}`, cleanEmail, { limit: 3, windowMs: 10 * 60 * 1000 }),
+  ]);
+  if (!ipLimit.allowed || !emailLimit.allowed) throw new Error("Too many verification attempts. Please wait a few minutes before requesting a new code.");
   
   // 1. Get event configuration
   const eventList = await db
@@ -151,7 +195,7 @@ export async function sendEmailOtpAction(eventId: string, email: string) {
   }
 
   const event = eventList[0];
-  const audience = (event.audienceConfig as any) || {};
+  const audience = (event.audienceConfig as { whitelistDomains?: string[]; whitelistEmails?: string[] } | null) ?? {};
   const whitelistDomains = audience.whitelistDomains || [];
   const whitelistEmails = audience.whitelistEmails || [];
 
@@ -204,7 +248,7 @@ export async function sendEmailOtpAction(eventId: string, email: string) {
     try {
       const { Resend } = await import("resend");
       const resend = new Resend(resendApiKey);
-      await resend.emails.send({
+      const delivery = await resend.emails.send({
         from: process.env.RESEND_FROM_EMAIL || "AwardOS <onboarding@resend.dev>",
         to: cleanEmail,
         // The code is deliberately not in the subject: subject lines appear in
@@ -221,6 +265,9 @@ export async function sendEmailOtpAction(eventId: string, email: string) {
           </div>
         `,
       });
+      if (delivery.error || !delivery.data?.id) {
+        throw new Error(delivery.error?.message || "Resend did not accept the message.");
+      }
     } catch (emailErr) {
       // Previously this was swallowed and the action still returned success, so
       // the voter advanced to the code screen for a code that never arrived.
@@ -238,21 +285,22 @@ export async function sendEmailOtpAction(eventId: string, email: string) {
       "Email verification is unavailable for this event. Please contact the organizer."
     );
   } else {
-    console.log(
-      `[DEV OTP] ${cleanEmail} -> ${code} (expires ${expiresAt.toLocaleTimeString()})`
-    );
   }
 
   return {
     success: true,
     otpId: otpRecords[0].id,
+    ...(process.env.NODE_ENV !== "production" ? { developmentCode: code } : {}),
   };
 }
 
 // Public OTP: Verify Action
 export async function verifyEmailOtpAction(eventId: string, email: string, code: string) {
-  const cleanEmail = email.trim().toLowerCase();
+  const parsedEmail = voterEmailSchema.safeParse(email);
+  if (!parsedEmail.success) throw new Error("Invalid or expired verification code.");
+  const cleanEmail = parsedEmail.data;
   const cleanCode = code.trim();
+  if (!/^\d{6}$/.test(cleanCode)) throw new Error("Invalid or expired verification code.");
 
   // Fetch by identity only. The code is compared in constant time below, since
   // matching on it in SQL would leak validity through query behaviour and makes
@@ -324,7 +372,7 @@ export async function getPublicBallotDetailsAction(slug: string) {
     return null;
   }
 
-  const verificationConfig = (event.verificationConfig as any) || {};
+  const verificationConfig = (event.verificationConfig as { method?: "NONE" | "EMAIL_OTP" | "INVITATION_CODE" } | null) ?? {};
 
   // Server-side "already voted" check. Reads the HTTP-only cookie the votes route set
   // (page scripts cannot see or fake it) and confirms it maps to a real submitted
@@ -403,6 +451,7 @@ export async function getPublicBallotDetailsAction(slug: string) {
 // claim inside the ballot submission transaction.
 export async function verifyInvitationCodeAction(eventId: string, code: string) {
   const cleanCode = code.trim().toUpperCase();
+  if (!/^[A-Z0-9-]{1,100}$/.test(cleanCode)) throw new Error("Invalid invitation code.");
 
   return await db.transaction(async (tx) => {
     const codeList = await tx
@@ -436,7 +485,10 @@ export async function verifyInvitationCodeAction(eventId: string, code: string) 
 }
 
 export async function verifyBallotReceiptAction(slug: string, receiptCode: string) {
-  const cleanCode = receiptCode.trim();
+  const receipt = verifyBallotReceipt(receiptCode);
+  if (!receipt) {
+    return { valid: false, message: "This receipt is invalid or has been altered." };
+  }
 
   // 1. Get event
   const eventList = await db
@@ -451,6 +503,10 @@ export async function verifyBallotReceiptAction(slug: string, receiptCode: strin
 
   const event = eventList[0];
 
+  if (receipt.eventId !== event.id) {
+    return { valid: false, message: "This receipt belongs to a different event." };
+  }
+
   // 2. Query vote session by token or session ID
   const sessionList = await db
     .select()
@@ -458,7 +514,8 @@ export async function verifyBallotReceiptAction(slug: string, receiptCode: strin
     .where(
       and(
         eq(voteSessions.eventId, event.id),
-        sql`(${voteSessions.sessionToken} = ${cleanCode} OR ${voteSessions.id}::text = ${cleanCode})`
+        eq(voteSessions.id, receipt.sessionId),
+        eq(voteSessions.status, "SUBMITTED")
       )
     )
     .limit(1);
@@ -472,7 +529,7 @@ export async function verifyBallotReceiptAction(slug: string, receiptCode: strin
   return {
     valid: true,
     eventName: event.name,
-    receiptCode: sess.sessionToken,
+    receiptCode: receiptCode.trim(),
     status: sess.status,
     submittedAt: sess.submittedAt ? sess.submittedAt.toISOString() : null,
     categoriesVoted: sess.categoriesVoted || 0,

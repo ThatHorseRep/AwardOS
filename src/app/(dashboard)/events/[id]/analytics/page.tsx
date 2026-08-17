@@ -1,47 +1,43 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import {
-  TrendingUp,
-  ArrowLeft,
-  Smartphone,
-  Clock,
-  Globe,
-  Loader2,
-  ArrowUpRight,
-  BarChart3,
-  Calendar,
-  Zap,
-  Monitor,
-} from "lucide-react";
+import { TrendingUp, ArrowLeft, Smartphone, Clock, Loader2, ArrowUpRight, BarChart3, Calendar, Zap, Monitor } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getEventAnalyticsAction } from "@/actions/analytics";
+import { LoadError } from "@/components/shared/load-error";
+
+type EventAnalytics = Awaited<ReturnType<typeof getEventAnalyticsAction>>;
 
 export default function OrganizerAnalyticsDashboardPage() {
   const params = useParams();
   const eventId = params.id as string;
 
   const [loading, setLoading] = useState(true);
-  const [analytics, setAnalytics] = useState<any | null>(null);
+  const [analytics, setAnalytics] = useState<EventAnalytics | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    setLoading(true); setLoadError(false);
     try {
       const data = await getEventAnalyticsAction(eventId);
       setAnalytics(data);
     } catch (err) {
       console.error("Failed to load analytics payload:", err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
-  };
+  }, [eventId]);
 
   useEffect(() => {
-    loadData();
-  }, [eventId]);
+    void loadData();
+  }, [loadData]);
+
+  if (loadError) return <LoadError onRetry={() => void loadData()} />;
 
   if (loading) {
     return (
@@ -153,7 +149,7 @@ export default function OrganizerAnalyticsDashboardPage() {
                 <div className="py-12 text-center text-slate-500 text-xs italic font-medium">No hourly records collected.</div>
               ) : (
                 <div className="space-y-3 pt-2">
-                  {analytics.velocityData.map((d: any, idx: number) => (
+                  {analytics.velocityData.map((d, idx: number) => (
                     <div key={idx} className="space-y-1.5">
                       <div className="flex justify-between text-[11px] font-mono">
                         <span className="text-slate-600 font-semibold">{d.hour}</span>
@@ -187,7 +183,7 @@ export default function OrganizerAnalyticsDashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 pt-4">
-              {analytics.osBreakdown?.map((os: any) => (
+              {analytics.osBreakdown?.map((os) => (
                 <div key={os.name} className="space-y-1">
                   <div className="flex justify-between text-xs text-slate-700 font-medium">
                     <span>{os.name}</span>
@@ -216,7 +212,7 @@ export default function OrganizerAnalyticsDashboardPage() {
               {analytics.categoryTurnout.length === 0 ? (
                 <div className="text-center text-slate-500 text-xs italic py-8 font-medium">No categories turnout metrics.</div>
               ) : (
-                analytics.categoryTurnout.map((cat: any, idx: number) => (
+                analytics.categoryTurnout.map((cat, idx: number) => (
                   <div key={idx} className="space-y-1">
                     <div className="flex justify-between text-xs text-slate-900 font-medium">
                       <span className="font-semibold truncate max-w-[170px]">{cat.name}</span>

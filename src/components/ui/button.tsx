@@ -15,7 +15,7 @@ export interface ButtonProps
     | "outline"
     | "ghost"
     | "danger"
-    | "glass";
+    | "destructive";
   size?: "sm" | "md" | "lg" | "icon";
   isLoading?: boolean;
 }
@@ -34,30 +34,30 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const baseStyles =
-      "inline-flex items-center justify-center font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed select-none rounded-xl";
+      "inline-flex items-center justify-center font-semibold transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:opacity-40 disabled:cursor-not-allowed select-none active:scale-[0.97] rounded-xl";
 
     const variants = {
       default:
-        "bg-slate-800 text-slate-100 hover:bg-slate-700 active:bg-slate-900 border border-slate-700/60",
+        "bg-surface-raised text-content hover:bg-surface-muted border border-border-subtle shadow-sm",
       primary:
-        "bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:from-indigo-500 hover:to-violet-500 active:from-indigo-700 active:to-violet-700 shadow-lg shadow-indigo-600/25 border border-indigo-500/30",
+        "bg-accent text-accent-contrast hover:bg-accent-hover shadow-sm",
       secondary:
-        "bg-slate-800/80 text-slate-200 hover:bg-slate-700/80 hover:text-white border border-slate-700/50",
+        "bg-surface-muted text-content hover:bg-border-subtle border border-border-subtle",
       outline:
-        "border border-slate-700 text-slate-300 hover:bg-slate-800/60 hover:text-white hover:border-slate-600",
+        "border border-border-subtle text-content hover:bg-surface-raised",
       ghost:
-        "text-slate-400 hover:text-slate-100 hover:bg-slate-800/50",
+        "text-content-secondary hover:text-content hover:bg-surface-raised",
       danger:
-        "bg-red-600/90 text-white hover:bg-red-500 active:bg-red-700 shadow-lg shadow-red-600/20 border border-red-500/30",
-      glass:
-        "bg-slate-800/40 backdrop-blur-md text-slate-200 hover:bg-slate-800/70 hover:text-white border border-white/10 shadow-sm",
+        "bg-destructive text-white hover:bg-destructive/90 shadow-sm",
+      destructive:
+        "bg-destructive text-white hover:bg-destructive/90 shadow-sm",
     };
 
     const sizes = {
       sm: "text-xs px-3 py-1.5 gap-1.5",
-      md: "text-sm px-4 py-2.5 gap-2",
-      lg: "text-base px-6 py-3 gap-2.5 rounded-2xl",
-      icon: "p-2.5 rounded-xl text-slate-400 hover:text-slate-100",
+      md: "text-sm px-3.5 py-2 gap-2",
+      lg: "text-base px-5 py-2.5 gap-2.5 rounded-2xl",
+      icon: "p-2 rounded-xl text-content-secondary hover:text-content hover:bg-surface-raised",
     };
 
     return (
@@ -100,3 +100,4 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 );
 
 Button.displayName = "Button";
+

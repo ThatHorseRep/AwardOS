@@ -1,26 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import {
-  Trophy,
-  ArrowLeft,
-  Users,
-  Sparkles,
-  Plus,
-  Trash2,
-  Check,
-  Send,
-  Info,
-  CheckCircle2,
-  HelpCircle,
-  Loader2,
-} from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { ArrowLeft, Sparkles, Send, Info, CheckCircle2, Loader2 } from "lucide-react";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getPublicEventDetailsAction } from "@/actions/events";
+import { LoadError } from "@/components/shared/load-error";
+
+type PublicEvent = Awaited<ReturnType<typeof getPublicEventDetailsAction>>;
 
 export default function PublicNominationPage() {
   const params = useParams();
@@ -31,12 +21,20 @@ export default function PublicNominationPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [event, setEvent] = useState<any | null>(null);
+  const [event, setEvent] = useState<PublicEvent>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   // State for form inputs per category
   const [nominations, setNominations] = useState<{ [catId: string]: string }>({});
   const [suggestedCategory, setSuggestedCategory] = useState("");
+
+  const loadData = useCallback(async () => {
+    setLoading(true); setLoadError(false);
+    try { setEvent(await getPublicEventDetailsAction(slug)); }
+    catch (err) { console.error("Failed to load event details:", err); setLoadError(true); }
+    finally { setLoading(false); }
+  }, [slug]);
 
   // Check localStorage for previous submission and load dynamic event details
   useEffect(() => {
@@ -45,18 +43,8 @@ export default function PublicNominationPage() {
       setHasAlreadySubmitted(true);
     }
 
-    async function loadData() {
-      try {
-        const data = await getPublicEventDetailsAction(slug);
-        setEvent(data);
-      } catch (err) {
-        console.error("Failed to load event details:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-  }, [slug]);
+    void loadData();
+  }, [slug, loadData]);
 
   const handleInputChange = (catId: string, value: string) => {
     setNominations((prev) => ({ ...prev, [catId]: value }));
@@ -68,7 +56,7 @@ export default function PublicNominationPage() {
 
     // Convert nominations map into array of filled entries
     const entries = Object.entries(nominations)
-      .filter(([_, value]) => value.trim().length > 0)
+      .filter(([, value]) => value.trim().length > 0)
       .map(([categoryId, nomineeText]) => ({
         categoryId,
         nomineeText: nomineeText.trim(),
@@ -84,7 +72,7 @@ export default function PublicNominationPage() {
     try {
       let sessionId = localStorage.getItem("awardos_session_id");
       if (!sessionId) {
-        sessionId = `sess_${Math.random().toString(36).substring(2)}_${Date.now()}`;
+        sessionId = `sess_${crypto.randomUUID()}`;
         localStorage.setItem("awardos_session_id", sessionId);
       }
 
@@ -106,8 +94,8 @@ export default function PublicNominationPage() {
 
       localStorage.setItem(`awardos_nomination_${slug}`, JSON.stringify(entries));
       router.push(`/e/${slug}/nominate/confirmation`);
-    } catch (err: any) {
-      setError(err?.message || "An error occurred while submitting.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "An error occurred while submitting.");
     } finally {
       setSubmitting(false);
     }
@@ -115,21 +103,23 @@ export default function PublicNominationPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="animate-spin rounded-full h-8 w-8 text-blue-600" />
+      <div className="flex items-center justify-center min-h-[400px]" role="status" aria-live="polite" aria-label="Loading nomination form">
+        <Loader2 className="animate-spin rounded-full h-8 w-8 text-accent" aria-hidden="true" />
       </div>
     );
   }
 
+  if (loadError) return <LoadError message="We could not load the nomination form." onRetry={() => void loadData()} />;
+
   if (!event) {
     return (
-      <Card className="border-slate-200/80 bg-white rounded-3xl p-8 text-center max-w-lg mx-auto shadow-sm font-sans select-none my-12">
+      <Card className="border-border-subtle bg-surface rounded-2xl p-8 text-center max-w-lg mx-auto shadow-sm font-sans select-none my-12 text-content">
         <CardHeader>
-          <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-3 border border-rose-200">
+          <div className="w-12 h-12 rounded-xl bg-destructive/10 text-destructive flex items-center justify-center mx-auto mb-3 border border-destructive/20">
             <Info className="w-6 h-6" />
           </div>
-          <CardTitle className="text-xl font-bold text-slate-900">Event Not Found</CardTitle>
-          <CardDescription className="text-xs text-slate-600 font-medium mt-1">
+          <CardTitle className="text-xl font-bold text-content">Event not found</CardTitle>
+          <CardDescription className="text-xs text-content-secondary font-medium mt-1">
             The requested award event could not be found.
           </CardDescription>
         </CardHeader>
@@ -137,25 +127,25 @@ export default function PublicNominationPage() {
     );
   }
 
-  const nominationStage = event?.stages?.find((s: any) => s.stageType === "NOMINATIONS");
+  const nominationStage = event?.stages?.find((s) => s.stageType === "NOMINATIONS");
   const isNominationActive = nominationStage ? nominationStage.status === "ACTIVE" : event?.status === "ACTIVE";
 
   if (!isNominationActive) {
     return (
-      <Card className="border-slate-200/80 bg-white rounded-3xl p-8 text-center max-w-lg mx-auto shadow-sm font-sans select-none my-12">
+      <Card className="border-border-subtle bg-surface rounded-2xl p-8 text-center max-w-lg mx-auto shadow-sm font-sans select-none my-12 text-content">
         <CardHeader>
-          <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-3 border border-amber-200">
+          <div className="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto mb-3 border border-amber-500/20">
             <Info className="w-6 h-6" />
           </div>
-          <CardTitle className="text-xl font-bold text-slate-900">Nomination Period Closed</CardTitle>
-          <CardDescription className="text-xs text-slate-600 font-medium mt-1">
+          <CardTitle className="text-xl font-bold text-content">Nomination period closed</CardTitle>
+          <CardDescription className="text-xs text-content-secondary font-medium mt-1">
             Nominations are not currently active for {event?.name || "this event"}. Please check the event schedule for updates.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-2">
           <Link href={`/e/${slug}`}>
-            <Button variant="primary" className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold px-6">
-              Return to Event Program
+            <Button variant="primary" className="px-5 py-2.5 rounded-xl font-semibold text-xs">
+              Return to event program
             </Button>
           </Link>
         </CardContent>
@@ -163,49 +153,37 @@ export default function PublicNominationPage() {
     );
   }
 
-  if (!event) {
-    return (
-      <div className="text-center py-12 font-sans">
-        <h2 className="text-xl font-bold text-slate-900">Event not found</h2>
-        <p className="text-slate-600 mt-2 font-medium">The event page you are looking for does not exist or has been deleted.</p>
-        <Link href="/" className="mt-4 inline-block text-blue-600 hover:underline font-bold">
-          Go Home
-        </Link>
-      </div>
-    );
-  }
-
   return (
-    <div className="max-w-3xl mx-auto space-y-6 font-sans select-none pb-16">
+    <div className="max-w-3xl mx-auto space-y-6 font-sans select-none pb-20">
       {/* Back Button & Title */}
       <div className="flex items-center justify-between">
         <Link href={`/e/${slug}`}>
-          <Button variant="ghost" size="sm" className="text-slate-700 hover:bg-slate-200">
+          <Button variant="ghost" size="sm" className="text-content-secondary hover:text-content">
             <ArrowLeft className="w-4 h-4 mr-1.5" />
-            <span>Back to Event</span>
+            <span>Back to event</span>
           </Button>
         </Link>
 
-        <Badge variant="purple" size="sm">
-          <Sparkles className="w-3 h-3 mr-1" /> Nomination Stage Open
+        <Badge variant="default" size="sm">
+          <Sparkles className="w-3 h-3 mr-1 text-accent" /> Nomination stage open
         </Badge>
       </div>
 
       {/* Header Banner */}
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-          Submit Your Nominations
+        <h1 className="text-2xl sm:text-3xl font-bold text-content tracking-tight">
+          Submit your nominations
         </h1>
-        <p className="text-slate-600 text-xs max-w-lg mx-auto leading-relaxed font-medium">
-          Honoring excellence for <strong className="text-slate-900">{event.name}</strong>. You can nominate candidates across multiple categories below. No sign-in required!
+        <p className="text-content-secondary text-xs max-w-lg mx-auto leading-relaxed font-normal">
+          Honoring excellence for <strong className="text-content font-bold">{event.name}</strong>. You can nominate candidates across multiple categories below.
         </p>
       </div>
 
       {/* Already Submitted Banner */}
       {hasAlreadySubmitted && (
-        <div className="p-4 rounded-3xl bg-blue-50 border border-blue-200 text-blue-900 text-xs flex items-center justify-between gap-3 font-medium">
+        <div className="p-4 rounded-2xl bg-accent/10 border border-accent/20 text-accent text-xs flex items-center justify-between gap-3 font-medium">
           <div className="flex items-center gap-2.5">
-            <CheckCircle2 className="w-5 h-5 text-blue-600 shrink-0" />
+            <CheckCircle2 className="w-5 h-5 text-accent shrink-0" />
             <span>You have already submitted nominations for this event. You can submit additional entries or updates below.</span>
           </div>
         </div>
@@ -213,7 +191,7 @@ export default function PublicNominationPage() {
 
       {/* Error Banner */}
       {error && (
-        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold">
+        <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs font-semibold" role="alert" aria-live="assertive">
           {error}
         </div>
       )}
@@ -221,15 +199,15 @@ export default function PublicNominationPage() {
       {/* Nomination Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-4">
-          {event.categories.map((cat: any, idx: number) => (
-            <Card key={cat.id} className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
-              <CardHeader className="pb-3 border-b border-slate-100">
+          {event.categories.map((cat, idx: number) => (
+            <Card key={cat.id} className="border-border-subtle bg-surface rounded-2xl shadow-sm text-content">
+              <CardHeader className="pb-3 border-b border-border-subtle">
                 <div className="flex items-center justify-between">
-                  <Badge variant="purple" size="sm">Category 0{idx + 1}</Badge>
+                  <Badge variant="default" size="sm">Category 0{idx + 1}</Badge>
                 </div>
-                <CardTitle className="text-base text-slate-900 font-bold mt-1.5">{cat.name}</CardTitle>
+                <CardTitle className="text-base text-content font-bold mt-1.5">{cat.name}</CardTitle>
                 {cat.description && (
-                  <CardDescription className="text-slate-600 text-xs font-medium mt-1">
+                  <CardDescription className="text-content-secondary text-xs font-normal mt-1">
                     {cat.description}
                   </CardDescription>
                 )}
@@ -237,16 +215,18 @@ export default function PublicNominationPage() {
 
               <CardContent className="pt-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
-                    <span>Nominee Full Name or Organization *</span>
-                    <span className="text-[10px] text-slate-400 font-medium">Optional if skipping category</span>
+                  <label htmlFor={`nominee-${cat.id}`} className="text-xs font-semibold text-content flex items-center justify-between">
+                    <span>Nominee full name or organization</span>
+                    <span className="text-xs text-content-secondary font-normal">Optional</span>
                   </label>
                   <input
+                    id={`nominee-${cat.id}`}
+                    name={`nominee-${cat.id}`}
                     type="text"
                     value={nominations[cat.id] || ""}
                     onChange={(e) => handleInputChange(cat.id, e.target.value)}
                     placeholder="Enter full name (e.g. Dr. Jane Doe or Student Club Name)"
-                    className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-4 py-2.5 border border-slate-200 focus:outline-none focus:border-blue-500 font-medium"
+                    className="w-full bg-surface-raised text-content text-xs rounded-xl px-3.5 py-2.5 border border-border-subtle focus:outline-none focus:border-accent font-normal"
                   />
                 </div>
               </CardContent>
@@ -255,24 +235,27 @@ export default function PublicNominationPage() {
         </div>
 
         {/* Suggest New Category Box */}
-        <Card className="border-purple-200 bg-purple-50/50 rounded-3xl shadow-sm">
-          <CardHeader className="pb-3 border-b border-purple-100">
+        <Card className="border-border-subtle bg-surface rounded-2xl shadow-sm text-content">
+          <CardHeader className="pb-3 border-b border-border-subtle">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-purple-600" />
-              <CardTitle className="text-sm font-bold text-purple-950">Don&apos;t see the right category?</CardTitle>
+              <Sparkles className="w-4 h-4 text-accent" />
+              <CardTitle className="text-sm font-bold text-content">Don&apos;t see the right category?</CardTitle>
             </div>
-            <CardDescription className="text-xs text-purple-900 font-medium">
+            <CardDescription className="text-xs text-content-secondary font-normal">
               Suggest a new award category to the event organizers for review.
             </CardDescription>
           </CardHeader>
 
           <CardContent className="pt-4">
+            <label htmlFor="suggested-category" className="mb-1.5 block text-xs font-semibold text-content">Suggested category name</label>
             <input
+              id="suggested-category"
+              name="suggestedCategory"
               type="text"
               value={suggestedCategory}
               onChange={(e) => setSuggestedCategory(e.target.value)}
               placeholder="e.g. Lifetime Achievement in Campus Mentorship"
-              className="w-full bg-white text-slate-900 text-xs rounded-2xl px-4 py-2.5 border border-purple-200 focus:outline-none focus:border-purple-500 font-medium"
+              className="w-full bg-surface-raised text-content text-xs rounded-xl px-3.5 py-2.5 border border-border-subtle focus:outline-none focus:border-accent font-normal"
             />
           </CardContent>
         </Card>
@@ -284,10 +267,10 @@ export default function PublicNominationPage() {
             variant="primary"
             size="lg"
             disabled={submitting}
-            className="w-full sm:w-auto rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold px-8 shadow-md shadow-blue-600/20"
+            className="w-full sm:w-auto rounded-xl font-semibold text-xs px-6 py-2.5 shadow-sm"
           >
             {submitting ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <Send className="w-4 h-4 mr-2" />}
-            <span>Submit Nominations</span>
+            <span>Submit nominations</span>
           </Button>
         </div>
       </form>

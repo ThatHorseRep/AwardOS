@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Radio, Wifi, RefreshCw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 interface LiveResultsListenerProps {
@@ -27,7 +26,7 @@ export function LiveResultsListener({ eventId, onVoteReceived, showStatusBadge =
           table: "votes",
           filter: `event_id=eq.${eventId}`,
         },
-        (payload) => {
+        () => {
           setVoteCount((prev) => prev + 1);
           if (onVoteReceived) {
             onVoteReceived();

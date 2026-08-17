@@ -18,6 +18,14 @@ const encodedRedirect = async (
   return redirect(`${path}?${type}=${encodeURIComponent(message)}`);
 };
 
+function errorDetails(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isNextRedirect(error: unknown): error is { digest: string } {
+  return typeof error === "object" && error !== null && "digest" in error && typeof (error as { digest?: unknown }).digest === "string" && (error as { digest: string }).digest.startsWith("NEXT_REDIRECT");
+}
+
 export const signInAction = async (formData: FormData) => {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
@@ -32,14 +40,15 @@ export const signInAction = async (formData: FormData) => {
     });
 
     if (error) {
-      errorMessage = error.message;
+      console.warn("Supabase sign in rejected the request:", error.message);
+      errorMessage = "Sign in failed. Check your credentials and try again.";
     }
-  } catch (err: any) {
-    if (err?.digest?.startsWith("NEXT_REDIRECT")) {
+  } catch (err: unknown) {
+    if (isNextRedirect(err)) {
       throw err;
     }
-    console.warn("Supabase auth sign in error:", err?.message || err);
-    errorMessage = err?.message || "Sign in failed";
+    console.warn("Supabase auth sign in error:", errorDetails(err));
+    errorMessage = "Sign in failed. Check your credentials and try again.";
   }
 
   if (errorMessage) {
@@ -55,7 +64,6 @@ export const signUpAction = async (formData: FormData) => {
   const name = formData.get("name") as string;
 
   let errorMessage: string | null = null;
-  let isSuccess = false;
 
   try {
     const supabase = await createClient();
@@ -68,16 +76,15 @@ export const signUpAction = async (formData: FormData) => {
     });
 
     if (error) {
-      errorMessage = error.message;
-    } else {
-      isSuccess = true;
+      console.warn("Supabase sign up rejected the request:", error.message);
+      errorMessage = "Sign up failed. Verify your details or sign in if the account already exists.";
     }
-  } catch (err: any) {
-    if (err?.digest?.startsWith("NEXT_REDIRECT")) {
+  } catch (err: unknown) {
+    if (isNextRedirect(err)) {
       throw err;
     }
-    console.warn("Supabase auth sign up error:", err?.message || err);
-    errorMessage = err?.message || "Sign up failed";
+    console.warn("Supabase auth sign up error:", errorDetails(err));
+    errorMessage = "Sign up failed. Please verify your details and try again.";
   }
 
   if (errorMessage) {
@@ -91,7 +98,7 @@ export const signOutAction = async () => {
   try {
     const supabase = await createClient();
     await supabase.auth.signOut();
-  } catch (e) {
+  } catch {
     // Ignore signout error
   }
   const cookieStore = await cookies();

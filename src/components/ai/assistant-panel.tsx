@@ -1,12 +1,15 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Sparkles, X, Send, Copy, Check, FileText, Share2, Mic, Bot, AlertCircle } from "lucide-react";
+import { Sparkles, X, Send, Copy, Check, FileText, Share2, Mic, AlertCircle, Download, CornerDownLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
+import { insertAIDraftIntoEventDescriptionAction } from "@/actions/ai";
 
 interface AIAssistantPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  eventId?: string;
 }
 
 interface Message {
@@ -14,7 +17,7 @@ interface Message {
   content: string;
 }
 
-export function AIAssistantPanel({ isOpen, onClose }: AIAssistantPanelProps) {
+export function AIAssistantPanel({ isOpen, onClose, eventId }: AIAssistantPanelProps) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -25,6 +28,7 @@ export function AIAssistantPanel({ isOpen, onClose }: AIAssistantPanelProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [insertedIdx, setInsertedIdx] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -55,17 +59,17 @@ export function AIAssistantPanel({ isOpen, onClose }: AIAssistantPanelProps) {
     setMessages([...updatedMessages, assistantMessage]);
 
     try {
-      const response = await fetch("/api/ai/chat", {
+      const response = await fetchWithTimeout("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: updatedMessages.map((m) => ({ role: m.role, content: m.content })),
+          eventId,
         }),
-      });
+      }, 30_000);
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP Error ${response.status}`);
+        throw new Error(response.status === 429 ? "AI request limit reached. Try again shortly." : "The AI assistant could not complete this request.");
       }
 
       if (!response.body) {
@@ -101,15 +105,12 @@ export function AIAssistantPanel({ isOpen, onClose }: AIAssistantPanelProps) {
           return next;
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("AI Streaming error:", err);
-      setErrorMessage(err.message || "Failed to connect to AI assistant");
+      setErrorMessage(err instanceof Error ? err.message : "Failed to connect to AI assistant");
       setMessages((prev) => {
         const next = [...prev];
-        next[next.length - 1] = {
-          role: "assistant",
-          content: `🏆 **AwardOS Assistant Notice**:\nI'm ready to assist with your event! (To enable live generative responses, ensure GOOGLE_GENERATIVE_AI_API_KEY is configured in your environment settings).`,
-        };
+        next.pop();
         return next;
       });
     } finally {
@@ -121,6 +122,25 @@ export function AIAssistantPanel({ isOpen, onClose }: AIAssistantPanelProps) {
     navigator.clipboard.writeText(text);
     setCopiedIdx(idx);
     setTimeout(() => setCopiedIdx(null), 2000);
+  };
+
+  const handleExport = (text: string) => {
+    const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "awardos-ai-draft.txt";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleInsert = async (text: string, index: number) => {
+    if (!eventId) return;
+    try {
+      await insertAIDraftIntoEventDescriptionAction(eventId, text);
+      setInsertedIdx(index);
+    } catch {
+      setErrorMessage("The draft could not be inserted into this event.");
+    }
   };
 
   const quickPrompts = [
@@ -190,7 +210,7 @@ export function AIAssistantPanel({ isOpen, onClose }: AIAssistantPanelProps) {
               <p className="whitespace-pre-wrap">{msg.content || (isLoading && idx === messages.length - 1 ? "..." : "")}</p>
 
               {msg.role === "assistant" && msg.content && (
-                <button
+                <div className="mt-2 flex items-center gap-3"><button
                   onClick={() => handleCopy(msg.content, idx)}
                   className="mt-2 text-[10px] text-slate-400 hover:text-slate-900 flex items-center gap-1 opacity-80 hover:opacity-100 transition-opacity font-bold"
                 >
@@ -203,7 +223,7 @@ export function AIAssistantPanel({ isOpen, onClose }: AIAssistantPanelProps) {
                       <Copy className="w-3 h-3" /> Copy Text
                     </>
                   )}
-                </button>
+                </button><button type="button" onClick={() => handleExport(msg.content)} className="text-[10px] text-slate-400 hover:text-slate-900 flex items-center gap-1 font-bold"><Download className="w-3 h-3" /> Export</button>{eventId && <button type="button" onClick={() => void handleInsert(msg.content, idx)} className="text-[10px] text-slate-400 hover:text-slate-900 flex items-center gap-1 font-bold"><CornerDownLeft className="w-3 h-3" /> {insertedIdx === idx ? "Inserted" : "Use as event description"}</button>}</div>
               )}
             </div>
           </div>

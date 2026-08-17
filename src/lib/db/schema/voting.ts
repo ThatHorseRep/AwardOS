@@ -32,7 +32,10 @@ export const voteSessions = pgTable('vote_sessions', {
 
   unqEventSessionToken: uniqueIndex('unq_vote_sessions_event_token').on(table.eventId, table.sessionToken),
 
-  // One ballot per voter per event, enforced by the database.
+  // One ballot per voter per event, enforced by the database. Verified modes
+  // have their own identity constraint; their device fingerprint is derived
+  // from the shared network address and must not block another voter on that
+  // network.
   //
   // The application check that used to stand alone here was a read-then-write:
   // under READ COMMITTED two concurrent submissions both saw "no prior ballot"
@@ -48,7 +51,7 @@ export const voteSessions = pgTable('vote_sessions', {
     .where(sql`${table.verifiedEmail} IS NOT NULL AND ${table.status} = 'SUBMITTED'`),
   unqEventFingerprint: uniqueIndex('unq_vote_sessions_event_fingerprint')
     .on(table.eventId, table.deviceFingerprint)
-    .where(sql`${table.deviceFingerprint} IS NOT NULL AND ${table.status} = 'SUBMITTED'`),
+    .where(sql`${table.deviceFingerprint} IS NOT NULL AND ${table.status} = 'SUBMITTED' AND ${table.verificationMethod} = 'NONE'`),
 }));
 
 export const votes = pgTable('votes', {

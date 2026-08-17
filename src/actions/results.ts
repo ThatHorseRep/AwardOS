@@ -1,9 +1,9 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { events, categories, nominees, votes, voteSessions, voterOtps, invitationCodes, specialAwards, officialResults } from "@/lib/db/schema";
-import { eq, and, sql, isNull, not, desc } from "drizzle-orm";
-import { requireEventAccess, RESULTS_MANAGERS, EVENT_ADMINS, ALL_MEMBERS } from "./_rbac";
+import { archiveConfigs, auditLogs, events, eventBranding, categories, nominees, votes, voteSessions, voterOtps, invitationCodes, specialAwards, officialResults, resultActions } from "@/lib/db/schema";
+import { eq, and, sql, isNull, desc } from "drizzle-orm";
+import { requireEventAccess, requireWorkspaceRole, RESULTS_MANAGERS, EVENT_ADMINS, ALL_MEMBERS } from "./_rbac";
 
 /**
  * Tabulation core. Takes an event id that has ALREADY been authorized — either
@@ -69,24 +69,27 @@ async function tabulateEventResults(eventId: string) {
         .where(and(eq(officialResults.eventId, eventId), eq(officialResults.nomineeId, nom.id)))
         .limit(1);
 
-      const judgeScore = officialRes[0]?.judgeScore ?? null;
+      const official = officialRes[0] ?? null;
 
       candidates.push({
         id: nom.id,
         name: nom.name,
         bio: nom.bio,
-        votes: votesCount,
-        judgeScore,
-        status: nom.status, // ACTIVE | DISQUALIFIED | MERGED | REMOVED
+        votes: official?.adjustedVoteCount ?? votesCount,
+        rawVotes: votesCount,
+        officialResultId: official?.id ?? null,
+        overrideRank: official?.overrideRank ?? null,
+        overrideReason: official?.overrideReason ?? null,
+        status: official?.isDisqualified ? "DISQUALIFIED" : nom.status,
       });
     }
 
     // Sort active candidates by vote totals descending
     const activeCandidates = candidates.filter((c) => c.status !== "MERGED" && c.status !== "REMOVED");
-    activeCandidates.sort((a, b) => {
-      // Push disqualified to bottom or just order by vote totals
-      return b.votes - a.votes;
-    });
+    activeCandidates.sort((a, b) =>
+      (a.overrideRank ?? Number.MAX_SAFE_INTEGER) -
+        (b.overrideRank ?? Number.MAX_SAFE_INTEGER) || b.votes - a.votes,
+    );
 
     // Compute ranks and percentages
     const rankedWinners = activeCandidates.map((cand, idx) => {
@@ -111,30 +114,66 @@ async function tabulateEventResults(eventId: string) {
   }
 
   return {
+    id: event.id,
     eventId: event.id,
     name: event.name,
+    slug: event.slug,
     liveResultsMode: event.liveResultsMode,
     categoriesResults: categoryResults,
   };
 }
 
+async function snapshotOfficialResults(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  eventId: string,
+) {
+  const nomineeRows = await tx
+    .select({ id: nominees.id, categoryId: nominees.categoryId, status: nominees.status })
+    .from(nominees)
+    .where(eq(nominees.eventId, eventId));
+  const counts = await tx
+    .select({ nomineeId: votes.nomineeId, count: sql<number>`count(${votes.id})::int` })
+    .from(votes)
+    .innerJoin(voteSessions, eq(votes.voteSessionId, voteSessions.id))
+    .where(and(eq(votes.eventId, eventId), eq(voteSessions.status, "SUBMITTED")))
+    .groupBy(votes.nomineeId);
+  const countByNominee = new Map(counts.map((row) => [row.nomineeId, row.count]));
+
+  for (const categoryId of new Set(nomineeRows.map((row) => row.categoryId))) {
+    const ranked = nomineeRows
+      .filter((row) => row.categoryId === categoryId)
+      .sort((a, b) => (countByNominee.get(b.id) ?? 0) - (countByNominee.get(a.id) ?? 0));
+    for (const [index, nominee] of ranked.entries()) {
+      const rawVoteCount = countByNominee.get(nominee.id) ?? 0;
+      await tx
+        .insert(officialResults)
+        .values({ eventId, categoryId, nomineeId: nominee.id, rawVoteCount, adjustedVoteCount: rawVoteCount, finalRank: index + 1, isWinner: index === 0 && nominee.status !== "DISQUALIFIED", isDisqualified: nominee.status === "DISQUALIFIED" })
+        .onConflictDoUpdate({
+          target: [officialResults.eventId, officialResults.categoryId, officialResults.nomineeId],
+          set: { rawVoteCount, adjustedVoteCount: rawVoteCount, finalRank: index + 1, isWinner: index === 0 && nominee.status !== "DISQUALIFIED", isDisqualified: nominee.status === "DISQUALIFIED", updatedAt: new Date() },
+        });
+    }
+  }
+}
+
 // Retrieve tabulated event results (excl. invalidated sessions)
 export async function getEventResultsAction(eventId: string) {
-  await requireEventAccess(eventId, ALL_MEMBERS);
+  await requireEventAccess(eventId, ALL_MEMBERS, "view_results");
   return await tabulateEventResults(eventId);
 }
 
 // Publish/unpublish results settings
 export async function publishResultsAction(eventId: string, publish: boolean) {
-  await requireEventAccess(eventId, RESULTS_MANAGERS);
-
-  await db
-    .update(events)
-    .set({
-      liveResultsMode: publish ? "FULL_LEADERBOARD" : "HIDDEN",
-      updatedAt: new Date(),
-    })
-    .where(eq(events.id, eventId));
+  const { user, workspace } = await requireEventAccess(eventId, RESULTS_MANAGERS, "publish_results");
+  await db.transaction(async (tx) => {
+    if (publish) {
+      await snapshotOfficialResults(tx, eventId);
+      await tx.insert(archiveConfigs).values({ eventId, updatedBy: user.id, isPublic: false }).onConflictDoUpdate({ target: archiveConfigs.eventId, set: { updatedBy: user.id, updatedAt: new Date() } });
+    }
+    await tx.update(events).set({ liveResultsMode: publish ? "FULL_LEADERBOARD" : "HIDDEN", updatedAt: new Date() }).where(eq(events.id, eventId));
+    await tx.insert(resultActions).values({ eventId, actionType: publish ? "PUBLISH" : "UNPUBLISH", description: publish ? "Published official results" : "Unpublished official results", performedBy: user.id, reversible: true });
+    await tx.insert(auditLogs).values({ workspaceId: workspace.id, eventId, actorId: user.id, action: publish ? "results.published" : "results.unpublished", targetType: "event", targetId: eventId });
+  });
 
   return { success: true };
 }
@@ -154,15 +193,14 @@ export async function disqualifyNomineeAction(nomineeId: string, status: "ACTIVE
     throw new Error("Nominee not found");
   }
 
-  await requireEventAccess(owner.eventId, RESULTS_MANAGERS);
-
-  await db
-    .update(nominees)
-    .set({
-      status,
-      updatedAt: new Date(),
-    })
-    .where(eq(nominees.id, nomineeId));
+  const { workspace, user } = await requireEventAccess(owner.eventId, RESULTS_MANAGERS, "publish_results");
+  await db.transaction(async (tx) => {
+    await tx.update(nominees).set({ status, updatedAt: new Date() }).where(eq(nominees.id, nomineeId));
+    await tx.update(officialResults).set({ isDisqualified: status === "DISQUALIFIED", isWinner: false, updatedAt: new Date() }).where(and(eq(officialResults.eventId, owner.eventId), eq(officialResults.nomineeId, nomineeId)));
+    const [official] = await tx.select({ id: officialResults.id }).from(officialResults).where(and(eq(officialResults.eventId, owner.eventId), eq(officialResults.nomineeId, nomineeId))).limit(1);
+    await tx.insert(resultActions).values({ eventId: owner.eventId, officialResultId: official?.id ?? null, actionType: status === "DISQUALIFIED" ? "DISQUALIFY" : "RESTORE", description: status === "DISQUALIFIED" ? "Disqualified nominee" : "Restored nominee", performedBy: user.id, reversible: true });
+    await tx.insert(auditLogs).values({ workspaceId: workspace.id, eventId: owner.eventId, actorId: user.id, action: status === "DISQUALIFIED" ? "nominee.disqualified" : "nominee.restored", targetType: "nominee", targetId: nomineeId });
+  });
 
   return { success: true };
 }
@@ -180,6 +218,7 @@ export async function getPublicEventResultsAction(slug: string) {
   }
 
   const event = eventList[0];
+  if (event.visibility === "PRIVATE") return null;
 
   // If results are hidden, restrict payload details unless standard layout allows
   if (event.liveResultsMode === "HIDDEN") {
@@ -207,7 +246,7 @@ export async function getPublicEventResultsAction(slug: string) {
 export async function getRawBallotsExportAction(eventId: string) {
   // Rows carry voter emails, invitation codes, IPs and user agents — same tier
   // as the audit-log export in exports.ts.
-  await requireEventAccess(eventId, EVENT_ADMINS);
+  await requireEventAccess(eventId, EVENT_ADMINS, "manage_events");
 
   return await db
     .select({
@@ -235,7 +274,7 @@ export async function getRawBallotsExportAction(eventId: string) {
 export async function getVoterLogsExportAction(eventId: string) {
   // Emails paired with live OTP codes and unredeemed invitation codes: leaking
   // this hands over the ability to vote as someone else.
-  await requireEventAccess(eventId, EVENT_ADMINS);
+  await requireEventAccess(eventId, EVENT_ADMINS, "manage_events");
 
   const otps = await db
     .select()
@@ -274,7 +313,7 @@ export async function createSpecialAwardAction(
   recipientName: string,
   description?: string
 ) {
-  const { user } = await requireEventAccess(eventId, RESULTS_MANAGERS);
+  const { user } = await requireEventAccess(eventId, RESULTS_MANAGERS, "publish_results");
 
   const [award] = await db
     .insert(specialAwards)
@@ -307,7 +346,7 @@ async function listSpecialAwards(eventId: string) {
 }
 
 export async function getSpecialAwardsAction(eventId: string) {
-  await requireEventAccess(eventId, ALL_MEMBERS);
+  await requireEventAccess(eventId, ALL_MEMBERS, "view_results");
   return await listSpecialAwards(eventId);
 }
 
@@ -323,74 +362,62 @@ export async function deleteSpecialAwardAction(awardId: string) {
     throw new Error("Special award not found");
   }
 
-  await requireEventAccess(owner.eventId, RESULTS_MANAGERS);
+  await requireEventAccess(owner.eventId, RESULTS_MANAGERS, "publish_results");
 
   await db.delete(specialAwards).where(eq(specialAwards.id, awardId));
   return { success: true };
 }
 
-export async function updateNomineeJudgeScoreAction(
-  eventId: string,
-  categoryId: string,
-  nomineeId: string,
-  judgeScore: number
-) {
-  await requireEventAccess(eventId, RESULTS_MANAGERS);
-
-  // The event is ours, but categoryId/nomineeId are still caller-supplied and
-  // are written straight into official_results. Confirm the nominee sits in
-  // this event *and* this category before scoring it.
-  const [nominee] = await db
-    .select({ id: nominees.id })
-    .from(nominees)
-    .where(
-      and(
-        eq(nominees.id, nomineeId),
-        eq(nominees.eventId, eventId),
-        eq(nominees.categoryId, categoryId)
-      )
-    )
-    .limit(1);
-
-  if (!nominee) {
-    throw new Error("Nominee not found in this event category");
+export async function updateOfficialResultOverrideAction(input: {
+  eventId: string;
+  officialResultId: string;
+  rank: number | null;
+  reason: string;
+}) {
+  const { user, workspace } = await requireEventAccess(input.eventId, RESULTS_MANAGERS, "publish_results");
+  const reason = input.reason.trim();
+  if (input.rank !== null && (!Number.isInteger(input.rank) || input.rank < 1 || input.rank > 999)) {
+    throw new Error("Override rank must be a whole number between 1 and 999.");
   }
+  if (input.rank !== null && reason.length < 5) {
+    throw new Error("Explain the reason for an official rank override.");
+  }
+  const [result] = await db.select().from(officialResults).where(and(eq(officialResults.id, input.officialResultId), eq(officialResults.eventId, input.eventId))).limit(1);
+  if (!result) throw new Error("Official result not found. Publish a snapshot first.");
 
-  const cleanScore = Math.max(0, Math.min(100, judgeScore));
+  await db.transaction(async (tx) => {
+    await tx.update(officialResults).set({ overrideRank: input.rank, overrideReason: input.rank === null ? null : reason, finalRank: input.rank ?? result.finalRank, updatedAt: new Date() }).where(eq(officialResults.id, result.id));
+    await tx.insert(resultActions).values({ eventId: input.eventId, officialResultId: result.id, actionType: input.rank === null ? "RESTORE" : "OVERRIDE_RANK", description: input.rank === null ? "Removed official rank override" : `Overrode official rank to ${input.rank}`, explanation: input.rank === null ? null : reason, performedBy: user.id, reversible: true });
+    await tx.insert(auditLogs).values({ workspaceId: workspace.id, eventId: input.eventId, actorId: user.id, action: input.rank === null ? "official_result.override_removed" : "official_result.rank_overridden", targetType: "official_result", targetId: result.id, details: { rank: input.rank, reason: input.rank === null ? null : reason } });
+  });
+  return { success: true };
+}
 
-  const existing = await db
-    .select()
+export async function getPublishedCertificateCandidatesAction() {
+  const { workspace } = await requireWorkspaceRole(ALL_MEMBERS);
+  return db
+    .select({
+      officialResultId: officialResults.id,
+      eventId: events.id,
+      eventName: events.name,
+      categoryName: categories.name,
+      winnerName: nominees.name,
+      finalRank: officialResults.finalRank,
+      accentColor: eventBranding.accentColor,
+    })
     .from(officialResults)
+    .innerJoin(events, eq(officialResults.eventId, events.id))
+    .innerJoin(categories, eq(officialResults.categoryId, categories.id))
+    .innerJoin(nominees, eq(officialResults.nomineeId, nominees.id))
+    .leftJoin(eventBranding, eq(eventBranding.eventId, events.id))
     .where(
       and(
-        eq(officialResults.eventId, eventId),
-        eq(officialResults.categoryId, categoryId),
-        eq(officialResults.nomineeId, nomineeId)
-      )
+        eq(events.workspaceId, workspace.id),
+        isNull(events.deletedAt),
+        sql`${events.liveResultsMode} <> 'HIDDEN'`,
+        eq(officialResults.isWinner, true),
+        eq(officialResults.isDisqualified, false),
+      ),
     )
-    .limit(1);
-
-  if (existing.length === 0) {
-    await db.insert(officialResults).values({
-      eventId,
-      categoryId,
-      nomineeId,
-      rawVoteCount: 0,
-      adjustedVoteCount: 0,
-      finalRank: 1,
-      judgeScore: cleanScore,
-      compositeScore: cleanScore,
-    });
-  } else {
-    await db
-      .update(officialResults)
-      .set({
-        judgeScore: cleanScore,
-        compositeScore: cleanScore,
-        updatedAt: new Date(),
-      })
-      .where(eq(officialResults.id, existing[0].id));
-  }
-
-  return { success: true, score: cleanScore };
+    .orderBy(desc(events.updatedAt), categories.displayOrder);
 }

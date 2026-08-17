@@ -23,23 +23,28 @@ import {
   approveSuggestionAction,
   rejectSuggestionAction,
 } from "@/actions/nominations";
+import { LoadError } from "@/components/shared/load-error";
 
 export default function OrganizerNominationsPage() {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
-  const [rawNominations, setRawNominations] = useState<any[]>([]);
-  const [suggestedCategories, setSuggestedCategories] = useState<any[]>([]);
+  const [loadError, setLoadError] = useState(false);
+  type WorkspaceNominations = Awaited<ReturnType<typeof getWorkspaceNominationsAction>>;
+  const [rawNominations, setRawNominations] = useState<WorkspaceNominations["rawNominations"]>([]);
+  const [suggestedCategories, setSuggestedCategories] = useState<WorkspaceNominations["suggestedCategories"]>([]);
   const [activeTab, setActiveTab] = useState<"stream" | "suggested">("stream");
   const [searchQuery, setSearchQuery] = useState("");
   const [actioningId, setActioningId] = useState<string | null>(null);
 
   const loadData = async () => {
+    setLoading(true); setLoadError(false);
     try {
       const data = await getWorkspaceNominationsAction();
       setRawNominations(data.rawNominations);
       setSuggestedCategories(data.suggestedCategories);
     } catch (err) {
       console.error("Failed to load nominations inbox:", err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -85,119 +90,120 @@ export default function OrganizerNominationsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="animate-spin rounded-full h-8 w-8 text-purple-500" />
+        <Loader2 className="animate-spin rounded-full h-8 w-8 text-accent" />
       </div>
     );
   }
+  if (loadError) return <LoadError onRetry={() => void loadData()} />;
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto font-sans pb-16">
+    <div className="space-y-6 max-w-7xl mx-auto font-sans pb-16 select-none animate-page-entrance text-content">
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            <span>Nominations & Category Inbox</span>
-            <Badge variant="purple" size="sm">
-              {rawNominations.length} Submissions
+          <h1 className="text-2xl font-bold text-content tracking-tight flex items-center gap-2">
+            <span>Nominations & category inbox</span>
+            <Badge variant="default" size="sm">
+              {rawNominations.length} submissions
             </Badge>
           </h1>
-          <p className="text-slate-600 text-xs mt-1 font-medium">
+          <p className="text-content-secondary text-xs mt-1 font-normal">
             Review raw guest nominations and approve suggested category submissions from event visitors.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm">
+        <div className="flex items-center gap-2.5">
+          <Button variant="outline" size="sm" className="rounded-xl font-semibold text-xs">
             <Download className="w-4 h-4 mr-1.5" />
             <span>Export CSV</span>
           </Button>
 
           <Link href="/voting">
-            <Button variant="outline" size="sm" className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm">
+            <Button variant="outline" size="sm" className="rounded-xl font-semibold text-xs">
               <Eye className="w-4 h-4 mr-1.5" />
-              <span>Open Voting Hub</span>
+              <span>Voting hub</span>
             </Button>
           </Link>
 
           <Link href="/cleanup">
-            <Button variant="primary" size="sm" className="rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20">
+            <Button variant="primary" size="sm" className="rounded-xl font-semibold text-xs px-4">
               <Sparkles className="w-4 h-4 mr-1.5" />
-              <span>Launch AI Cleanup Engine</span>
+              <span>AI cleanup</span>
             </Button>
           </Link>
         </div>
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200">
+      <div className="flex items-center gap-2 border-b border-border-subtle">
         <button
           onClick={() => setActiveTab("stream")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-t-2xl transition-all border-b-2 ${
+          className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-t-xl transition-all border-b-2 ${
             activeTab === "stream"
-              ? "text-blue-600 border-blue-600 bg-blue-50"
-              : "text-slate-600 border-transparent hover:text-slate-900 hover:bg-slate-100"
+              ? "text-accent border-accent bg-accent/10"
+              : "text-content-secondary border-transparent hover:text-content hover:bg-surface-raised"
           }`}
         >
           <UserCheck className="w-4 h-4" />
-          <span>Raw Nominations Stream ({rawNominations.length})</span>
+          <span>Raw nominations stream ({rawNominations.length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab("suggested")}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-t-2xl transition-all border-b-2 ${
+          className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-t-xl transition-all border-b-2 ${
             activeTab === "suggested"
-              ? "text-purple-600 border-purple-600 bg-purple-50"
-              : "text-slate-600 border-transparent hover:text-slate-900 hover:bg-slate-100"
+              ? "text-accent border-accent bg-accent/10"
+              : "text-content-secondary border-transparent hover:text-content hover:bg-surface-raised"
           }`}
         >
           <MessageSquare className="w-4 h-4" />
-          <span>Suggested Categories Inbox ({suggestedCategories.length})</span>
+          <span>Suggested categories ({suggestedCategories.length})</span>
         </button>
       </div>
 
       {/* Tab 1: Raw Nominations Stream */}
       {activeTab === "stream" && (
-        <Card className="border-slate-200/80 bg-white rounded-3xl shadow-sm">
-          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between space-y-2 sm:space-y-0 pb-4 border-b border-slate-100">
+        <Card className="border-border-subtle bg-surface rounded-2xl shadow-sm text-content">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between space-y-2 sm:space-y-0 pb-4 border-b border-border-subtle">
             <div>
-              <CardTitle className="text-base font-bold text-slate-900">Incoming Nominations Stream</CardTitle>
-              <CardDescription className="text-xs text-slate-600 font-medium">
+              <CardTitle className="text-base font-bold text-content">Incoming nominations stream</CardTitle>
+              <CardDescription className="text-xs text-content-secondary font-normal">
                 Raw guest submission logs before AI normalization & duplicate matching.
               </CardDescription>
             </div>
 
             <div className="relative w-full sm:w-64">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-content-secondary absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="Filter nominations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-50 text-slate-900 text-xs rounded-full pl-9 pr-4 py-2 border border-slate-200 focus:outline-none focus:border-blue-500 font-medium"
+                className="w-full bg-surface-raised text-content text-xs rounded-xl pl-9 pr-4 py-2 border border-border-subtle focus:outline-none focus:border-accent font-normal"
               />
             </div>
           </CardHeader>
 
           <CardContent className="pt-2">
             {filteredNomList.length === 0 ? (
-              <div className="py-12 text-center text-slate-500 text-xs space-y-2 font-medium">
-                <Inbox className="w-8 h-8 text-slate-400 mx-auto" />
+              <div className="py-12 text-center text-content-secondary text-xs space-y-2 font-normal">
+                <Inbox className="w-8 h-8 text-content-secondary mx-auto" />
                 <p>No nomination records submitted yet.</p>
               </div>
             ) : (
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-border-subtle">
                 {filteredNomList.map((nom) => (
-                  <div key={nom.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/80 transition-colors rounded-2xl">
+                  <div key={nom.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-surface-raised transition-colors rounded-xl">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-bold text-slate-900">{nom.nomineeText}</h4>
-                        <Badge variant="purple" size="sm">{nom.categoryName}</Badge>
+                        <h4 className="text-sm font-bold text-content">{nom.nomineeText}</h4>
+                        <Badge variant="default" size="sm">{nom.categoryName}</Badge>
                       </div>
-                      <p className="text-xs text-slate-600 font-medium">Program: <strong className="text-slate-900">{nom.eventTitle}</strong></p>
-                      <span className="text-[10px] font-mono text-slate-400 block">Session ID: {nom.sessionId}</span>
+                      <p className="text-xs text-content-secondary font-normal">Program: <strong className="text-content">{nom.eventTitle}</strong></p>
+                      <span className="text-xs font-mono text-content-secondary block">Session ID: {nom.sessionId}</span>
                     </div>
 
-                    <div className="text-xs text-slate-500 font-mono font-medium">
+                    <div className="text-xs text-content-secondary font-mono font-medium">
                       <span>{nom.date}</span>
                     </div>
                   </div>
@@ -210,18 +216,18 @@ export default function OrganizerNominationsPage() {
 
       {/* Tab 2: Suggested Categories Inbox */}
       {activeTab === "suggested" && (
-        <Card className="border-slate-800 bg-slate-950/20">
-          <CardHeader>
-            <CardTitle className="text-base font-bold text-white">Suggested Categories Inbox</CardTitle>
-            <CardDescription className="text-xs">
+        <Card className="border-border-subtle bg-surface rounded-2xl shadow-sm text-content">
+          <CardHeader className="border-b border-border-subtle pb-4">
+            <CardTitle className="text-base font-bold text-content">Suggested categories inbox</CardTitle>
+            <CardDescription className="text-xs text-content-secondary font-normal">
               Review new category ideas submitted by event voters. Approving a suggestion automatically creates an official category.
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3 pt-4">
             {suggestedCategories.length === 0 ? (
-              <div className="py-12 text-center text-slate-500 text-xs space-y-2">
-                <Inbox className="w-8 h-8 text-slate-600 mx-auto" />
+              <div className="py-12 text-center text-content-secondary text-xs space-y-2 font-normal">
+                <Inbox className="w-8 h-8 text-content-secondary mx-auto" />
                 <p>No pending category suggestions found.</p>
               </div>
             ) : (
@@ -231,14 +237,14 @@ export default function OrganizerNominationsPage() {
                 return (
                   <div
                     key={sug.id}
-                    className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                    className="p-4 rounded-xl bg-surface-raised border border-border-subtle flex flex-col md:flex-row md:items-center justify-between gap-4"
                   >
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-bold text-white">{sug.suggestionText}</h4>
-                        <Badge variant="warning" size="sm">Pending Review</Badge>
+                        <h4 className="text-sm font-bold text-content">{sug.suggestionText}</h4>
+                        <Badge variant="warning" size="sm">Pending review</Badge>
                       </div>
-                      <p className="text-xs text-slate-400">Submitted for: <strong className="text-slate-300">{sug.eventTitle}</strong></p>
+                      <p className="text-xs text-content-secondary font-normal">Submitted for: <strong className="text-content">{sug.eventTitle}</strong></p>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -247,10 +253,10 @@ export default function OrganizerNominationsPage() {
                         size="sm"
                         disabled={isWorking}
                         onClick={() => handleApprove(sug.eventId, sug.suggestionText)}
-                        className="bg-emerald-600 hover:bg-emerald-500 border-emerald-400/30 text-white"
+                        className="rounded-xl font-semibold text-xs"
                       >
                         {isWorking ? <Loader2 className="animate-spin w-3.5 h-3.5 mr-1" /> : <Check className="w-3.5 h-3.5 mr-1" />}
-                        <span>Approve Category</span>
+                        <span>Approve category</span>
                       </Button>
 
                       <Button
@@ -258,7 +264,7 @@ export default function OrganizerNominationsPage() {
                         size="sm"
                         disabled={isWorking}
                         onClick={() => handleReject(sug.eventId, sug.suggestionText)}
-                        className="border-slate-800 text-slate-300 hover:bg-slate-800"
+                        className="rounded-xl font-semibold text-xs"
                       >
                         <X className="w-3.5 h-3.5 mr-1" />
                         <span>Reject</span>
@@ -274,3 +280,4 @@ export default function OrganizerNominationsPage() {
     </div>
   );
 }
+

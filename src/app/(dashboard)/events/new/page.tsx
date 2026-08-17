@@ -19,13 +19,13 @@ import {
   Lock,
   EyeOff,
   Clock,
-  Info,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 import { useToast } from "@/components/ui/toast";
+import { getAppOrigin } from "@/lib/app-url";
 export default function NewEventWizardPage() {
   const toast = useToast();
   const router = useRouter();
@@ -45,10 +45,8 @@ export default function NewEventWizardPage() {
   const [votingEnd, setVotingEnd] = useState("");
 
   // Step 3: Categories
-  const [categories, setCategories] = useState([
-    { id: "1", name: "Best Student Leader of the Year", description: "Recognizing outstanding student leadership." },
-    { id: "2", name: "Innovation in Tech Award", description: "Awarded for exceptional technological contributions." },
-  ]);
+  const [categories, setCategories] = useState<{ id: string; name: string; description: string }[]>([]);
+  const [template, setTemplate] = useState<"EMPTY" | "RECOGNITION">("EMPTY");
   const [newCatName, setNewCatName] = useState("");
   const [newCatDesc, setNewCatDesc] = useState("");
 
@@ -84,6 +82,15 @@ export default function NewEventWizardPage() {
     setCategories(categories.filter((c) => c.id !== id));
   };
 
+  const selectTemplate = (value: "EMPTY" | "RECOGNITION") => {
+    setTemplate(value);
+    setCategories(value === "EMPTY" ? [] : [
+      { id: crypto.randomUUID(), name: "Leadership", description: "Recognizes sustained leadership and measurable impact." },
+      { id: crypto.randomUUID(), name: "Community contribution", description: "Recognizes meaningful service to the community." },
+      { id: crypto.randomUUID(), name: "Innovation", description: "Recognizes an original improvement, product, or program." },
+    ]);
+  };
+
   const handleSubmitEvent = async () => {
     if (!title.trim() || !slug.trim()) return;
     setIsSubmitting(true);
@@ -92,14 +99,14 @@ export default function NewEventWizardPage() {
         name: title.trim(),
         slug: slug.trim(),
         description: description.trim(),
-        visibility: visibility as any,
+        visibility: visibility as "PUBLIC" | "UNLISTED" | "PRIVATE",
         nominationStart: nominationStart || undefined,
         nominationEnd: nominationEnd || undefined,
         votingStart: votingStart || undefined,
         votingEnd: votingEnd || undefined,
         categories: categories.map((c) => ({ name: c.name, description: c.description })),
-        verificationLevel: verificationLevel as any,
-        audienceType: audienceType as any,
+        verificationLevel: verificationLevel as "STANDARD" | "ADVANCED",
+        audienceType: audienceType as "PUBLIC" | "STUDENTS" | "FACULTY" | "ALUMNI" | "INVITE_ONLY" | "MEMBERS",
       });
 
       if (response.success) {
@@ -107,9 +114,8 @@ export default function NewEventWizardPage() {
       } else {
         toast.error("Failed to create event");
       }
-    } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || "Failed to create event");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to create event");
     } finally {
       setIsSubmitting(false);
     }
@@ -211,7 +217,7 @@ export default function NewEventWizardPage() {
                 <label className="text-xs font-semibold text-slate-700">Public URL Slug</label>
                 <div className="flex items-center">
                   <span className="bg-slate-100 text-slate-600 text-xs px-3 py-2.5 rounded-l-2xl border border-r-0 border-slate-200 font-mono font-medium">
-                    awardos.io/e/
+                    {getAppOrigin()}/e/
                   </span>
                   <input
                     type="text"
@@ -348,6 +354,7 @@ export default function NewEventWizardPage() {
             </CardHeader>
 
             <CardContent className="space-y-6 pt-4">
+              <fieldset className="space-y-2"><legend className="text-xs font-semibold text-slate-700">Starting template</legend><div className="grid gap-3 sm:grid-cols-2"><button type="button" onClick={() => selectTemplate("EMPTY")} className={`rounded-xl border p-3 text-left text-xs ${template === "EMPTY" ? "border-blue-500 bg-blue-50" : "border-slate-200"}`}><span className="block font-bold">Start empty</span><span className="mt-1 block text-slate-600">Add only the categories this event needs.</span></button><button type="button" onClick={() => selectTemplate("RECOGNITION")} className={`rounded-xl border p-3 text-left text-xs ${template === "RECOGNITION" ? "border-blue-500 bg-blue-50" : "border-slate-200"}`}><span className="block font-bold">Recognition program</span><span className="mt-1 block text-slate-600">Begin with leadership, community, and innovation categories.</span></button></div></fieldset>
               {/* Category List */}
               <div className="space-y-3">
                 {categories.map((cat, idx) => (

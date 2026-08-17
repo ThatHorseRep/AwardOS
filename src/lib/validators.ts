@@ -133,30 +133,37 @@ export const submitNominationSchema = z.object({
     .array(
       z.object({
         categoryId: z.string().uuid(),
-        nomineeName: z
+        nomineeText: z
           .string()
-          .max(LIMITS.MAX_NOMINEE_NAME_LENGTH)
-          .optional(),
+          .trim()
+          .min(1, "Nominee name is required")
+          .max(LIMITS.MAX_NOMINEE_NAME_LENGTH),
       })
     )
-    .min(1, "Please nominate at least one person"),
+    .max(50, "No more than 50 nominations may be submitted at once")
+    .default([]),
   suggestedCategory: z
     .string()
+    .trim()
     .max(150, "Suggested category must be at most 150 characters")
     .optional(),
-});
+  sessionId: z.string().trim().min(8).max(128).optional(),
+}).refine(
+  ({ nominations, suggestedCategory }) => nominations.length > 0 || Boolean(suggestedCategory),
+  "Submit at least one nomination or category suggestion"
+);
 
 // -------------------------------------------
 // Vote Validators (Public)
 // -------------------------------------------
 export const submitVotesSchema = z.object({
-  sessionId: z.string().min(8, "Session ID is required for ballot integrity").optional(),
+  sessionId: z.string().trim().min(8, "Session ID is required for ballot integrity").max(255).optional(),
   verificationSession: z
     .object({
       method: z.enum(["EMAIL_OTP", "INVITATION_CODE", "NONE"]).optional(),
-      email: z.string().email().optional(),
+      email: z.string().email().max(255).optional(),
       otpId: z.string().uuid().optional(),
-      code: z.string().optional(),
+      code: z.string().trim().max(100).optional(),
     })
     .optional(),
   votes: z
@@ -168,6 +175,7 @@ export const submitVotesSchema = z.object({
       })
     )
     .min(1, "At least one ballot selection or skip entry is required")
+    .max(200, "A ballot cannot contain more than 200 category entries")
     .superRefine((votes, ctx) => {
       const seenCategories = new Set<string>();
       for (const [index, vote] of votes.entries()) {

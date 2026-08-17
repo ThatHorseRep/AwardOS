@@ -1,14 +1,15 @@
 "use client";
 
 import React, { useState, useRef } from "react";
-import { Upload, X, Image as ImageIcon, Loader2, Sparkles, Check } from "lucide-react";
+import { Upload, X, Loader2, Sparkles } from "lucide-react";
 import { compressImageFile, formatFileSize, CompressionResult } from "@/lib/image-compressor";
 import { Badge } from "@/components/ui/badge";
-
 import { useToast } from "@/components/ui/toast";
+
 export interface ImageUploadProps {
   value?: string | null;
   onChange: (dataUrl: string) => void;
+  upload: (formData: FormData) => Promise<string>;
   onRemove?: () => void;
   label?: string;
   description?: string;
@@ -21,9 +22,10 @@ export interface ImageUploadProps {
 export function ImageUpload({
   value,
   onChange,
+  upload,
   onRemove,
-  label = "Upload Photo",
-  description = "Supports JPG, PNG, WebP up to 15MB. Automatically compressed to <50KB.",
+  label = "Upload photo",
+  description = "Supports JPG, PNG, WebP up to 15MB. Automatically compressed.",
   maxWidth = 600,
   maxHeight = 600,
   aspectRatio = "square",
@@ -44,13 +46,14 @@ export function ImageUpload({
     try {
       const result = await compressImageFile(file, { maxWidth, maxHeight, quality: 0.82 });
       setStats(result);
-      onChange(result.dataUrl);
+      const formData = new FormData();
+      formData.set("file", result.file);
+      onChange(await upload(formData));
     } catch (err) {
       console.error("Image compression error:", err);
       toast.error("Failed to compress image file. Please try another image.");
     } finally {
       setCompressing(false);
-      // Reset input value so re-selecting same file triggers change
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -67,9 +70,9 @@ export function ImageUpload({
   };
 
   const aspectClasses = {
-    square: "aspect-square w-32 h-32 rounded-3xl",
-    landscape: "aspect-video w-full max-w-sm rounded-3xl h-44",
-    banner: "w-full h-40 rounded-3xl",
+    square: "aspect-square w-32 h-32 rounded-2xl",
+    landscape: "aspect-video w-full max-w-sm rounded-2xl h-44",
+    banner: "w-full h-40 rounded-2xl",
   };
 
   return (
@@ -85,12 +88,14 @@ export function ImageUpload({
       {value ? (
         <div className="space-y-2">
           <div className="relative group inline-block">
-            <div className={`relative overflow-hidden border-2 border-slate-200 shadow-md ${aspectClasses[aspectRatio]}`}>
-              <img src={value} alt="Preview" className="w-full h-full object-cover" />
+            <div className={`relative overflow-hidden border border-border-subtle shadow-sm ${aspectClasses[aspectRatio]}`}>
+              {/* Local data/blob previews are intentionally not routed through the Next image optimizer. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={value} alt="Uploaded image preview" className="w-full h-full object-cover" />
               {compressing && (
-                <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm flex flex-col items-center justify-center text-white space-y-1">
-                  <Loader2 className="animate-spin w-5 h-5 text-blue-400" />
-                  <span className="text-[10px] font-bold">Compressing...</span>
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center text-white space-y-1">
+                  <Loader2 className="animate-spin w-5 h-5 text-accent" />
+                  <span className="text-xs font-semibold">Compressing...</span>
                 </div>
               )}
             </div>
@@ -98,7 +103,8 @@ export function ImageUpload({
             <button
               type="button"
               onClick={handleClear}
-              className="absolute -top-2 -right-2 p-1.5 rounded-full bg-rose-600 hover:bg-rose-500 text-white shadow-lg transition-transform hover:scale-110 z-10"
+              aria-label="Remove photo"
+              className="absolute -top-2 -right-2 p-1.5 rounded-full bg-destructive text-white shadow-md transition-transform hover:scale-110 z-10"
               title="Remove photo"
             >
               <X className="w-3.5 h-3.5" />
@@ -109,15 +115,15 @@ export function ImageUpload({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors inline-flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-xl bg-surface-raised hover:bg-surface-muted border border-border-subtle text-content text-xs font-semibold transition-colors inline-flex items-center gap-1.5"
             >
-              <Upload className="w-3.5 h-3.5 text-blue-600" />
-              <span>Change Photo</span>
+              <Upload className="w-3.5 h-3.5 text-accent" />
+              <span>Change photo</span>
             </button>
 
             {stats && (
-              <Badge variant="purple" size="sm" className="text-[10px]">
-                <Sparkles className="w-3 h-3 mr-1 text-purple-600" />
+              <Badge variant="default" size="sm" className="text-xs">
+                <Sparkles className="w-3 h-3 mr-1 text-accent" />
                 <span>
                   {formatFileSize(stats.originalSizeKb)} ➔ {formatFileSize(stats.compressedSizeKb)} ({stats.savedPercentage}% smaller)
                 </span>
@@ -128,24 +134,25 @@ export function ImageUpload({
       ) : (
         <div
           onClick={() => fileInputRef.current?.click()}
-          className="border-2 border-dashed border-slate-300 hover:border-blue-500/60 rounded-3xl p-6 text-center cursor-pointer transition-all hover:bg-blue-50/40 group flex flex-col items-center justify-center space-y-2"
+          className="border-2 border-dashed border-border-subtle hover:border-accent/60 rounded-2xl p-6 text-center cursor-pointer transition-all hover:bg-surface-raised group flex flex-col items-center justify-center space-y-2 text-content"
         >
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center group-hover:scale-110 transition-transform">
+          <div className="w-11 h-11 rounded-xl bg-surface-raised border border-border-subtle text-accent flex items-center justify-center group-hover:scale-105 transition-transform">
             {compressing ? <Loader2 className="animate-spin w-5 h-5" /> : <Upload className="w-5 h-5" />}
           </div>
 
           <div>
-            <span className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors block">
-              {compressing ? "Compressing & Optimizing Photo..." : label}
+            <span className="text-xs font-bold text-content group-hover:text-accent transition-colors block">
+              {compressing ? "Compressing & optimizing photo..." : label}
             </span>
-            <span className="text-[11px] text-slate-500 block mt-0.5">{description}</span>
+            <span className="text-xs text-content-secondary block mt-0.5">{description}</span>
           </div>
 
-          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600 bg-blue-100/60 px-2.5 py-1 rounded-full">
-            <Sparkles className="w-3 h-3" /> Auto-compresses file size client-side
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-accent bg-accent/10 px-2.5 py-0.5 rounded-full">
+            <Sparkles className="w-3 h-3" /> Auto-compresses file size
           </span>
         </div>
       )}
     </div>
   );
 }
+

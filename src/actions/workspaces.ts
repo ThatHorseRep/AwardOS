@@ -3,7 +3,7 @@
 import { db } from "@/lib/db";
 import { workspaces, workspaceMembers, users } from "@/lib/db/schema";
 import { createClient } from "@/lib/supabase/server";
-import { eq, and } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { cache } from "react";
 import { DEV_BYPASS_COOKIE, DEV_BYPASS_USER_ID, isDevBypassActive } from "@/lib/dev-mode";
@@ -38,7 +38,7 @@ export const getCurrentUser = cache(async function _getCurrentUser() {
           if (records[0].deletedAt) return null;
           deletionRequestedAt = records[0].deletionRequestedAt;
         }
-      } catch (err) {
+      } catch {
         // Fallback to metadata
       }
 
@@ -68,7 +68,7 @@ export const getCurrentUser = cache(async function _getCurrentUser() {
         deletionRequestedAt: null,
       };
     }
-  } catch (err) {
+  } catch {
     // Ignore cookie read error
   }
 
@@ -91,11 +91,20 @@ export const getOrCreateWorkspaceAction = cache(async function _getOrCreateWorks
     // Ensure local user record exists
     await ensureUserRecord(user.id, user.email, user.displayName);
 
-    // Check if user is a member of any workspace
+    const cookieStore = await cookies();
+    const selectedWorkspaceId = cookieStore.get("awardos_workspace_id")?.value;
+    // Honor an explicit workspace selection only after proving active membership.
+    if (selectedWorkspaceId) {
+      const [selected] = await db.select({ workspace: workspaces }).from(workspaceMembers).innerJoin(workspaces, eq(workspaceMembers.workspaceId, workspaces.id)).where(and(eq(workspaceMembers.userId, user.id), eq(workspaceMembers.workspaceId, selectedWorkspaceId), eq(workspaceMembers.status, "ACTIVE"))).limit(1);
+      if (selected) return selected.workspace;
+    }
+
+    // Check if the user is a member of any workspace, deterministically.
     const memberRecord = await db
       .select()
       .from(workspaceMembers)
       .where(and(eq(workspaceMembers.userId, user.id), eq(workspaceMembers.status, "ACTIVE")))
+      .orderBy(asc(workspaceMembers.invitedAt), asc(workspaceMembers.workspaceId))
       .limit(1);
 
     if (memberRecord.length > 0) {
@@ -162,3 +171,19 @@ export const getOrCreateWorkspaceAction = cache(async function _getOrCreateWorks
     return null;
   }
 });
+
+export async function listUserWorkspacesAction() {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthorized");
+  return db.select({ id: workspaces.id, name: workspaces.name, slug: workspaces.slug, type: workspaces.type }).from(workspaceMembers).innerJoin(workspaces, eq(workspaceMembers.workspaceId, workspaces.id)).where(and(eq(workspaceMembers.userId, user.id), eq(workspaceMembers.status, "ACTIVE"))).orderBy(asc(workspaces.name));
+}
+
+export async function switchWorkspaceAction(workspaceId: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthorized");
+  const [membership] = await db.select({ id: workspaceMembers.id }).from(workspaceMembers).where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, user.id), eq(workspaceMembers.status, "ACTIVE"))).limit(1);
+  if (!membership) throw new Error("Workspace not found.");
+  const cookieStore = await cookies();
+  cookieStore.set("awardos_workspace_id", workspaceId, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 365 });
+  return { success: true };
+}

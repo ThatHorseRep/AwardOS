@@ -1,12 +1,33 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { events, categories, nominees, workflowStages, eventBranding, nominations, votes } from "@/lib/db/schema";
+import {
+  events,
+  categories,
+  nominees,
+  workflowStages,
+  eventBranding,
+  nominations,
+  votes,
+  voteSessions,
+  auditLogs,
+  archiveConfigs,
+} from "@/lib/db/schema";
 import { getOrCreateWorkspaceAction } from "./workspaces";
-import { requireWorkspaceRole, requireEventAccess, EVENT_ADMINS, WORKSPACE_ADMINS } from "./_rbac";
-import { eq, and, isNull, count, sql, lt } from "drizzle-orm";
+import {
+  requireWorkspaceRole,
+  requireEventAccess,
+  EVENT_ADMINS,
+  WORKSPACE_ADMINS,
+} from "./_rbac";
+import { eq, and, isNull, count, lt, sql } from "drizzle-orm";
 import { syncNomineesForEvent } from "@/lib/nominations/sync";
-import { redirect } from "next/navigation";
+import { z } from "zod";
+import { sanitizePlainText } from "@/lib/sanitize";
+import {
+  getBallotRosterHash,
+  getInvalidBallotCategoryNames,
+} from "@/lib/ballot-review";
 
 export interface CreateEventInput {
   name: string;
@@ -19,11 +40,101 @@ export interface CreateEventInput {
   votingEnd?: string;
   categories: { name: string; description?: string }[];
   verificationLevel: "STANDARD" | "ADVANCED";
-  audienceType: "PUBLIC" | "STUDENTS" | "FACULTY" | "ALUMNI" | "INVITE_ONLY" | "MEMBERS";
+  audienceType:
+    "PUBLIC" | "STUDENTS" | "FACULTY" | "ALUMNI" | "INVITE_ONLY" | "MEMBERS";
 }
 
+const createEventInputSchema = z
+  .object({
+    name: z.string().trim().min(3).max(150),
+    slug: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .min(3)
+      .max(100),
+    description: z.string().max(5000).optional(),
+    visibility: z.enum(["PUBLIC", "UNLISTED", "PRIVATE"]),
+    nominationStart: z
+      .string()
+      .refine((value) => !Number.isNaN(Date.parse(value)))
+      .optional(),
+    nominationEnd: z
+      .string()
+      .refine((value) => !Number.isNaN(Date.parse(value)))
+      .optional(),
+    votingStart: z
+      .string()
+      .refine((value) => !Number.isNaN(Date.parse(value)))
+      .optional(),
+    votingEnd: z
+      .string()
+      .refine((value) => !Number.isNaN(Date.parse(value)))
+      .optional(),
+    categories: z
+      .array(
+        z.object({
+          name: z.string().trim().min(2).max(150),
+          description: z.string().max(1000).optional(),
+        }),
+      )
+      .max(100),
+    verificationLevel: z.enum(["STANDARD", "ADVANCED"]),
+    audienceType: z.enum([
+      "PUBLIC",
+      "STUDENTS",
+      "FACULTY",
+      "ALUMNI",
+      "INVITE_ONLY",
+      "MEMBERS",
+    ]),
+  })
+  .superRefine((data, ctx) => {
+    const categoryNames = data.categories.map((category) =>
+      category.name.toLowerCase(),
+    );
+    if (new Set(categoryNames).size !== categoryNames.length)
+      ctx.addIssue({
+        code: "custom",
+        path: ["categories"],
+        message: "Category names must be unique within the event.",
+      });
+    const pairs = [
+      [data.nominationStart, data.nominationEnd, "nomination"],
+      [data.votingStart, data.votingEnd, "voting"],
+    ] as const;
+    for (const [start, end, label] of pairs)
+      if (
+        (start && !end) ||
+        (!start && end) ||
+        (start && end && new Date(start) >= new Date(end))
+      )
+        ctx.addIssue({
+          code: "custom",
+          path: [label === "nomination" ? "nominationEnd" : "votingEnd"],
+          message: `Set a valid ${label} start and end time.`,
+        });
+    if (
+      data.nominationEnd &&
+      data.votingStart &&
+      new Date(data.nominationEnd) > new Date(data.votingStart)
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["votingStart"],
+        message: "Voting cannot open before nominations close.",
+      });
+  });
+
 export async function createEventAction(input: CreateEventInput) {
-  const { user, workspace } = await requireWorkspaceRole(EVENT_ADMINS);
+  const { user, workspace } = await requireWorkspaceRole(EVENT_ADMINS, "manage_events");
+  const parsed = createEventInputSchema.safeParse(input);
+  if (!parsed.success)
+    throw new Error(
+      parsed.error.issues[0]?.message ?? "Event details are invalid.",
+    );
+  const data = parsed.data;
 
   const newEventId = await db.transaction(async (tx) => {
     // 1. Insert Event
@@ -31,18 +142,18 @@ export async function createEventAction(input: CreateEventInput) {
       .insert(events)
       .values({
         workspaceId: workspace.id,
-        name: input.name,
-        slug: input.slug,
-        description: input.description || "",
+        name: sanitizePlainText(data.name, 150),
+        slug: data.slug,
+        description: sanitizePlainText(data.description ?? "", 5000),
         status: "DRAFT",
-        visibility: input.visibility,
-        verificationLevel: input.verificationLevel,
-        audienceType: input.audienceType,
+        visibility: data.visibility,
+        verificationLevel: data.verificationLevel,
+        audienceType: data.audienceType,
         createdBy: user.id,
       })
       .returning();
 
-    // 2. Insert Event Branding placeholder
+    // 2. Insert the event's default branding record.
     await tx.insert(eventBranding).values({
       eventId: event.id,
       primaryColor: "#6366f1",
@@ -63,8 +174,8 @@ export async function createEventAction(input: CreateEventInput) {
         displayName: "Nominations Stage",
         displayOrder: 2,
         status: "PENDING" as const,
-        startsAt: input.nominationStart ? new Date(input.nominationStart) : null,
-        endsAt: input.nominationEnd ? new Date(input.nominationEnd) : null,
+        startsAt: data.nominationStart ? new Date(data.nominationStart) : null,
+        endsAt: data.nominationEnd ? new Date(data.nominationEnd) : null,
       },
       {
         stageType: "SCREENING" as const,
@@ -77,8 +188,8 @@ export async function createEventAction(input: CreateEventInput) {
         displayName: "Voting Stage",
         displayOrder: 4,
         status: "PENDING" as const,
-        startsAt: input.votingStart ? new Date(input.votingStart) : null,
-        endsAt: input.votingEnd ? new Date(input.votingEnd) : null,
+        startsAt: data.votingStart ? new Date(data.votingStart) : null,
+        endsAt: data.votingEnd ? new Date(data.votingEnd) : null,
       },
       {
         stageType: "OFFICIAL_RESULTS" as const,
@@ -107,13 +218,13 @@ export async function createEventAction(input: CreateEventInput) {
     }
 
     // 4. Insert Categories
-    if (input.categories && input.categories.length > 0) {
-      for (let idx = 0; idx < input.categories.length; idx++) {
-        const cat = input.categories[idx];
+    if (data.categories.length > 0) {
+      for (let idx = 0; idx < data.categories.length; idx++) {
+        const cat = data.categories[idx];
         await tx.insert(categories).values({
           eventId: event.id,
-          name: cat.name,
-          description: cat.description || "",
+          name: sanitizePlainText(cat.name, 150),
+          description: sanitizePlainText(cat.description ?? "", 1000),
           displayOrder: idx + 1,
         });
       }
@@ -153,8 +264,8 @@ export async function getEventDetailsAction(eventId: string) {
       and(
         eq(events.id, eventId),
         eq(events.workspaceId, workspace.id),
-        isNull(events.deletedAt)
-      )
+        isNull(events.deletedAt),
+      ),
     )
     .limit(1);
 
@@ -191,7 +302,7 @@ export async function getEventDetailsAction(eventId: string) {
         incomingNominations: nomList,
         nominees: nomineeList,
       };
-    })
+    }),
   );
 
   // Fetch workflow stages
@@ -234,9 +345,13 @@ export async function getEventDetailsAction(eventId: string) {
 
 export async function updateEventTimelineAction(
   eventId: string,
-  stageUpdates: { stageId: string; startsAt?: string | null; endsAt?: string | null }[]
+  stageUpdates: {
+    stageId: string;
+    startsAt?: string | null;
+    endsAt?: string | null;
+  }[],
 ) {
-  await requireEventAccess(eventId, EVENT_ADMINS);
+  await requireEventAccess(eventId, EVENT_ADMINS, "manage_events");
 
   for (const update of stageUpdates) {
     await db
@@ -245,20 +360,169 @@ export async function updateEventTimelineAction(
         startsAt: update.startsAt ? new Date(update.startsAt) : null,
         endsAt: update.endsAt ? new Date(update.endsAt) : null,
       })
-      .where(and(eq(workflowStages.id, update.stageId), eq(workflowStages.eventId, eventId)));
+      .where(
+        and(
+          eq(workflowStages.id, update.stageId),
+          eq(workflowStages.eventId, eventId),
+        ),
+      );
   }
 
   return { success: true };
 }
 
-export async function deleteEventAction(eventId: string) {
-  const { workspace } = await requireWorkspaceRole(EVENT_ADMINS);
+export async function deleteEventAction(
+  eventId: string,
+  confirmationName: string,
+  confirmPublished = false,
+) {
+  const { user, workspace, event } = await requireEventAccess(
+    eventId,
+    EVENT_ADMINS,
+  );
+  if (confirmationName.trim() !== event.name)
+    throw new Error("Enter the event name exactly to confirm deletion.");
+  const [{ voteCount }] = await db
+    .select({ voteCount: count() })
+    .from(votes)
+    .where(eq(votes.eventId, eventId));
+  if (
+    (event.status === "ACTIVE" ||
+      event.status === "COMPLETED" ||
+      Number(voteCount) > 0) &&
+    !confirmPublished
+  )
+    throw new Error(
+      "Confirm that you understand this published or voted event will be removed from public access.",
+    );
+  const deletedAt = new Date();
+  await db.transaction(async (tx) => {
+    await tx
+      .update(events)
+      .set({ deletedAt, updatedAt: deletedAt })
+      .where(
+        and(
+          eq(events.id, eventId),
+          eq(events.workspaceId, workspace.id),
+          isNull(events.deletedAt),
+        ),
+      );
+    await tx
+      .insert(auditLogs)
+      .values({
+        workspaceId: workspace.id,
+        eventId,
+        actorId: user.id,
+        action: "event.deleted",
+        targetType: "event",
+        targetId: eventId,
+        details: {
+          recoverableUntil: new Date(
+            deletedAt.getTime() + 30 * 86400000,
+          ).toISOString(),
+          voteCount: Number(voteCount),
+        },
+      });
+  });
+  return {
+    success: true,
+    recoverableUntil: new Date(
+      deletedAt.getTime() + 30 * 86400000,
+    ).toISOString(),
+  };
+}
 
-  await db
-    .update(events)
-    .set({ deletedAt: new Date() })
-    .where(and(eq(events.id, eventId), eq(events.workspaceId, workspace.id)));
+export async function getDeletedEventsAction() {
+  const { workspace } = await requireWorkspaceRole(EVENT_ADMINS, "manage_events");
+  return db
+    .select()
+    .from(events)
+    .where(
+      and(
+        eq(events.workspaceId, workspace.id),
+        sql`${events.deletedAt} is not null`,
+      ),
+    )
+    .orderBy(events.deletedAt);
+}
 
+export async function restoreDeletedEventAction(eventId: string) {
+  const { user, workspace } = await requireWorkspaceRole(EVENT_ADMINS, "manage_events");
+  const [event] = await db
+    .select()
+    .from(events)
+    .where(
+      and(
+        eq(events.id, eventId),
+        eq(events.workspaceId, workspace.id),
+        sql`${events.deletedAt} is not null`,
+      ),
+    )
+    .limit(1);
+  if (!event?.deletedAt) throw new Error("Deleted event not found.");
+  if (Date.now() - event.deletedAt.getTime() > 30 * 86400000)
+    throw new Error("This event's 30-day recovery window has expired.");
+  await db.transaction(async (tx) => {
+    await tx
+      .update(events)
+      .set({ deletedAt: null, updatedAt: new Date() })
+      .where(eq(events.id, eventId));
+    await tx
+      .insert(auditLogs)
+      .values({
+        workspaceId: workspace.id,
+        eventId,
+        actorId: user.id,
+        action: "event.restored",
+        targetType: "event",
+        targetId: eventId,
+      });
+  });
+  return { success: true };
+}
+
+export async function purgeDeletedEventAction(
+  eventId: string,
+  confirmationName: string,
+) {
+  const { user, workspace } = await requireWorkspaceRole(EVENT_ADMINS, "manage_events");
+  const [event] = await db
+    .select()
+    .from(events)
+    .where(
+      and(
+        eq(events.id, eventId),
+        eq(events.workspaceId, workspace.id),
+        sql`${events.deletedAt} is not null`,
+      ),
+    )
+    .limit(1);
+  if (!event?.deletedAt) throw new Error("Deleted event not found.");
+  if (confirmationName.trim() !== event.name)
+    throw new Error(
+      "Enter the event name exactly to confirm permanent deletion.",
+    );
+  if (Date.now() - event.deletedAt.getTime() < 30 * 86400000)
+    throw new Error(
+      "Permanent deletion is available after the 30-day recovery window.",
+    );
+  const [archive] = await db.select({ isPublic: archiveConfigs.isPublic }).from(archiveConfigs).where(eq(archiveConfigs.eventId, eventId)).limit(1);
+  if (archive?.isPublic) throw new Error("Unpublish this event from the public archive before permanent deletion.");
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(auditLogs)
+      .values({
+        workspaceId: workspace.id,
+        actorId: user.id,
+        action: "event.purged",
+        targetType: "event",
+        targetId: eventId,
+        details: { name: event.name },
+      });
+    await tx
+      .delete(events)
+      .where(and(eq(events.id, eventId), eq(events.workspaceId, workspace.id)));
+  });
   return { success: true };
 }
 
@@ -300,14 +564,16 @@ export async function getPublicEventDetailsAction(slug: string) {
       const nomineeList = await db
         .select()
         .from(nominees)
-        .where(and(eq(nominees.categoryId, cat.id), eq(nominees.status, "ACTIVE")))
+        .where(
+          and(eq(nominees.categoryId, cat.id), eq(nominees.status, "ACTIVE")),
+        )
         .orderBy(nominees.displayOrder);
 
       return {
         ...cat,
         nominees: nomineeList,
       };
-    })
+    }),
   );
 
   // Fetch workflow stages
@@ -346,53 +612,96 @@ export interface UpdateEventBrandingInput {
   primaryColor?: string;
   secondaryColor?: string;
   accentColor?: string;
+  ogImageUrl?: string;
 }
 
-export async function updateEventBrandingAction(input: UpdateEventBrandingInput) {
+const brandingColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Use a six-digit hex color.");
+const brandingUrlSchema = z.union([
+  z.literal(""),
+  z.string().url().refine((value) => value.startsWith("https://"), "Brand images must use HTTPS."),
+]);
+
+const eventBrandingSchema = z.object({
+  eventId: z.string().uuid(),
+  logoUrl: brandingUrlSchema.optional(),
+  bannerUrl: brandingUrlSchema.optional(),
+  primaryColor: brandingColorSchema.optional(),
+  secondaryColor: brandingColorSchema.optional(),
+  accentColor: brandingColorSchema.optional(),
+  ogImageUrl: brandingUrlSchema.optional(),
+});
+
+export async function updateEventBrandingAction(
+  input: UpdateEventBrandingInput,
+) {
+  const data = eventBrandingSchema.parse(input);
   // requireWorkspaceRole alone proved the caller holds a role in *their own*
   // workspace, then this wrote keyed only on the caller-supplied eventId — so
   // any event manager could rewrite the logo, banner and colours of any event
   // in any workspace. requireEventAccess binds the id to the caller's workspace.
-  await requireEventAccess(input.eventId, EVENT_ADMINS);
+  await requireEventAccess(data.eventId, EVENT_ADMINS, "manage_branding");
 
   const existing = await db
     .select()
     .from(eventBranding)
-    .where(eq(eventBranding.eventId, input.eventId))
+    .where(eq(eventBranding.eventId, data.eventId))
     .limit(1);
 
   if (existing.length === 0) {
     await db.insert(eventBranding).values({
-      eventId: input.eventId,
-      logoUrl: input.logoUrl || "",
-      bannerUrl: input.bannerUrl || "",
-      primaryColor: input.primaryColor || "#6366f1",
-      secondaryColor: input.secondaryColor || "#4f46e5",
-      accentColor: input.accentColor || "#f59e0b",
+      eventId: data.eventId,
+      logoUrl: data.logoUrl || "",
+      bannerUrl: data.bannerUrl || "",
+      primaryColor: data.primaryColor || "#6366f1",
+      secondaryColor: data.secondaryColor || "#4f46e5",
+      accentColor: data.accentColor || "#f59e0b",
+      ogImageUrl: data.ogImageUrl || "",
     });
   } else {
     await db
       .update(eventBranding)
       .set({
-        logoUrl: input.logoUrl !== undefined ? input.logoUrl : existing[0].logoUrl,
-        bannerUrl: input.bannerUrl !== undefined ? input.bannerUrl : existing[0].bannerUrl,
-        primaryColor: input.primaryColor !== undefined ? input.primaryColor : existing[0].primaryColor,
-        secondaryColor: input.secondaryColor !== undefined ? input.secondaryColor : existing[0].secondaryColor,
-        accentColor: input.accentColor !== undefined ? input.accentColor : existing[0].accentColor,
+        logoUrl:
+          data.logoUrl !== undefined ? data.logoUrl : existing[0].logoUrl,
+        bannerUrl:
+          data.bannerUrl !== undefined
+            ? data.bannerUrl
+            : existing[0].bannerUrl,
+        primaryColor:
+          data.primaryColor !== undefined
+            ? data.primaryColor
+            : existing[0].primaryColor,
+        secondaryColor:
+          data.secondaryColor !== undefined
+            ? data.secondaryColor
+            : existing[0].secondaryColor,
+        accentColor:
+          data.accentColor !== undefined
+            ? data.accentColor
+            : existing[0].accentColor,
+        ogImageUrl:
+          data.ogImageUrl !== undefined ? data.ogImageUrl : existing[0].ogImageUrl,
         updatedAt: new Date(),
       })
-      .where(eq(eventBranding.eventId, input.eventId));
+      .where(eq(eventBranding.eventId, data.eventId));
   }
 
   return { success: true };
 }
 
-export async function duplicateEventAction(eventId: string, newName: string, newSlug: string) {
+export async function duplicateEventAction(
+  eventId: string,
+  newName: string,
+  newSlug: string,
+) {
   // Was scoped only by role, while the parent was fetched by bare id — so this
   // cloned another workspace's event, wrote the copy into *their* workspace,
   // and returned their row (description, visibility, verification and audience
   // config) to the caller.
-  const { user, event: parent } = await requireEventAccess(eventId, EVENT_ADMINS);
+  const { user, event: parent } = await requireEventAccess(
+    eventId,
+    EVENT_ADMINS,
+  );
 
   // 2. Perform deep duplication in a transaction
   const newEvent = await db.transaction(async (tx) => {
@@ -511,16 +820,21 @@ export async function duplicateEventAction(eventId: string, newName: string, new
 export async function updateWorkflowStageStatusAction(
   eventId: string,
   stageId: string,
-  newStatus: "PENDING" | "ACTIVE" | "COMPLETED" | "SKIPPED"
+  newStatus: "PENDING" | "ACTIVE" | "COMPLETED" | "SKIPPED",
 ) {
-  await requireEventAccess(eventId, EVENT_ADMINS);
+  const { user, workspace } = await requireEventAccess(eventId, EVENT_ADMINS, "manage_events");
 
   return await db.transaction(async (tx) => {
     // 1. Get target stage
     const stageList = await tx
       .select()
       .from(workflowStages)
-      .where(and(eq(workflowStages.id, stageId), eq(workflowStages.eventId, eventId)))
+      .where(
+        and(
+          eq(workflowStages.id, stageId),
+          eq(workflowStages.eventId, eventId),
+        ),
+      )
       .limit(1);
 
     if (stageList.length === 0) {
@@ -528,6 +842,68 @@ export async function updateWorkflowStageStatusAction(
     }
 
     const targetStage = stageList[0];
+
+    if (newStatus === "ACTIVE" && targetStage.stageType === "VOTING") {
+      const [eventRow] = await tx
+        .select()
+        .from(events)
+        .where(eq(events.id, eventId))
+        .limit(1);
+      const activeCategories = await tx
+        .select()
+        .from(categories)
+        .where(
+          and(eq(categories.eventId, eventId), eq(categories.isActive, true)),
+        )
+        .orderBy(categories.displayOrder);
+      const activeNominees = await tx
+        .select({
+          id: nominees.id,
+          categoryId: nominees.categoryId,
+          name: nominees.name,
+          displayOrder: nominees.displayOrder,
+        })
+        .from(nominees)
+        .where(
+          and(eq(nominees.eventId, eventId), eq(nominees.status, "ACTIVE")),
+        )
+        .orderBy(nominees.displayOrder);
+      if (activeCategories.length === 0)
+        throw new Error(
+          "Add at least one active category before opening voting.",
+        );
+      const invalidCategoryNames = getInvalidBallotCategoryNames(
+        activeCategories,
+        activeNominees,
+      );
+      if (invalidCategoryNames.length > 0)
+        throw new Error(
+          `Add eligible nominees to: ${invalidCategoryNames.join(", ")}.`,
+        );
+      if (
+        !targetStage.startsAt ||
+        !targetStage.endsAt ||
+        targetStage.startsAt >= targetStage.endsAt
+      )
+        throw new Error(
+          "Set a valid voting start and end time before activation.",
+        );
+      const method =
+        (eventRow.verificationConfig as { method?: string } | null)?.method ??
+        "NONE";
+      if (!["NONE", "EMAIL_OTP", "INVITATION_CODE"].includes(method))
+        throw new Error(
+          "Choose a valid voter verification method before activation.",
+        );
+      const rosterHash = getBallotRosterHash(activeCategories, activeNominees);
+      const config = targetStage.config as {
+        ballotReview?: { rosterHash?: string };
+      } | null;
+      if (config?.ballotReview?.rosterHash !== rosterHash)
+        throw new Error(
+          "Review and approve the current ballot preview before opening voting.",
+        );
+    }
 
     // If activating this stage, mark previously active stage as COMPLETED
     if (newStatus === "ACTIVE") {
@@ -538,10 +914,22 @@ export async function updateWorkflowStageStatusAction(
           and(
             eq(workflowStages.eventId, eventId),
             lt(workflowStages.displayOrder, targetStage.displayOrder),
-            eq(workflowStages.status, "ACTIVE")
-          )
+            eq(workflowStages.status, "ACTIVE"),
+          ),
         );
     }
+
+    await tx
+      .insert(auditLogs)
+      .values({
+        workspaceId: workspace.id,
+        eventId,
+        actorId: user.id,
+        action: "workflow.stage_status_changed",
+        targetType: "workflow_stage",
+        targetId: stageId,
+        details: { stageType: targetStage.stageType, status: newStatus },
+      });
 
     // Update target stage
     await tx
@@ -554,7 +942,10 @@ export async function updateWorkflowStageStatusAction(
     // Sync overall event status if needed
     if (newStatus === "ACTIVE") {
       let eventStatusToSet: "ACTIVE" | "COMPLETED" = "ACTIVE";
-      if (targetStage.stageType === "OFFICIAL_RESULTS" || targetStage.stageType === "COMMUNITY_ARCHIVE") {
+      if (
+        targetStage.stageType === "OFFICIAL_RESULTS" ||
+        targetStage.stageType === "COMMUNITY_ARCHIVE"
+      ) {
         eventStatusToSet = "COMPLETED";
       }
 
@@ -568,21 +959,130 @@ export async function updateWorkflowStageStatusAction(
   });
 }
 
+export async function acknowledgeBallotReviewAction(eventId: string) {
+  const { user, workspace } = await requireEventAccess(eventId, EVENT_ADMINS, "manage_events");
+  return db.transaction(async (tx) => {
+    const [votingStage] = await tx
+      .select()
+      .from(workflowStages)
+      .where(
+        and(
+          eq(workflowStages.eventId, eventId),
+          eq(workflowStages.stageType, "VOTING"),
+        ),
+      )
+      .limit(1);
+    if (!votingStage) throw new Error("Voting stage not found.");
+    const activeCategories = await tx
+      .select()
+      .from(categories)
+      .where(
+        and(eq(categories.eventId, eventId), eq(categories.isActive, true)),
+      )
+      .orderBy(categories.displayOrder);
+    const activeNominees = await tx
+      .select({
+        id: nominees.id,
+        categoryId: nominees.categoryId,
+        name: nominees.name,
+        displayOrder: nominees.displayOrder,
+      })
+      .from(nominees)
+      .where(and(eq(nominees.eventId, eventId), eq(nominees.status, "ACTIVE")))
+      .orderBy(nominees.displayOrder);
+    if (
+      activeCategories.length === 0 ||
+      getInvalidBallotCategoryNames(activeCategories, activeNominees).length > 0
+    )
+      throw new Error(
+        "Resolve every ballot validation issue before approving the preview.",
+      );
+    const rosterHash = getBallotRosterHash(activeCategories, activeNominees);
+    const config = (votingStage.config as Record<string, unknown> | null) ?? {};
+    await tx
+      .update(workflowStages)
+      .set({
+        config: {
+          ...config,
+          ballotReview: {
+            rosterHash,
+            reviewedAt: new Date().toISOString(),
+            reviewedBy: user.id,
+          },
+        },
+      })
+      .where(eq(workflowStages.id, votingStage.id));
+    await tx
+      .insert(auditLogs)
+      .values({
+        workspaceId: workspace.id,
+        eventId,
+        actorId: user.id,
+        action: "ballot.review_acknowledged",
+        targetType: "workflow_stage",
+        targetId: votingStage.id,
+        details: { rosterHash },
+      });
+    return { success: true, rosterHash };
+  });
+}
+
 export async function updateBallotSettingsAction(input: {
   eventId: string;
   verificationMethod?: "NONE" | "EMAIL_OTP" | "INVITATION_CODE";
   verificationLevel?: "STANDARD" | "ADVANCED";
   visibility?: "PUBLIC" | "UNLISTED" | "PRIVATE";
-  liveResultsMode?: "FULL_LEADERBOARD" | "PERCENTAGES" | "VOTE_COUNTS" | "HIDDEN";
-  audienceType?: "PUBLIC" | "STUDENTS" | "FACULTY" | "ALUMNI" | "INVITE_ONLY" | "MEMBERS";
+  liveResultsMode?:
+    "FULL_LEADERBOARD" | "PERCENTAGES" | "VOTE_COUNTS" | "HIDDEN";
+  audienceType?:
+    "PUBLIC" | "STUDENTS" | "FACULTY" | "ALUMNI" | "INVITE_ONLY" | "MEMBERS";
 }) {
   // Ballot configuration governs who may vote — workspace admins only.
-  const { workspace } = await requireWorkspaceRole(WORKSPACE_ADMINS);
+  const { workspace } = await requireWorkspaceRole(WORKSPACE_ADMINS, "manage_team");
+
+  if (input.verificationMethod) {
+    const [currentEvents, submittedBallots] = await Promise.all([
+      db
+        .select({ verificationConfig: events.verificationConfig })
+        .from(events)
+        .where(
+          and(
+            eq(events.id, input.eventId),
+            eq(events.workspaceId, workspace.id),
+          ),
+        )
+        .limit(1),
+      db
+        .select({ id: voteSessions.id })
+        .from(voteSessions)
+        .where(
+          and(
+            eq(voteSessions.eventId, input.eventId),
+            eq(voteSessions.status, "SUBMITTED"),
+          ),
+        )
+        .limit(1),
+    ]);
+    if (!currentEvents[0]) throw new Error("Event not found.");
+    const currentMethod =
+      (currentEvents[0].verificationConfig as { method?: string } | null)
+        ?.method ?? "NONE";
+    if (
+      submittedBallots.length > 0 &&
+      currentMethod !== input.verificationMethod
+    ) {
+      throw new Error(
+        "The voter verification method is locked after the first ballot is submitted.",
+      );
+    }
+  }
 
   await db
     .update(events)
     .set({
-      ...(input.verificationLevel && { verificationLevel: input.verificationLevel }),
+      ...(input.verificationLevel && {
+        verificationLevel: input.verificationLevel,
+      }),
       ...(input.visibility && { visibility: input.visibility }),
       ...(input.liveResultsMode && { liveResultsMode: input.liveResultsMode }),
       ...(input.audienceType && { audienceType: input.audienceType }),
@@ -593,8 +1093,9 @@ export async function updateBallotSettingsAction(input: {
       }),
       updatedAt: new Date(),
     })
-    .where(and(eq(events.id, input.eventId), eq(events.workspaceId, workspace.id)));
+    .where(
+      and(eq(events.id, input.eventId), eq(events.workspaceId, workspace.id)),
+    );
 
   return { success: true };
 }
-

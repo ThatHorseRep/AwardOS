@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+/playwright-report/
+/test-results/
 
 # next.js
 /.next/
@@ -46,6 +48,17 @@ next-env.d.ts
 # local build artifacts
 build-output.log
 build-rc.txt
+.lighthouse-*.json
+.lighthouse-*.log
+/.dev-server.*.log
+/.production-server.*.log
+/.eslint-current.json
+
+# local coding-agent resources
+/.agents/
+/.tmp-ai-design-skills/
+/AGENTS.md
+/CLAUDE.md
 
 # git worktrees (local scratch space, never committed)
 /awardos.worktrees/

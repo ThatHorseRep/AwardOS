@@ -7,12 +7,18 @@ import {
   nominations as nominationsTable,
   categories,
   nominees,
+  auditLogs,
 } from "@/lib/db/schema";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
-import { getCurrentUser, getOrCreateWorkspaceAction } from "./workspaces";
 import { ensureUserRecord } from "@/lib/ensure-user";
-import { requireWorkspaceRole, requireEventAccess, CONTENT_MODERATORS, EVENT_ADMINS } from "./_rbac";
-import { runAINominationCleanup } from "@/lib/ai/cleanup";
+import {
+  requireWorkspaceRole,
+  requireEventAccess,
+  CONTENT_MODERATORS,
+  EVENT_ADMINS,
+} from "./_rbac";
+import { batchCleanupItems, runAINominationCleanup } from "@/lib/ai/cleanup";
+import { consumeRateLimit } from "@/lib/rate-limit";
 
 /**
  * Resolve the event owning `suggestionId` and authorize against it. Merge
@@ -21,7 +27,7 @@ import { runAINominationCleanup } from "@/lib/ai/cleanup";
  */
 async function requireSuggestionAccess(
   suggestionId: string,
-  allowedRoles: Parameters<typeof requireEventAccess>[1]
+  allowedRoles: Parameters<typeof requireEventAccess>[1],
 ) {
   const [suggestion] = await db
     .select({ eventId: aiMergeSuggestions.eventId })
@@ -37,7 +43,16 @@ async function requireSuggestionAccess(
 }
 
 export async function triggerAICleanupAction(eventId: string) {
-  const { user } = await requireEventAccess(eventId, EVENT_ADMINS);
+  const { user, workspace } = await requireEventAccess(eventId, EVENT_ADMINS, "manage_events");
+
+  const limit = await consumeRateLimit(`ai-cleanup:${eventId}`, user.id, {
+    limit: 5,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!limit.allowed)
+    throw new Error(
+      "AI cleanup has been run too frequently. Please try again later.",
+    );
 
   await ensureUserRecord(user.id, user.email, user.displayName);
 
@@ -85,12 +100,59 @@ export async function triggerAICleanupAction(eventId: string) {
       return { success: true, taskId, suggestionCount: 0 };
     }
 
-    // 3. Run the AI pipeline
-    const pipelineResult = await runAINominationCleanup(noms);
+    // 3. Run bounded batches so large events do not hold one unbounded request
+    // in memory. Each batch is persisted in task stats before the next starts.
+    const batchSize = 500;
+    const nominationBatches = batchCleanupItems(noms, batchSize);
+    const batches = nominationBatches.length;
+    const pipelineResult = {
+      cleanedItems: [] as Awaited<
+        ReturnType<typeof runAINominationCleanup>
+      >["cleanedItems"],
+      mergeSuggestions: [] as Awaited<
+        ReturnType<typeof runAINominationCleanup>
+      >["mergeSuggestions"],
+      blankRemovedCount: 0,
+      normalizedCount: 0,
+    };
+    for (
+      let batchIndex = 0;
+      batchIndex < nominationBatches.length;
+      batchIndex++
+    ) {
+      const batch = nominationBatches[batchIndex];
+      const result = await runAINominationCleanup(batch);
+      pipelineResult.cleanedItems.push(...result.cleanedItems);
+      pipelineResult.mergeSuggestions.push(...result.mergeSuggestions);
+      pipelineResult.blankRemovedCount += result.blankRemovedCount;
+      pipelineResult.normalizedCount += result.normalizedCount;
+      await db
+        .update(aiCleanupTasks)
+        .set({
+          stats: {
+            batchSize,
+            batchesCompleted: batchIndex + 1,
+            batchesTotal: batches,
+            blankRemovedCount: pipelineResult.blankRemovedCount,
+            normalizedCount: pipelineResult.normalizedCount,
+            suggestionCount: pipelineResult.mergeSuggestions.length,
+          },
+        })
+        .where(eq(aiCleanupTasks.id, taskId));
+    }
 
     // 4. Save recommendations to database
-    if (pipelineResult.mergeSuggestions.length > 0) {
-      const insertValues = pipelineResult.mergeSuggestions.map((sug) => ({
+    const uniqueSuggestions = [
+      ...new Map(
+        pipelineResult.mergeSuggestions.map((suggestion) => {
+          const key = `${suggestion.categoryId}::${[...suggestion.sourceNominees].sort().join("|")}`;
+          return [key, suggestion] as const;
+        }),
+      ).values(),
+    ];
+
+    if (uniqueSuggestions.length > 0) {
+      const insertValues = uniqueSuggestions.map((sug) => ({
         cleanupTaskId: taskId,
         eventId,
         categoryId: sug.categoryId,
@@ -103,6 +165,20 @@ export async function triggerAICleanupAction(eventId: string) {
       }));
 
       await db.insert(aiMergeSuggestions).values(insertValues);
+      await db.insert(auditLogs).values(
+        uniqueSuggestions.map((suggestion) => ({
+          workspaceId: workspace.id,
+          eventId,
+          actorId: user.id,
+          action: "ai_cleanup.suggestion_created",
+          targetType: "ai_merge_suggestion",
+          details: {
+            categoryId: suggestion.categoryId,
+            suggestedName: suggestion.suggestedName,
+            confidence: suggestion.confidence,
+          },
+        })),
+      );
     }
 
     // 5. Update task stats
@@ -114,7 +190,7 @@ export async function triggerAICleanupAction(eventId: string) {
         stats: {
           blankRemovedCount: pipelineResult.blankRemovedCount,
           normalizedCount: pipelineResult.normalizedCount,
-          suggestionCount: pipelineResult.mergeSuggestions.length,
+          suggestionCount: uniqueSuggestions.length,
         },
       })
       .where(eq(aiCleanupTasks.id, taskId));
@@ -122,30 +198,44 @@ export async function triggerAICleanupAction(eventId: string) {
     return {
       success: true,
       taskId,
-      suggestionCount: pipelineResult.mergeSuggestions.length,
+      suggestionCount: uniqueSuggestions.length,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("AI Cleanup error:", error);
+    const [failedTask] = await db
+      .select({ stats: aiCleanupTasks.stats })
+      .from(aiCleanupTasks)
+      .where(eq(aiCleanupTasks.id, taskId))
+      .limit(1);
     await db
       .update(aiCleanupTasks)
       .set({
         status: "FAILED",
         completedAt: new Date(),
+        stats: {
+          ...((failedTask?.stats as Record<string, unknown> | null) ?? {}),
+          errorMessage:
+            error instanceof Error
+              ? error.message
+              : "AI Cleanup pipeline failed.",
+        },
       })
       .where(eq(aiCleanupTasks.id, taskId));
 
-    throw new Error(error?.message || "AI Cleanup pipeline failed.");
+    throw new Error(
+      error instanceof Error ? error.message : "AI Cleanup pipeline failed.",
+    );
   }
 }
 
 export async function getLatestCleanupTaskAction(eventId: string) {
-  const { workspace } = await requireEventAccess(eventId, CONTENT_MODERATORS);
+  await requireEventAccess(eventId, CONTENT_MODERATORS, "manage_nominees");
 
-  // Get latest completed task
+  // Return the latest task so the UI can represent processing and failure.
   const taskList = await db
     .select()
     .from(aiCleanupTasks)
-    .where(and(eq(aiCleanupTasks.eventId, eventId), eq(aiCleanupTasks.status, "COMPLETED")))
+    .where(eq(aiCleanupTasks.eventId, eventId))
     .orderBy(desc(aiCleanupTasks.createdAt))
     .limit(1);
 
@@ -154,6 +244,10 @@ export async function getLatestCleanupTaskAction(eventId: string) {
   }
 
   const task = taskList[0];
+
+  if (task.status !== "COMPLETED") {
+    return { task, suggestions: [] };
+  }
 
   // Get all suggestions for this task
   const suggestions = await db
@@ -179,8 +273,28 @@ export async function getLatestCleanupTaskAction(eventId: string) {
   };
 }
 
-export async function approveMergeSuggestionAction(suggestionId: string, customName?: string) {
-  const { user } = await requireSuggestionAccess(suggestionId, CONTENT_MODERATORS);
+export async function retryLatestCleanupTaskAction(eventId: string) {
+  await requireEventAccess(eventId, EVENT_ADMINS, "manage_events");
+  const [latest] = await db
+    .select({ status: aiCleanupTasks.status })
+    .from(aiCleanupTasks)
+    .where(eq(aiCleanupTasks.eventId, eventId))
+    .orderBy(desc(aiCleanupTasks.createdAt))
+    .limit(1);
+  if (latest?.status !== "FAILED") {
+    throw new Error("There is no failed cleanup task to retry.");
+  }
+  return triggerAICleanupAction(eventId);
+}
+
+export async function approveMergeSuggestionAction(
+  suggestionId: string,
+  customName?: string,
+) {
+  const { user, workspace } = await requireSuggestionAccess(
+    suggestionId,
+    CONTENT_MODERATORS,
+  );
 
   return await db.transaction(async (tx) => {
     const sugList = await tx
@@ -200,10 +314,29 @@ export async function approveMergeSuggestionAction(suggestionId: string, customN
     const existingList = await tx
       .select()
       .from(nominees)
-      .where(and(eq(nominees.categoryId, sug.categoryId), eq(nominees.normalizedName, normalizedName)))
+      .where(
+        and(
+          eq(nominees.categoryId, sug.categoryId),
+          eq(nominees.normalizedName, normalizedName),
+        ),
+      )
       .limit(1);
 
     const sourceNames = sug.sourceNominees as string[];
+    const matchingNominations =
+      sourceNames.length > 0
+        ? await tx
+            .select({ id: nominationsTable.id })
+            .from(nominationsTable)
+            .where(
+              and(
+                eq(nominationsTable.eventId, sug.eventId),
+                eq(nominationsTable.categoryId, sug.categoryId),
+                inArray(nominationsTable.nomineeText, sourceNames),
+              ),
+            )
+        : [];
+    const contextualNominationCount = matchingNominations.length;
 
     if (existingList.length > 0) {
       nomineeId = existingList[0].id;
@@ -211,7 +344,8 @@ export async function approveMergeSuggestionAction(suggestionId: string, customN
       await tx
         .update(nominees)
         .set({
-          nominationCount: (existingList[0].nominationCount || 0) + sourceNames.length,
+          nominationCount:
+            (existingList[0].nominationCount || 0) + contextualNominationCount,
           updatedAt: new Date(),
         })
         .where(eq(nominees.id, nomineeId));
@@ -233,7 +367,7 @@ export async function approveMergeSuggestionAction(suggestionId: string, customN
           displayOrder: nextOrder,
           status: "ACTIVE",
           source: "AI_SUGGESTED",
-          nominationCount: sourceNames.length,
+          nominationCount: contextualNominationCount,
         })
         .returning({ id: nominees.id });
 
@@ -249,8 +383,8 @@ export async function approveMergeSuggestionAction(suggestionId: string, customN
           and(
             eq(nominationsTable.eventId, sug.eventId),
             eq(nominationsTable.categoryId, sug.categoryId),
-            eq(nominationsTable.nomineeText, sourceName)
-          )
+            eq(nominationsTable.nomineeText, sourceName),
+          ),
         );
     }
 
@@ -263,13 +397,25 @@ export async function approveMergeSuggestionAction(suggestionId: string, customN
         reviewedAt: new Date(),
       })
       .where(eq(aiMergeSuggestions.id, suggestionId));
+    await tx.insert(auditLogs).values({
+      workspaceId: workspace.id,
+      eventId: sug.eventId,
+      actorId: user.id,
+      action: "ai_cleanup.suggestion_approved",
+      targetType: "ai_merge_suggestion",
+      targetId: suggestionId,
+      details: { nomineeId, finalName },
+    });
 
     return { success: true };
   });
 }
 
 export async function rejectMergeSuggestionAction(suggestionId: string) {
-  const { user } = await requireSuggestionAccess(suggestionId, CONTENT_MODERATORS);
+  const { user, workspace, event } = await requireSuggestionAccess(
+    suggestionId,
+    CONTENT_MODERATORS,
+  );
 
   await db
     .update(aiMergeSuggestions)
@@ -279,12 +425,23 @@ export async function rejectMergeSuggestionAction(suggestionId: string) {
       reviewedAt: new Date(),
     })
     .where(eq(aiMergeSuggestions.id, suggestionId));
+  await db.insert(auditLogs).values({
+    workspaceId: workspace.id,
+    eventId: event.id,
+    actorId: user.id,
+    action: "ai_cleanup.suggestion_rejected",
+    targetType: "ai_merge_suggestion",
+    targetId: suggestionId,
+  });
 
   return { success: true };
 }
 
 export async function undoMergeSuggestionAction(suggestionId: string) {
-  const { user } = await requireSuggestionAccess(suggestionId, CONTENT_MODERATORS);
+  const { user, workspace } = await requireSuggestionAccess(
+    suggestionId,
+    CONTENT_MODERATORS,
+  );
 
   return await db.transaction(async (tx) => {
     const sugList = await tx
@@ -310,8 +467,8 @@ export async function undoMergeSuggestionAction(suggestionId: string) {
           and(
             eq(nominationsTable.eventId, sug.eventId),
             eq(nominationsTable.categoryId, sug.categoryId),
-            eq(nominationsTable.nomineeText, sourceName)
-          )
+            eq(nominationsTable.nomineeText, sourceName),
+          ),
         );
     }
 
@@ -324,12 +481,22 @@ export async function undoMergeSuggestionAction(suggestionId: string) {
         reviewedAt: null,
       })
       .where(eq(aiMergeSuggestions.id, suggestionId));
+    await tx.insert(auditLogs).values({
+      workspaceId: workspace.id,
+      eventId: sug.eventId,
+      actorId: user.id,
+      action: "ai_cleanup.suggestion_undone",
+      targetType: "ai_merge_suggestion",
+      targetId: suggestionId,
+    });
 
     return { success: true };
   });
 }
 
-export async function bulkApproveMergeSuggestionsAction(suggestionIds: string[]) {
+export async function bulkApproveMergeSuggestionsAction(
+  suggestionIds: string[],
+) {
   if (suggestionIds.length === 0) return { success: true };
 
   // Authorize every event represented in the batch before approving any of it.
@@ -342,13 +509,13 @@ export async function bulkApproveMergeSuggestionsAction(suggestionIds: string[])
 
   let user;
   for (const owner of owners) {
-    ({ user } = await requireEventAccess(owner.eventId, CONTENT_MODERATORS));
+    ({ user } = await requireEventAccess(owner.eventId, CONTENT_MODERATORS, "manage_nominees"));
   }
 
   if (!user) {
     // Nothing in the batch resolved to a real suggestion; still prove the caller
     // is a seated moderator rather than returning success to anyone.
-    ({ user } = await requireWorkspaceRole(CONTENT_MODERATORS));
+    ({ user } = await requireWorkspaceRole(CONTENT_MODERATORS, "manage_nominees"));
     return { success: true };
   }
 
@@ -358,7 +525,10 @@ export async function bulkApproveMergeSuggestionsAction(suggestionIds: string[])
       .select()
       .from(aiMergeSuggestions)
       .where(
-        and(inArray(aiMergeSuggestions.id, suggestionIds), eq(aiMergeSuggestions.status, "PENDING"))
+        and(
+          inArray(aiMergeSuggestions.id, suggestionIds),
+          eq(aiMergeSuggestions.status, "PENDING"),
+        ),
       );
 
     if (pending.length === 0) {
@@ -380,16 +550,41 @@ export async function bulkApproveMergeSuggestionsAction(suggestionIds: string[])
     const groups = new Map<string, Group>();
     const groupKey = (categoryId: string, normalizedName: string) =>
       `${categoryId}::${normalizedName}`;
+    const nominationRows = await tx
+      .select({
+        eventId: nominationsTable.eventId,
+        categoryId: nominationsTable.categoryId,
+        nomineeText: nominationsTable.nomineeText,
+      })
+      .from(nominationsTable)
+      .where(
+        inArray(nominationsTable.eventId, [
+          ...new Set(pending.map((suggestion) => suggestion.eventId)),
+        ]),
+      );
+    const nominationCountByKey = new Map<string, number>();
+    for (const row of nominationRows) {
+      const key = `${row.eventId}::${row.categoryId}::${row.nomineeText}`;
+      nominationCountByKey.set(key, (nominationCountByKey.get(key) ?? 0) + 1);
+    }
 
     for (const sug of pending) {
       const normalizedName = sug.suggestedName.toLowerCase().trim();
       const key = groupKey(sug.categoryId, normalizedName);
       const sourceNames = (sug.sourceNominees as string[]) || [];
+      const contextualCount = sourceNames.reduce(
+        (total, sourceName) =>
+          total +
+          (nominationCountByKey.get(
+            `${sug.eventId}::${sug.categoryId}::${sourceName}`,
+          ) ?? 0),
+        0,
+      );
       const existing = groups.get(key);
 
       if (existing) {
         existing.sourceNames.push(...sourceNames);
-        existing.count += sourceNames.length;
+        existing.count += contextualCount;
       } else {
         groups.set(key, {
           eventId: sug.eventId,
@@ -397,7 +592,7 @@ export async function bulkApproveMergeSuggestionsAction(suggestionIds: string[])
           name: sug.suggestedName,
           normalizedName,
           sourceNames: [...sourceNames],
-          count: sourceNames.length,
+          count: contextualCount,
         });
       }
     }
@@ -422,7 +617,10 @@ export async function bulkApproveMergeSuggestionsAction(suggestionIds: string[])
       existingByKey.set(groupKey(nom.categoryId, nom.normalizedName), nom);
       nextOrderByCategory.set(
         nom.categoryId,
-        Math.max(nextOrderByCategory.get(nom.categoryId) ?? 0, nom.displayOrder)
+        Math.max(
+          nextOrderByCategory.get(nom.categoryId) ?? 0,
+          nom.displayOrder,
+        ),
       );
     }
 
@@ -459,7 +657,10 @@ export async function bulkApproveMergeSuggestionsAction(suggestionIds: string[])
     }
 
     if (toInsert.length > 0) {
-      const inserted = await tx.insert(nominees).values(toInsert).returning({ id: nominees.id });
+      const inserted = await tx
+        .insert(nominees)
+        .values(toInsert)
+        .returning({ id: nominees.id });
       // `returning` preserves the order of `values`, so the two arrays line up.
       inserted.forEach((row, i) => resolvedIdByKey.set(insertKeys[i], row.id));
     }
@@ -467,7 +668,8 @@ export async function bulkApproveMergeSuggestionsAction(suggestionIds: string[])
     if (countBumps.length > 0) {
       // A single UPDATE with a CASE, rather than one round trip per nominee.
       const cases = countBumps.map(
-        (b) => sql`when ${nominees.id} = ${b.id}::uuid then ${b.nominationCount}::int`
+        (b) =>
+          sql`when ${nominees.id} = ${b.id}::uuid then ${b.nominationCount}::int`,
       );
       await tx
         .update(nominees)
@@ -478,8 +680,8 @@ export async function bulkApproveMergeSuggestionsAction(suggestionIds: string[])
         .where(
           inArray(
             nominees.id,
-            countBumps.map((b) => b.id)
-          )
+            countBumps.map((b) => b.id),
+          ),
         );
     }
 
@@ -496,8 +698,10 @@ export async function bulkApproveMergeSuggestionsAction(suggestionIds: string[])
           and(
             eq(nominationsTable.eventId, group.eventId),
             eq(nominationsTable.categoryId, group.categoryId),
-            inArray(nominationsTable.nomineeText, [...new Set(group.sourceNames)])
-          )
+            inArray(nominationsTable.nomineeText, [
+              ...new Set(group.sourceNames),
+            ]),
+          ),
         );
     }
 
@@ -511,10 +715,50 @@ export async function bulkApproveMergeSuggestionsAction(suggestionIds: string[])
       .where(
         inArray(
           aiMergeSuggestions.id,
-          pending.map((s) => s.id)
-        )
+          pending.map((s) => s.id),
+        ),
       );
 
     return { success: true };
   });
+}
+
+export async function bulkRejectMergeSuggestionsAction(
+  suggestionIds: string[],
+) {
+  if (suggestionIds.length === 0) return { success: true };
+  const owners = await db
+    .selectDistinct({ eventId: aiMergeSuggestions.eventId })
+    .from(aiMergeSuggestions)
+    .where(inArray(aiMergeSuggestions.id, suggestionIds));
+  let userId: string | undefined;
+  for (const owner of owners) {
+    const access = await requireEventAccess(owner.eventId, CONTENT_MODERATORS, "manage_nominees");
+    userId = access.user.id;
+  }
+  if (!userId) {
+    const access = await requireWorkspaceRole(CONTENT_MODERATORS, "manage_nominees");
+    userId = access.user.id;
+  }
+  await db
+    .update(aiMergeSuggestions)
+    .set({ status: "REJECTED", reviewedBy: userId, reviewedAt: new Date() })
+    .where(
+      and(
+        inArray(aiMergeSuggestions.id, suggestionIds),
+        eq(aiMergeSuggestions.status, "PENDING"),
+      ),
+    );
+  for (const owner of owners) {
+    await db.insert(auditLogs).values({
+      workspaceId: (await requireEventAccess(owner.eventId, CONTENT_MODERATORS, "manage_nominees"))
+        .workspace.id,
+      eventId: owner.eventId,
+      actorId: userId,
+      action: "ai_cleanup.suggestions_bulk_rejected",
+      targetType: "ai_merge_suggestion_batch",
+      details: { suggestionIds },
+    });
+  }
+  return { success: true };
 }

@@ -8,21 +8,21 @@ export default function PublicLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen w-full bg-[#f4f5f8] text-slate-900 antialiased flex flex-col justify-between font-sans selection:bg-blue-500 selection:text-white">
+    <div className="min-h-dvh w-full bg-canvas text-content antialiased flex flex-col justify-between font-sans selection:bg-accent selection:text-accent-contrast">
       {/* Public Top Navbar */}
-      <header className="h-16 px-6 bg-white/80 backdrop-blur-xl border-b border-slate-200/80 flex items-center justify-between sticky top-0 z-50 shadow-sm">
+      <header className="h-16 px-6 bg-surface/85 backdrop-blur-xl border-b border-border-subtle flex items-center justify-between sticky top-0 z-50 shadow-sm">
         <Link href="/" className="flex items-center gap-3 group">
-          <div className="w-9 h-9 rounded-2xl bg-blue-600 flex items-center justify-center shadow-md shadow-blue-600/20 group-hover:scale-105 transition-transform">
-            <Trophy className="w-4 h-4 text-white" />
+          <div className="w-9 h-9 rounded-xl bg-surface-raised border border-border-subtle text-accent flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-200">
+            <Trophy className="w-4 h-4" />
           </div>
-          <span className="font-extrabold text-sm tracking-tight text-slate-900">
-            Award<span className="text-blue-600">OS</span>
+          <span className="font-bold text-sm tracking-tight text-content">
+            Award<span className="text-accent">OS</span>
           </span>
         </Link>
 
-        <div className="flex items-center gap-2 text-xs text-slate-600 font-medium">
-          <ShieldCheck className="w-4 h-4 text-emerald-600" />
-          <span className="hidden sm:inline">Encrypted Voting & Anti-Bot Protection</span>
+        <div className="flex items-center gap-2 text-xs text-content-secondary font-medium">
+          <ShieldCheck className="w-4 h-4 text-success" />
+          <span className="hidden sm:inline">Encrypted voting & ballot protection</span>
         </div>
       </header>
 
@@ -32,9 +32,10 @@ export default function PublicLayout({
       </main>
 
       {/* Public Footer */}
-      <footer className="py-6 border-t border-slate-200/80 text-center text-xs text-slate-500 font-medium bg-white">
-        Powered by <strong className="text-slate-900 font-bold">AwardOS</strong> — Enterprise Recognition Platform
+      <footer className="py-6 border-t border-border-subtle text-center text-xs text-content-secondary font-medium bg-surface">
+        Powered by <strong className="text-content font-bold">AwardOS</strong> — Recognition & Voting Platform
       </footer>
     </div>
   );
 }
+

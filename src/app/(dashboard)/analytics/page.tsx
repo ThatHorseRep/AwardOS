@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { getEventsAction } from "@/actions/events";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { TrendingUp, ChevronRight, BarChart3 } from "lucide-react";
 
 export default async function GlobalAnalyticsPage() {

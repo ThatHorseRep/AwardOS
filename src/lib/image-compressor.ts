@@ -7,6 +7,7 @@ export interface CompressionOptions {
 
 export interface CompressionResult {
   dataUrl: string;
+  file: File;
   originalSizeKb: number;
   compressedSizeKb: number;
   savedPercentage: number;
@@ -70,22 +71,12 @@ export async function compressImageFile(
         ctx.drawImage(img, 0, 0, width, height);
 
         // Convert canvas to compressed Data URL
-        const dataUrl = canvas.toDataURL(mimeType, quality);
-
-        // Calculate compressed size in KB
-        const base64Length = dataUrl.length - (dataUrl.indexOf(",") + 1);
-        const compressedSizeKb = (base64Length * 0.75) / 1024;
-        const savedPercentage = Math.max(
-          0,
-          Math.round(((originalSizeKb - compressedSizeKb) / originalSizeKb) * 100)
-        );
-
-        resolve({
-          dataUrl,
-          originalSizeKb,
-          compressedSizeKb,
-          savedPercentage,
-        });
+        canvas.toBlob((blob) => {
+          if (!blob) { reject(new Error("Failed to encode compressed image")); return; }
+          const dataUrl = canvas.toDataURL(mimeType, quality);
+          const compressedSizeKb = blob.size / 1024;
+          resolve({ dataUrl, file: new File([blob], "optimized.jpg", { type: mimeType }), originalSizeKb, compressedSizeKb, savedPercentage: Math.max(0, Math.round(((originalSizeKb - compressedSizeKb) / originalSizeKb) * 100)) });
+        }, mimeType, quality);
       };
 
       img.onerror = (err) => reject(err);

@@ -45,10 +45,6 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        onClose();
-      }
       if (e.key === "Escape") {
         onClose();
       }
