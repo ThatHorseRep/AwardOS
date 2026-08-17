@@ -62,6 +62,43 @@ export async function bulkImportCategoriesAndNomineesAction(
   const validation = validateBulkImportItems(items);
   const cleanItems = validation.valid;
   if (cleanItems.length === 0) throw new Error("No valid rows remain to import.");
+
+  // Category-only imports have no nominee side effects and use a smaller
+  // transaction so a category list cannot fail on nominee or import-run data.
+  if (cleanItems.every((item) => !item.nomineeName)) {
+    return await db.transaction(async (tx) => {
+      const existingCats = await tx.select().from(categories).where(eq(categories.eventId, eventId));
+      const categoryMap = new Map(existingCats.map((category) => [category.name.toLowerCase().trim(), category]));
+      let maxOrder = existingCats.reduce((max, category) => Math.max(max, category.displayOrder), 0);
+      let categoriesCreated = 0;
+
+      for (const item of cleanItems) {
+        const key = item.categoryName.toLowerCase().trim();
+        if (categoryMap.has(key)) continue;
+        maxOrder += 1;
+        const [created] = await tx.insert(categories).values({
+          eventId,
+          name: item.categoryName,
+          description: item.categoryDescription || "",
+          displayOrder: maxOrder,
+          isActive: true,
+        }).returning();
+        categoryMap.set(key, created);
+        categoriesCreated += 1;
+      }
+
+      return {
+        success: true,
+        categoriesCreated,
+        nomineesImported: 0,
+        nomineesUpdated: 0,
+        nomineesSkipped: validation.errors.length,
+        failedRows: validation.errors,
+        totalProcessed: validation.totalRows,
+      } satisfies BulkImportResult;
+    });
+  }
+
   const key = idempotencyKey?.trim().toLowerCase();
   if (!key || !/^[a-f0-9]{64}$/.test(key)) throw new Error("A valid import idempotency key is required.");
 
