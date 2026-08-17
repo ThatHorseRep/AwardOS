@@ -57,42 +57,43 @@ export default function VotingThankYouPage() {
   };
 
   return (
-    <div className="max-w-xl mx-auto py-8 text-center space-y-6 font-sans select-none pb-16">
-      <div className="w-16 h-16 rounded-3xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto shadow-md">
+    <main id="main-content" className="mx-auto w-full max-w-2xl space-y-6 px-4 py-8 text-center font-sans sm:px-6 sm:py-12">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-success/20 bg-success/10 text-success shadow-sm">
         <CheckCircle2 className="w-8 h-8" />
       </div>
 
       <div className="space-y-2">
-        <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+        <h1 className="text-3xl font-bold text-content text-balance">
           Vote cast and verified
         </h1>
-        <p className="text-slate-600 text-xs leading-relaxed max-w-sm mx-auto font-medium">
-          Your ballot for <strong className="text-slate-900">{eventTitle}</strong> is recorded as immutable and included in the event tally.
+        <p className="mx-auto max-w-lg text-sm text-content-secondary text-pretty">
+          Your ballot for <strong className="text-content">{eventTitle}</strong> has been recorded and included in the event tally.
         </p>
       </div>
 
       {/* Cryptographic Receipt Card */}
       {receiptCode && (
-        <Card className="border-blue-200 bg-blue-50/50 text-left rounded-3xl shadow-sm">
+        <Card className="rounded-2xl border-border-subtle bg-surface text-left shadow-sm">
           <CardHeader className="pb-2 border-b border-blue-100">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-xs font-bold text-blue-950 uppercase tracking-wider flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-blue-600" /> Cryptographic Ballot Receipt
+              <CardTitle className="flex items-center gap-2 text-sm font-bold text-content">
+                <ShieldCheck className="h-4 w-4 text-accent" /> Ballot receipt
               </CardTitle>
               <Badge variant="success" size="sm">COUNTED</Badge>
             </div>
-            <CardDescription className="text-xs text-blue-900 font-medium">
-              Save this digital receipt token. You can present it at any time to verify that your ballot was included in the final event audit tally.
+            <CardDescription className="text-xs text-content-secondary text-pretty">
+              Save this receipt code. It lets you verify that your ballot remains included in the event audit tally.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 pt-4">
-            <div className="p-3.5 rounded-2xl bg-white border border-blue-200 flex items-center justify-between gap-2 shadow-sm">
-              <code className="text-xs font-mono text-slate-900 font-bold truncate max-w-xs">{receiptCode}</code>
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-border-subtle bg-surface-raised p-3 shadow-sm">
+              <code className="min-w-0 flex-1 truncate font-mono text-xs font-bold text-content">{receiptCode}</code>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleCopyReceipt}
-                className="text-slate-600 hover:text-slate-900 shrink-0 h-8 font-medium"
+                aria-label={copied ? "Receipt copied" : "Copy receipt"}
+                className="h-8 shrink-0 text-content-secondary hover:text-content"
               >
                 {copied ? <Check className="w-4 h-4 text-emerald-600 font-bold" /> : <Copy className="w-4 h-4" />}
               </Button>
@@ -102,30 +103,31 @@ export default function VotingThankYouPage() {
       )}
 
       {/* Public Ballot Verification Box */}
-      <Card className="border-slate-200/80 bg-white text-left rounded-3xl shadow-sm">
+      <Card className="rounded-2xl border-border-subtle bg-surface text-left shadow-sm">
         <CardHeader className="pb-3 border-b border-slate-100">
-          <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <Search className="w-4 h-4 text-purple-600" /> Public Ballot Verification Tool
+          <CardTitle className="flex items-center gap-2 text-sm font-bold text-content">
+            <Search className="h-4 w-4 text-accent" /> Verify a ballot receipt
           </CardTitle>
-          <CardDescription className="text-xs text-slate-600 font-medium">
-            Verify any receipt token to confirm its cryptographic inclusion in the event database.
+          <CardDescription className="text-xs text-content-secondary text-pretty">
+            Enter a receipt code to confirm that the ballot is present in this event.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 pt-4">
-          <form onSubmit={handleVerify} className="flex gap-2">
+          <form onSubmit={handleVerify} className="flex flex-col gap-2 sm:flex-row">
             <input
               type="text"
               required
               placeholder="Paste an AwardOS receipt token"
               value={searchCode}
               onChange={(e) => setSearchCode(e.target.value)}
-              className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-3.5 py-2.5 border border-slate-200 focus:outline-none focus:border-purple-500 font-mono font-medium"
+              aria-label="Ballot receipt code"
+              className="w-full rounded-xl border border-border-subtle bg-surface-raised px-3 py-2 font-mono text-xs font-medium text-content focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
             />
             <Button
               type="submit"
               variant="primary"
               disabled={verifying}
-              className="rounded-full bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shrink-0 px-4"
+              className="shrink-0 rounded-xl px-4 text-xs font-semibold sm:w-auto"
             >
               {verifying ? <Loader2 className="animate-spin w-4 h-4 mr-1" /> : <Search className="w-4 h-4 mr-1" />}
               <span>Verify</span>
@@ -138,7 +140,7 @@ export default function VotingThankYouPage() {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-emerald-600 font-bold">
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Valid Certified Ballot Found!</span>
+                    <span>Valid ballot found</span>
                   </div>
                   <div className="space-y-1 text-slate-700 text-[11px] font-mono font-medium">
                     <div>Event: <strong className="text-slate-900">{verificationResult.eventName}</strong></div>
@@ -167,13 +169,13 @@ export default function VotingThankYouPage() {
           className="w-full justify-center bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold rounded-full shadow-sm"
         >
           <Share2 className="w-4 h-4 mr-2 text-blue-600" />
-          <span>Invite Friends & Promote Candidates</span>
+          <span>Share this event</span>
         </Button>
 
         <Link href={`/e/${slug}`} className="block">
           <Button variant="primary" size="md" className="w-full justify-center rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-600/20">
             <Home className="w-4 h-4 mr-2" />
-            <span>Return to Event Landing Page</span>
+            <span>Return to event</span>
           </Button>
         </Link>
       </div>
@@ -184,6 +186,6 @@ export default function VotingThankYouPage() {
         eventName={eventTitle}
         eventSlug={slug}
       />
-    </div>
+    </main>
   );
 }

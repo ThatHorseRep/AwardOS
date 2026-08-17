@@ -36,7 +36,7 @@ export default function NewEventWizardPage() {
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
-  const [visibility, setVisibility] = useState("PUBLIC");
+  const [visibility, setVisibility] = useState("UNLISTED");
 
   // Step 2: Timeline
   const [nominationStart, setNominationStart] = useState("");
@@ -244,8 +244,8 @@ export default function NewEventWizardPage() {
                 <label className="text-xs font-semibold text-slate-700">Visibility Setting</label>
                 <div className="grid grid-cols-3 gap-3">
                   {[
-                    { id: "PUBLIC", label: "Public", desc: "Listed on public directory", icon: Globe },
-                    { id: "UNLISTED", label: "Unlisted", desc: "Accessible via direct link only", icon: EyeOff },
+                    { id: "PUBLIC", label: "Public", desc: "Accessible to anyone with the link", icon: Globe },
+                    { id: "UNLISTED", label: "Link only", desc: "Accessible only through the organizer's shared link", icon: EyeOff },
                     { id: "PRIVATE", label: "Private", desc: "Organizer & admin view only", icon: Lock },
                   ].map((item) => {
                     const ItemIcon = item.icon;

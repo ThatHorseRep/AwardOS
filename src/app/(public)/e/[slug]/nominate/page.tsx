@@ -154,7 +154,7 @@ export default function PublicNominationPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 font-sans select-none pb-20">
+    <div className="mx-auto max-w-3xl space-y-6 pb-20 font-sans">
       {/* Back Button & Title */}
       <div className="flex items-center justify-between">
         <Link href={`/e/${slug}`}>

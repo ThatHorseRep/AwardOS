@@ -67,7 +67,11 @@ test("public nomination flow submits on mobile", async ({ page }) => {
   test.setTimeout(120_000);
   await page.goto(`/e/${fixture("E2E_NOMINATION_SLUG")}/nominate`);
   await expect(page.getByRole("heading", { name: "Submit your nominations" })).toBeVisible({ timeout: 45_000 });
-  await page.getByLabel("Nominee full name or organization").fill("Kemi Adeyemi");
+  const nomineeInput = page.getByLabel("Nominee full name or organization");
+  await nomineeInput.click();
+  await nomineeInput.pressSequentially("Kemi Adeyemi", { delay: 20 });
+  await expect(nomineeInput).toBeFocused();
+  await expect(nomineeInput).toHaveValue("Kemi Adeyemi");
   const [submission] = await Promise.all([
     page.waitForResponse((response) => response.url().includes("/nominations") && response.request().method() === "POST"),
     page.getByRole("button", { name: "Submit nominations" }).click(),
@@ -83,8 +87,13 @@ test("public ballot can be reviewed and submitted on mobile", async ({ page }) =
   await page.getByText("Amara Okafor", { exact: true }).click();
   await page.getByRole("button", { name: "Review ballot" }).click();
   await expect(page.getByRole("dialog", { name: "Review your ballot" })).toBeVisible();
-  await page.getByRole("dialog").getByRole("button", { name: "Confirm & submit" }).click();
+  const reviewOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(reviewOverflow).toBe(false);
+  await page.getByRole("dialog").getByRole("button", { name: "Confirm and submit" }).click();
   await expect(page).toHaveURL(/\/vote\/thank-you$/, { timeout: 60_000 });
+  await expect(page.getByRole("heading", { name: "Vote cast and verified" })).toBeVisible();
+  const confirmationOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(confirmationOverflow).toBe(false);
 });
 
 test("invitation code gates the ballot and unlocks it once", async ({ page }) => {

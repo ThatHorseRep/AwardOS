@@ -42,6 +42,7 @@ export async function previewBulkImportAction(eventId: string, items: BulkImport
     const categoryKey = item.categoryName.toLowerCase();
     let categoryId = categoryByName.get(categoryKey);
     if (!categoryId) { if (!plannedCategoryNames.has(categoryKey)) { plannedCategoryNames.add(categoryKey); categoriesToCreate += 1; } categoryId = `new:${categoryKey}`; }
+    if (!item.nomineeName) continue;
     const nomineeKey = `${categoryId}:${item.nomineeName.toLowerCase().replace(/\s+/g, " ")}`;
     if (plannedNomineeKeys.has(nomineeKey)) continue;
     plannedNomineeKeys.add(nomineeKey);
@@ -120,6 +121,7 @@ export async function bulkImportCategoriesAndNomineesAction(
 
     // 3. Batch insert nominees under matching category IDs
     for (const item of cleanItems) {
+      if (!item.nomineeName) continue;
       const catKey = item.categoryName.toLowerCase();
       const categoryId = categoryMap.get(catKey);
 

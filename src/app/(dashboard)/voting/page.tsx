@@ -26,7 +26,7 @@ export default function OrganizerVotingPage() {
   // Ballot settings modal state
   const [selectedEventForSettings, setSelectedEventForSettings] = useState<EventSummary | null>(null);
   const [verificationMethod, setVerificationMethod] = useState<VerificationMethod>("NONE");
-  const [visibility, setVisibility] = useState<"PUBLIC" | "UNLISTED" | "PRIVATE">("PUBLIC");
+  const [visibility, setVisibility] = useState<"PUBLIC" | "UNLISTED" | "PRIVATE">("UNLISTED");
   const [liveResultsMode, setLiveResultsMode] = useState<LiveResultsMode>("FULL_LEADERBOARD");
   const [audienceType, setAudienceType] = useState<AudienceType>("PUBLIC");
 
@@ -314,9 +314,9 @@ export default function OrganizerVotingPage() {
                   onChange={(e) => setVisibility(e.target.value as typeof visibility)}
                   className="w-full bg-surface-raised text-content text-xs rounded-xl px-3.5 py-2 border border-border-subtle focus:outline-none focus:border-accent font-normal"
                 >
-                  <option value="PUBLIC">Public — Discoverable on search & open public ballot URL</option>
-                  <option value="UNLISTED">Unlisted — Accessible via direct link only</option>
-                  <option value="PRIVATE">Private — Restricted workspace access only</option>
+                  <option value="UNLISTED">Link only: accessible through the organizer&apos;s shared URL</option>
+                  <option value="PUBLIC">Public: accessible to anyone with the URL</option>
+                  <option value="PRIVATE">Private: restricted to the organizer workspace</option>
                 </select>
               </div>
 

@@ -85,3 +85,16 @@
 - A real Resend delivery probe was accepted, and an AwardOS `EMAIL_OTP` ballot advanced from email entry to the six-digit verification screen through the real server action.
 - Final local gates: TypeScript passed, zero-warning ESLint passed, 56 tests passed across 14 files, production build passed, and `npm audit --audit-level=high` passed.
 - Final Playwright suite: 22 standard desktop/mobile checks passed; the explicit real-email test passed separately with a configured recipient and remains skipped by default to prevent unsolicited email during routine runs.
+
+## Responsive voter flow and category import verification
+
+- Recorded: 2026-08-17 (Africa/Lagos).
+- Category imports now accept plain text with one category per line, one-column CSV with a `Category` header, and extended CSV rows with optional nominee, bio, and photo URL fields.
+- Category-only rows create categories without invalid empty nominee records. Rows that provide nominee details without a nominee name are rejected with a specific validation error.
+- Event creation and voting controls now default to link-only visibility. Public event discovery is not implied or required.
+- Removed application-level text selection suppression from authenticated, dashboard, nomination, and voting form surfaces.
+- The voter ballot review is constrained and centered, its actions stack on narrow screens, and the confirmation page uses the shared AwardOS design tokens without horizontal overflow.
+- `npm test`: 60 tests passed across 14 files.
+- `npm run lint`: passed with zero warnings and zero errors.
+- `npm run build`: passed under Next.js 16.3.1.
+- Playwright release suite: 22 checks passed across desktop Chromium and Pixel 7. The suite now types a multiword nominee name with sequential key events, verifies input focus remains active, checks the ballot review for overflow, submits the ballot, and checks the confirmation page for overflow.

@@ -982,9 +982,9 @@ export default function EventDetailPage() {
                 onChange={(e) => setVisibility(e.target.value as typeof visibility)}
                 className="w-full bg-surface-raised text-content text-xs rounded-xl px-3.5 py-2 border border-border-subtle focus:outline-none focus:border-accent font-normal"
               >
-                <option value="PUBLIC">Public (Visible on search and discovery)</option>
-                <option value="UNLISTED">Unlisted (Accessible only via direct link)</option>
-                <option value="PRIVATE">Private (Restricted access)</option>
+                <option value="UNLISTED">Link only: accessible through the organizer&apos;s shared URL</option>
+                <option value="PUBLIC">Public: accessible to anyone with the URL</option>
+                <option value="PRIVATE">Private: restricted to the organizer workspace</option>
               </select>
             </div>
 

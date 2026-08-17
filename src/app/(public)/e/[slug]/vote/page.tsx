@@ -291,7 +291,7 @@ export default function PublicBallotPage() {
   const totalSelected = Object.keys(selectedVotes).length;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 font-sans select-none pb-24">
+    <div className="mx-auto max-w-4xl space-y-6 px-0 pb-24 font-sans sm:px-4">
       {/* Back Button & Title */}
       <div className="flex items-center justify-between">
         <Link href={`/e/${slug}`}>
@@ -614,7 +614,8 @@ export default function PublicBallotPage() {
       {/* Pre-submission Review Modal */}
       {showReviewModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-page-entrance font-sans">
-          <div role="dialog" aria-modal="true" aria-labelledby="ballot-review-title" className="w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto bg-surface border border-border-subtle rounded-2xl p-6 space-y-5 shadow-2xl text-content">
+          <div role="dialog" aria-modal="true" aria-labelledby="ballot-review-title" className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-border-subtle bg-surface p-4 text-content shadow-2xl sm:p-6">
+            <div className="space-y-5">
             <div className="flex items-center justify-between border-b border-border-subtle pb-3">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-accent" />
@@ -647,9 +648,9 @@ export default function PublicBallotPage() {
 
                 return (
                   <div key={cat.id} className="p-3 rounded-xl bg-surface-raised border border-border-subtle flex items-center justify-between text-xs">
-                    <span className="text-content font-semibold truncate max-w-[180px]">{cat.name}</span>
+                    <span className="min-w-0 flex-1 truncate text-content font-semibold">{cat.name}</span>
                     {nominee ? (
-                      <span className="text-success font-bold">{nominee.name}</span>
+                      <span className="max-w-[50%] truncate text-right font-bold text-success">{nominee.name}</span>
                     ) : (
                       <span className="text-content-secondary italic font-normal">Skipped</span>
                     )}
@@ -658,7 +659,7 @@ export default function PublicBallotPage() {
               })}
             </div>
 
-            <div className="flex items-center gap-3 pt-2">
+            <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:items-center">
               <Button variant="outline" size="md" onClick={() => setShowReviewModal(false)} className="flex-1 rounded-xl text-xs font-semibold">
                 Go back
               </Button>
@@ -670,8 +671,9 @@ export default function PublicBallotPage() {
                 className="flex-1 rounded-xl bg-success hover:bg-success/90 text-white font-semibold text-xs shadow-sm"
               >
                 <Lock className="w-4 h-4 mr-1.5" />
-                <span>Confirm & submit</span>
+                <span>Confirm and submit</span>
               </Button>
+            </div>
             </div>
           </div>
         </div>

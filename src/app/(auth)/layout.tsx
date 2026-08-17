@@ -12,7 +12,7 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-dvh w-full flex flex-col items-center justify-between bg-canvas relative py-8 px-4 font-sans select-none">
+    <div className="min-h-dvh w-full flex flex-col items-center justify-between bg-canvas relative py-8 px-4 font-sans">
       {/* Header Logo */}
       <div className="relative z-10 text-center shrink-0 pt-2">
         <div className="inline-flex items-center gap-2.5">

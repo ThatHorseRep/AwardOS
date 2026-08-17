@@ -31,7 +31,7 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-dvh h-screen w-full bg-canvas text-content overflow-hidden font-sans select-none">
+    <div className="flex min-h-dvh h-screen w-full bg-canvas text-content overflow-hidden font-sans">
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0 h-full overflow-hidden">
         <Header user={user} workspaceSwitcher={<WorkspaceSwitcher workspaces={await listUserWorkspacesAction()} selectedId={(await getOrCreateWorkspaceAction())?.id ?? ""} />} />
