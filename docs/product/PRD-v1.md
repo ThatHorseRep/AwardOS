@@ -1,5 +1,9 @@
 # AwardOS — Product Requirements Document (PRD)
 
+> **Historical product vision.** This July 2026 draft contains requirements
+> beyond the current production release. Use `docs/product/PRODUCT.md` for the
+> implemented product and current roadmap.
+
 **Version:** 1.0
 **Date:** July 29, 2026
 **Status:** Draft — Awaiting Review

@@ -1,4 +1,7 @@
-**Audit Verification**
+# Audit Verification
+
+> **Operational runbook.** These focused checks supplement the full release
+> gates documented in `SHIPPING_VERIFICATION.md`.
 
 - **Purpose:** Steps to verify integrity detector and export behavior.
 
@@ -19,7 +22,7 @@
 
     ```bash
     # set your DB connection and event id
-    DATABASE_URL=postgres://user:pass@host:5432/db EVENT_ID=<event-id> node scripts/verify_exports.js
+    DATABASE_URL="$VERIFY_DATABASE_URL" EVENT_ID="$VERIFY_EVENT_ID" node scripts/verify_exports.js
     ```
 
     - Exit code `0` indicates passed verification; non-zero indicates failure.

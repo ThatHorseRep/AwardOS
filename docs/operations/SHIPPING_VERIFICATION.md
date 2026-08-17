@@ -1,5 +1,8 @@
 # Shipping verification log
 
+> **Operational release evidence.** For current product behavior and roadmap,
+> see `docs/product/PRODUCT.md`.
+
 ## Baseline
 
 - Recorded: 2026-08-15 (Africa/Lagos)

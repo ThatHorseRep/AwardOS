@@ -1,6 +1,10 @@
 # AwardOS Shipping Implementation Plan
 
-Status: Ready for implementation  
+> **Historical completed plan.** Every checklist item was completed and
+> verified by August 17, 2026. Current product documentation lives at
+> `docs/product/PRODUCT.md`.
+
+Status: Completed
 Scope: Complete the existing product, remove only proven obsolete code, and ship a production-ready AwardOS release.
 
 ## Release Rule

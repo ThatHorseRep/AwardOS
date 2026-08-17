@@ -1,5 +1,9 @@
 # AwardOS — Implementation Plan & Roadmap
 
+> **Superseded historical roadmap.** This proposal predates the verified
+> production-readiness release. It is retained for traceability, not execution.
+> Use `docs/product/PRODUCT.md` for current product status and priorities.
+
 **Version:** 1.0
 **Date:** July 29, 2026
 **Status:** Awaiting Approval
