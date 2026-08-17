@@ -10,6 +10,16 @@ describe("bulk import validation", () => {
     ]);
   });
 
+  it("normalizes numbered category lists", () => {
+    const result = parseBulkImportText("1. Best All-Around Student\n2. Best Personality\n3) Best Entertainer\n- Class Clown");
+    expect(result.map((item) => item.categoryName)).toEqual([
+      "Best All-Around Student",
+      "Best Personality",
+      "Best Entertainer",
+      "Class Clown",
+    ]);
+  });
+
   it("detects one-column and extended CSV headers", () => {
     expect(parseBulkImportText("Category\nBest Athlete")).toEqual([
       { categoryName: "Best Athlete", nomineeName: "", nomineeBio: "", nomineePhotoUrl: "" },

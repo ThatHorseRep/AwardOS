@@ -31,7 +31,8 @@ export function parseBulkImportText(text: string): BulkImportItem[] {
   const headers = hasHeader ? firstColumns : [];
 
   return lines.slice(hasHeader ? 1 : 0).map((line) => {
-    const columns = line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map((cell) => cell.replace(/^"|"$/g, "").replace(/""/g, '"').trim());
+    const normalizedLine = line.replace(/^\s*(?:\d+[.)]|[-*])\s+/, "");
+    const columns = normalizedLine.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map((cell) => cell.replace(/^"|"$/g, "").replace(/""/g, '"').trim());
     const value = (...names: string[]) => {
       const index = headers.findIndex((header) => names.includes(header));
       return index >= 0 ? columns[index] ?? "" : "";
