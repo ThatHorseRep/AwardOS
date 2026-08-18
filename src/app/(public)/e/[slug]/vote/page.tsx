@@ -32,6 +32,7 @@ import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import { LoadError } from "@/components/shared/load-error";
 import { evaluateWorkflowWindow } from "@/lib/workflow/policy";
 import { Input } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
 
 type PublicBallot = Awaited<ReturnType<typeof getPublicBallotDetailsAction>>;
 type VerificationSession =
@@ -614,72 +615,61 @@ export default function PublicBallotPage() {
       )}
 
       {/* Pre-submission Review Modal */}
-      {showReviewModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-page-entrance font-sans">
-          <div role="dialog" aria-modal="true" aria-labelledby="ballot-review-title" className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-border-subtle bg-surface p-4 text-content shadow-2xl sm:p-6">
-            <div className="space-y-5">
-            <div className="flex items-center justify-between border-b border-border-subtle pb-3">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-accent" />
-                <h3 id="ballot-review-title" className="text-base font-bold text-content">Review your ballot</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowReviewModal(false)} 
-                aria-label="Close modal"
-                className="text-content-secondary hover:text-content font-bold p-1"
-              >
-                ✕
-              </button>
+      <Modal
+        open={showReviewModal}
+        onClose={() => setShowReviewModal(false)}
+        title="Review your ballot"
+        description="Confirm your selections before submitting. Submitted ballots are permanent."
+        size="md"
+      >
+        <div className="space-y-5">
+
+          <div className="flex items-center gap-2 text-sm font-semibold text-content">
+            <ShieldCheck className="size-5 text-accent" aria-hidden="true" />
+            <span>Final review for {event.name}</span>
+          </div>
+
+          {error && (
+            <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs font-semibold" role="alert" aria-live="assertive">
+              {error}
             </div>
+          )}
 
-            <p className="text-xs text-content-secondary leading-relaxed font-normal">
-              Please confirm your vote selections for <strong className="text-content font-bold">{event.name}</strong>. Once submitted, your ballot is permanent and cannot be changed.
-            </p>
+          <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+            {event.categories.map((cat) => {
+              const nomineeId = selectedVotes[cat.id];
+              const nominee = cat.nominees.find((n) => n.id === nomineeId);
 
-            {error && (
-              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs font-semibold animate-page-entrance" role="alert">
-                {error}
-              </div>
-            )}
+              return (
+                <div key={cat.id} className="p-3 rounded-xl bg-surface-raised border border-border-subtle flex items-center justify-between text-xs">
+                  <span className="min-w-0 flex-1 truncate text-content font-semibold">{cat.name}</span>
+                  {nominee ? (
+                    <span className="max-w-[50%] truncate text-right font-bold text-success">{nominee.name}</span>
+                  ) : (
+                    <span className="text-content-secondary italic font-normal">Skipped</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
 
-            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-              {event.categories.map((cat) => {
-                const nomineeId = selectedVotes[cat.id];
-                const nominee = cat.nominees.find((n) => n.id === nomineeId);
-
-                return (
-                  <div key={cat.id} className="p-3 rounded-xl bg-surface-raised border border-border-subtle flex items-center justify-between text-xs">
-                    <span className="min-w-0 flex-1 truncate text-content font-semibold">{cat.name}</span>
-                    {nominee ? (
-                      <span className="max-w-[50%] truncate text-right font-bold text-success">{nominee.name}</span>
-                    ) : (
-                      <span className="text-content-secondary italic font-normal">Skipped</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:items-center">
-              <Button variant="outline" size="md" onClick={() => setShowReviewModal(false)} className="flex-1 rounded-xl text-xs font-semibold">
-                Go back
-              </Button>
-              <Button
-                variant="primary"
-                size="md"
-                isLoading={submitting}
-                onClick={handleCastBallot}
-                className="flex-1 rounded-xl bg-success hover:bg-success/90 text-white font-semibold text-xs shadow-sm"
-              >
-                <Lock className="w-4 h-4 mr-1.5" />
-                <span>Confirm and submit</span>
-              </Button>
-            </div>
-            </div>
+          <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:items-center">
+            <Button variant="outline" size="md" onClick={() => setShowReviewModal(false)} className="flex-1 rounded-xl text-xs font-semibold">
+              Go back
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              isLoading={submitting}
+              onClick={handleCastBallot}
+              className="flex-1 rounded-xl bg-success hover:bg-success/90 text-white font-semibold text-xs shadow-sm"
+            >
+              <Lock className="w-4 h-4 mr-1.5" />
+              <span>Confirm and submit</span>
+            </Button>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

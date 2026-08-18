@@ -212,7 +212,14 @@ test("public ballot can be reviewed and submitted on mobile", async ({ page }) =
   await expect(page.getByRole("heading", { name: "Official voter ballot" })).toBeVisible({ timeout: 45_000 });
   await page.getByText("Amara Okafor", { exact: true }).click();
   await page.getByRole("button", { name: "Review ballot" }).click();
-  await expect(page.getByRole("dialog", { name: "Review your ballot" })).toBeVisible();
+  const reviewDialog = page.getByRole("dialog", { name: "Review your ballot" });
+  await expect(reviewDialog).toBeVisible();
+  await page.evaluate(() => window.scrollTo({ top: 600, behavior: "instant" }));
+  const dialogPosition = await reviewDialog.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { centerY: rect.top + rect.height / 2, viewportCenterY: window.innerHeight / 2 };
+  });
+  expect(Math.abs(dialogPosition.centerY - dialogPosition.viewportCenterY)).toBeLessThanOrEqual(2);
   const reviewOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(reviewOverflow).toBe(false);
   await page.getByRole("dialog").getByRole("button", { name: "Confirm and submit" }).click();
