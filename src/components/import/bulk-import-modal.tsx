@@ -119,7 +119,8 @@ export function BulkImportModal({ eventId, isOpen, onClose, onSuccess }: BulkImp
     <Modal open={isOpen} onClose={onClose} size="lg" title="Import categories and nominees" description="Paste category names one per line, or import CSV, JSON, TXT, or PDF data with optional nominee details.">
       <div className="space-y-4 text-xs">
         {result ? <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center">
-          <Check className="mx-auto h-8 w-8 text-emerald-600" /><h3 className="text-base font-bold text-slate-900">Import complete</h3>
+          {result.success && <Check className="mx-auto h-8 w-8 text-emerald-600" />}<h3 className="text-base font-bold text-slate-900">{result.success ? "Import complete" : "Import could not be completed"}</h3>
+          {!result.success && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-left font-semibold text-amber-900">{result.failedRows[0]?.message ?? "Import failed. No changes were saved."}</div>}
           <div className="flex flex-wrap justify-center gap-4 text-slate-700"><span>Categories created: <strong>{result.categoriesCreated}</strong></span><span>Nominees created: <strong>{result.nomineesImported}</strong></span><span>Nominees updated: <strong>{result.nomineesUpdated}</strong></span><span>Rows skipped: <strong>{result.nomineesSkipped}</strong></span></div>
           <div className="flex flex-wrap justify-center gap-2">{result.failedRows.length > 0 && <Button variant="outline" size="sm" onClick={downloadErrors}><Download className="mr-1.5 h-4 w-4" />Download error report</Button>}<Button variant="primary" size="sm" onClick={onSuccess}>Done</Button></div>
         </div> : <>

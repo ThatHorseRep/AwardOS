@@ -20,6 +20,23 @@ export interface BulkImportResult {
   totalProcessed: number;
 }
 
+function importFailureResult(totalProcessed: number, error: unknown): BulkImportResult {
+  const diagnosticId = crypto.randomUUID();
+  console.error("AwardOS bulk import failed", {
+    diagnosticId,
+    error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error,
+  });
+  return {
+    success: false,
+    categoriesCreated: 0,
+    nomineesImported: 0,
+    nomineesUpdated: 0,
+    nomineesSkipped: 0,
+    failedRows: [{ row: 0, message: `Import failed. Diagnostic reference: ${diagnosticId}` }],
+    totalProcessed,
+  };
+}
+
 export async function parsePdfBulkImportAction(eventId: string, base64: string) {
   await requireEventAccess(eventId, EVENT_ADMINS, "manage_events");
   if (typeof base64 !== "string" || base64.length > 7_000_000) {
@@ -66,7 +83,8 @@ export async function bulkImportCategoriesAndNomineesAction(
   // Category-only imports have no nominee side effects and use a smaller
   // transaction so a category list cannot fail on nominee or import-run data.
   if (cleanItems.every((item) => !item.nomineeName)) {
-    return await db.transaction(async (tx) => {
+    try {
+      return await db.transaction(async (tx) => {
       const existingCats = await tx.select().from(categories).where(eq(categories.eventId, eventId));
       const categoryMap = new Map(existingCats.map((category) => [category.name.toLowerCase().trim(), category]));
       let maxOrder = existingCats.reduce((max, category) => Math.max(max, category.displayOrder), 0);
@@ -87,16 +105,19 @@ export async function bulkImportCategoriesAndNomineesAction(
         categoriesCreated += 1;
       }
 
-      return {
-        success: true,
-        categoriesCreated,
-        nomineesImported: 0,
-        nomineesUpdated: 0,
-        nomineesSkipped: validation.errors.length,
-        failedRows: validation.errors,
-        totalProcessed: validation.totalRows,
-      } satisfies BulkImportResult;
-    });
+        return {
+          success: true,
+          categoriesCreated,
+          nomineesImported: 0,
+          nomineesUpdated: 0,
+          nomineesSkipped: validation.errors.length,
+          failedRows: validation.errors,
+          totalProcessed: validation.totalRows,
+        } satisfies BulkImportResult;
+      });
+    } catch (error) {
+      return importFailureResult(validation.totalRows, error);
+    }
   }
 
   const key = idempotencyKey?.trim().toLowerCase();
