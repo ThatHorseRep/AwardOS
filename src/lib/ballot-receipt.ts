@@ -7,7 +7,7 @@ type ReceiptPayload = {
 };
 
 function getReceiptSecret() {
-  const secret = process.env.BALLOT_RECEIPT_SECRET;
+  const secret = process.env.BALLOT_RECEIPT_SECRET ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (secret) return secret;
   if (process.env.NODE_ENV !== "production") return "awardos-local-receipt-secret";
   throw new Error("Ballot receipt signing is not configured.");

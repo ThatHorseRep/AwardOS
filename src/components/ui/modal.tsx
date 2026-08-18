@@ -128,7 +128,7 @@ export function Modal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-2 sm:p-4"
       onMouseDown={(e) => {
         // mousedown, not click: a drag that starts inside the panel and ends on
         // the backdrop would otherwise close the dialog mid-selection.
@@ -148,8 +148,8 @@ export function Modal({
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
         className={cn(
-          "relative z-10 w-full rounded-3xl bg-surface border border-border-subtle shadow-2xl",
-          "max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-150",
+          "relative z-10 flex max-h-[calc(100dvh-1rem)] w-full flex-col rounded-lg border border-border-subtle bg-surface shadow-2xl",
+          "animate-in fade-in zoom-in-95 duration-150 motion-reduce:animate-none",
           SIZES[size],
           className
         )}
@@ -170,7 +170,7 @@ export function Modal({
             type="button"
             onClick={onClose}
             aria-label="Close dialog"
-            className="shrink-0 p-1.5 rounded-full text-content-muted hover:text-content hover:bg-surface-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="flex size-11 shrink-0 items-center justify-center rounded-lg text-content-muted transition-colors hover:bg-surface-muted hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <X className="w-4 h-4" />
           </button>
@@ -180,7 +180,7 @@ export function Modal({
         <div className="flex-1 overflow-y-auto p-5">{children}</div>
 
         {footer && (
-          <div className="shrink-0 p-4 border-t border-border-subtle bg-surface-muted/50 rounded-b-3xl">
+          <div className="shrink-0 rounded-b-lg border-t border-border-subtle bg-surface-muted/50 p-4">
             {footer}
           </div>
         )}

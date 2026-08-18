@@ -6,7 +6,6 @@ import {
   Copy,
   Check,
   Code,
-  X,
   Trophy,
   Award,
   MessageCircle,
@@ -14,6 +13,7 @@ import {
 import { getAppOrigin } from "@/lib/app-url";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Modal } from "@/components/ui/modal";
 
 // Custom SVG Social Icons
 const TwitterIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -109,15 +109,15 @@ export function ShareKitModal({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200 select-none font-sans">
-      <Card className="w-full max-w-lg bg-white border-slate-200/80 rounded-3xl shadow-2xl overflow-hidden relative">
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute right-4 top-4 w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:text-slate-900 flex items-center justify-center transition-colors z-10"
-        >
-          <X className="w-4 h-4" />
-        </button>
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      title="Promote & Share Kit"
+      description="Share the event or embed a candidate badge on your website."
+      size="lg"
+      className="font-sans"
+    >
+      <Card className="w-full border-0 bg-transparent shadow-none overflow-hidden">
 
         <CardHeader className="border-b border-slate-100 pb-4">
           <div className="flex items-center gap-2">
@@ -125,12 +125,8 @@ export function ShareKitModal({
               <Share2 className="w-4 h-4" />
             </div>
             <div>
-              <CardTitle className="text-base font-bold text-slate-900">
-                Promote & Share Kit
-              </CardTitle>
-              <CardDescription className="text-xs text-slate-600 font-medium">
-                Spread voter turnout on social media or embed a candidate badge on your website.
-              </CardDescription>
+              <CardTitle className="sr-only">Promote & Share Kit</CardTitle>
+              <CardDescription className="sr-only">Share the event or embed a candidate badge on your website.</CardDescription>
             </div>
           </div>
 
@@ -301,6 +297,6 @@ export function ShareKitModal({
           )}
         </CardContent>
       </Card>
-    </div>
+    </Modal>
   );
 }

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { verifyBallotReceiptAction } from "@/actions/voting";
 import { ShareKitModal } from "@/components/sharing/share-kit-modal";
+import { Input } from "@/components/ui/input";
 type ReceiptVerification = Awaited<ReturnType<typeof verifyBallotReceiptAction>>;
 
 export default function VotingThankYouPage() {
@@ -114,14 +115,14 @@ export default function VotingThankYouPage() {
         </CardHeader>
         <CardContent className="space-y-4 pt-4">
           <form onSubmit={handleVerify} className="flex flex-col gap-2 sm:flex-row">
-            <input
+            <Input
               type="text"
               required
               placeholder="Paste an AwardOS receipt token"
               value={searchCode}
               onChange={(e) => setSearchCode(e.target.value)}
               aria-label="Ballot receipt code"
-              className="w-full rounded-xl border border-border-subtle bg-surface-raised px-3 py-2 font-mono text-xs font-medium text-content focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+              className="bg-surface-raised font-mono font-medium"
             />
             <Button
               type="submit"

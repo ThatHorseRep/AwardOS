@@ -6,7 +6,7 @@ import {
   workspaces,
   workspaceMembers,
   events,
-  votes,
+  voteSessions,
   nominations,
   auditLogs,
 } from "@/lib/db/schema";
@@ -197,13 +197,13 @@ export async function getAccountDeletionPreflightAction() {
     // user merely leaves keeps all of its data.
     if (disposition === "DELETE" && eventIds.length > 0) {
       const [voteAgg] = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(votes)
-        .where(inArray(votes.eventId, eventIds));
+        .select({ count: sql<number>`count(distinct ${voteSessions.id})::int` })
+        .from(voteSessions)
+        .where(and(inArray(voteSessions.eventId, eventIds), eq(voteSessions.status, "SUBMITTED")));
       const [nominationAgg] = await db
         .select({ count: sql<number>`count(*)::int` })
         .from(nominations)
-        .where(inArray(nominations.eventId, eventIds));
+        .where(and(inArray(nominations.eventId, eventIds), eq(nominations.isLatest, true), sql`${nominations.resolvedNomineeId} is not null`));
 
       voteCount = voteAgg?.count ?? 0;
       nominationCount = nominationAgg?.count ?? 0;

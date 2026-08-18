@@ -4,6 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { DEV_BYPASS_COOKIE } from "@/lib/dev-mode";
+import { safeInternalPath } from "@/lib/navigation-intent";
+import { z } from "zod";
+
+const signInSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(255),
+  password: z.string().min(1).max(1024),
+  redirect: z.string().max(2048).optional(),
+});
 
 /**
  * Not exported: every export of a `"use server"` module is a callable POST
@@ -15,7 +23,7 @@ const encodedRedirect = async (
   path: string,
   message: string,
 ) => {
-  return redirect(`${path}?${type}=${encodeURIComponent(message)}`);
+  return redirect(`${path}${path.includes("?") ? "&" : "?"}${type}=${encodeURIComponent(message)}`);
 };
 
 function errorDetails(error: unknown) {
@@ -27,8 +35,10 @@ function isNextRedirect(error: unknown): error is { digest: string } {
 }
 
 export const signInAction = async (formData: FormData) => {
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
+  const parsed = signInSchema.safeParse({ email: formData.get("email"), password: formData.get("password"), redirect: formData.get("redirect") || undefined });
+  if (!parsed.success) return encodedRedirect("error", "/sign-in", "Enter a valid email address and password.");
+  const { email, password } = parsed.data;
+  const destination = safeInternalPath(parsed.data.redirect);
 
   let errorMessage: string | null = null;
 
@@ -52,10 +62,10 @@ export const signInAction = async (formData: FormData) => {
   }
 
   if (errorMessage) {
-    return encodedRedirect("error", "/sign-in", errorMessage);
+    return encodedRedirect("error", `/sign-in?redirect=${encodeURIComponent(destination)}`, errorMessage);
   }
 
-  return redirect("/dashboard");
+  return redirect(destination);
 };
 
 export const signUpAction = async (formData: FormData) => {

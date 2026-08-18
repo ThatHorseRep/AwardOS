@@ -2,11 +2,12 @@
 
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { auditLogs, categories, nominees, nominations, votes } from "@/lib/db/schema";
+import { auditLogs, categories, nominees, nominations, votes, voteSessions } from "@/lib/db/schema";
 import { requireEventAccess, CONTENT_MODERATORS, EVENT_ADMINS } from "./_rbac";
 import { createCategorySchema, createNomineeSchema } from "@/lib/validators";
 import { sanitizePlainText } from "@/lib/sanitize";
 import { normalizeCapitalization } from "@/lib/ai/cleanup";
+import { getEventVoteAccounting } from "@/lib/voting/accounting";
 
 export async function getEventCategoriesAction(eventId: string) {
   await requireEventAccess(eventId, CONTENT_MODERATORS, "manage_categories");
@@ -119,12 +120,10 @@ export async function deleteCategoryAction(eventId: string, categoryId: string) 
     .select({ nomineeCount: sql<number>`count(*)` })
     .from(nominees)
     .where(and(eq(nominees.eventId, eventId), eq(nominees.categoryId, categoryId)));
-  const [{ voteCount }] = await db
-    .select({ voteCount: sql<number>`count(*)` })
-    .from(votes)
-    .where(and(eq(votes.eventId, eventId), eq(votes.categoryId, categoryId)));
+  const categoryAccounting = (await getEventVoteAccounting(eventId)).categories.find((category) => category.categoryId === categoryId);
+  const responseCount = categoryAccounting?.categoryResponses ?? 0;
 
-  if (Number(voteCount) > 0) {
+  if (responseCount > 0) {
     throw new Error("This category has ballots and can only be deactivated.");
   }
 
@@ -261,16 +260,17 @@ export async function deactivateNomineeAction(eventId: string, nomineeId: string
 export async function deleteNomineeAction(eventId: string, nomineeId: string) {
   await requireEventAccess(eventId, CONTENT_MODERATORS, "manage_categories");
 
-  const [ownedNominee] = await db.select({ id: nominees.id }).from(nominees)
+  const [ownedNominee] = await db.select({ id: nominees.id, categoryId: nominees.categoryId }).from(nominees)
     .where(and(eq(nominees.id, nomineeId), eq(nominees.eventId, eventId))).limit(1);
   if (!ownedNominee) throw new Error("Nominee not found.");
 
-  const [{ voteCount }] = await db
-    .select({ voteCount: sql<number>`count(*)` })
+  const [{ responseCount }] = await db
+    .select({ responseCount: sql<number>`count(*)` })
     .from(votes)
-    .where(and(eq(votes.eventId, eventId), eq(votes.nomineeId, nomineeId)));
+    .innerJoin(voteSessions, eq(votes.voteSessionId, voteSessions.id))
+    .where(and(eq(votes.eventId, eventId), eq(votes.nomineeId, nomineeId), eq(voteSessions.status, "SUBMITTED")));
 
-  if (Number(voteCount) > 0) {
+  if (responseCount > 0) {
     throw new Error("This nominee has ballots and can only be removed from future voting.");
   }
 
@@ -298,7 +298,7 @@ export async function moveNomineeToCategoryAction(
 ) {
   await requireEventAccess(eventId, CONTENT_MODERATORS, "manage_categories");
 
-  const [ownedNominee] = await db.select({ id: nominees.id }).from(nominees)
+  const [ownedNominee] = await db.select({ id: nominees.id, categoryId: nominees.categoryId }).from(nominees)
     .where(and(eq(nominees.id, nomineeId), eq(nominees.eventId, eventId))).limit(1);
   if (!ownedNominee) throw new Error("Nominee not found.");
 
@@ -309,11 +309,12 @@ export async function moveNomineeToCategoryAction(
     .limit(1);
   if (!category) throw new Error("Category not found in this event.");
 
-  const [{ voteCount }] = await db
-    .select({ voteCount: sql<number>`count(*)` })
+  const [{ responseCount }] = await db
+    .select({ responseCount: sql<number>`count(*)` })
     .from(votes)
-    .where(and(eq(votes.eventId, eventId), eq(votes.nomineeId, nomineeId)));
-  if (Number(voteCount) > 0) throw new Error("A nominee with ballots cannot move categories.");
+    .innerJoin(voteSessions, eq(votes.voteSessionId, voteSessions.id))
+    .where(and(eq(votes.eventId, eventId), eq(votes.nomineeId, nomineeId), eq(voteSessions.status, "SUBMITTED")));
+  if (Number(responseCount) > 0) throw new Error("A nominee with ballots cannot move categories.");
 
   const [last] = await db
     .select({ displayOrder: nominees.displayOrder })

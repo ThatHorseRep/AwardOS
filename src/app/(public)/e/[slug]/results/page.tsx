@@ -13,8 +13,9 @@ import { LiveResultsListener } from "@/components/voting/live-results-listener";
 import { useToast } from "@/components/ui/toast";
 import { LoadError } from "@/components/shared/load-error";
 
-type PublicResults = Extract<Awaited<ReturnType<typeof getPublicEventResultsAction>>, { specialAwards: unknown }>;
-type PublicSpecialAward = PublicResults["specialAwards"][number];
+type PublicResults = NonNullable<Awaited<ReturnType<typeof getPublicEventResultsAction>>>;
+type DisclosedPublicResults = Extract<PublicResults, { specialAwards: unknown }>;
+type PublicSpecialAward = DisclosedPublicResults["specialAwards"][number];
 type PublicCategoryResult = PublicResults["categoriesResults"][number];
 type PublicWinner = PublicCategoryResult["winners"][number];
 
@@ -31,7 +32,7 @@ export default function PublicResultsPage() {
     setLoading(true); setLoadError(false);
     try {
       const data = await getPublicEventResultsAction(slug);
-      if (data && "specialAwards" in data) setResults(data as PublicResults);
+      setResults(data);
     } catch (err) {
       console.error("Failed to load public results view:", err);
       setLoadError(true);
@@ -75,7 +76,7 @@ export default function PublicResultsPage() {
   const isHidden = results.liveResultsMode === "HIDDEN";
   const showVotes = results.liveResultsMode === "FULL_LEADERBOARD" || results.liveResultsMode === "VOTE_COUNTS";
   const showPercentages = results.liveResultsMode === "FULL_LEADERBOARD" || results.liveResultsMode === "PERCENTAGES";
-  const hasSpecialAwards = results.specialAwards && results.specialAwards.length > 0;
+  const hasSpecialAwards = "specialAwards" in results && results.specialAwards.length > 0;
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto font-sans select-none pb-20">
@@ -87,7 +88,7 @@ export default function PublicResultsPage() {
           </Button>
         </Link>
         <div className="flex items-center gap-2">
-          {!isHidden && <LiveResultsListener eventId={results.id} onVoteReceived={loadData} />}
+          {!isHidden && "id" in results && <LiveResultsListener eventId={results.id} onVoteReceived={loadData} />}
           {!isHidden && (
             <Button variant="outline" size="sm" onClick={handleShare} className="rounded-xl text-xs font-semibold">
               <Share2 className="w-4 h-4 mr-1.5" />
@@ -116,7 +117,7 @@ export default function PublicResultsPage() {
       </section>
 
       {/* Special Recognition & Discretionary Awards */}
-      {!isHidden && hasSpecialAwards && (
+      {!isHidden && hasSpecialAwards && "specialAwards" in results && (
         <Card className="border-border-subtle bg-surface rounded-2xl shadow-sm text-content">
           <CardHeader className="pb-3 border-b border-border-subtle">
             <div className="flex items-center gap-2">

@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getPublicEventDetailsAction } from "@/actions/events";
 import { LoadError } from "@/components/shared/load-error";
+import { evaluateWorkflowWindow } from "@/lib/workflow/policy";
+import { Input } from "@/components/ui/input";
 
 type PublicEvent = Awaited<ReturnType<typeof getPublicEventDetailsAction>>;
 
@@ -83,6 +85,7 @@ export default function PublicNominationPage() {
           nominations: entries,
           suggestedCategory: suggestedCategory.trim(),
           sessionId,
+          nominationStartToken: event?.nominationStartToken ?? undefined,
         }),
       });
 
@@ -128,7 +131,7 @@ export default function PublicNominationPage() {
   }
 
   const nominationStage = event?.stages?.find((s) => s.stageType === "NOMINATIONS");
-  const isNominationActive = nominationStage ? nominationStage.status === "ACTIVE" : event?.status === "ACTIVE";
+  const isNominationActive = evaluateWorkflowWindow({ eventStatus: event.status, stage: nominationStage, now: new Date() }).allowed;
 
   if (!isNominationActive) {
     return (
@@ -219,14 +222,14 @@ export default function PublicNominationPage() {
                     <span>Nominee full name or organization</span>
                     <span className="text-xs text-content-secondary font-normal">Optional</span>
                   </label>
-                  <input
+                  <Input
                     id={`nominee-${cat.id}`}
                     name={`nominee-${cat.id}`}
                     type="text"
                     value={nominations[cat.id] || ""}
                     onChange={(e) => handleInputChange(cat.id, e.target.value)}
                     placeholder="Enter full name (e.g. Dr. Jane Doe or Student Club Name)"
-                    className="w-full bg-surface-raised text-content text-xs rounded-xl px-3.5 py-2.5 border border-border-subtle focus:outline-none focus:border-accent font-normal"
+                    className="bg-surface-raised font-normal"
                   />
                 </div>
               </CardContent>
@@ -248,14 +251,14 @@ export default function PublicNominationPage() {
 
           <CardContent className="pt-4">
             <label htmlFor="suggested-category" className="mb-1.5 block text-xs font-semibold text-content">Suggested category name</label>
-            <input
+            <Input
               id="suggested-category"
               name="suggestedCategory"
               type="text"
               value={suggestedCategory}
               onChange={(e) => setSuggestedCategory(e.target.value)}
               placeholder="e.g. Lifetime Achievement in Campus Mentorship"
-              className="w-full bg-surface-raised text-content text-xs rounded-xl px-3.5 py-2.5 border border-border-subtle focus:outline-none focus:border-accent font-normal"
+              className="bg-surface-raised font-normal"
             />
           </CardContent>
         </Card>

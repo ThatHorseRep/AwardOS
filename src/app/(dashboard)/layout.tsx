@@ -24,17 +24,18 @@ export default async function DashboardLayout({
   }
 
   // Ensure workspace exists
+  let workspace = null
   try {
-    await getOrCreateWorkspaceAction()
+    workspace = await getOrCreateWorkspaceAction()
   } catch (err) {
     console.error("Workspace initialization error:", err)
   }
 
   return (
-    <div className="flex min-h-dvh h-screen w-full bg-canvas text-content overflow-hidden font-sans">
+    <div className="flex h-dvh min-h-dvh w-full overflow-hidden bg-canvas font-sans text-content">
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0 h-full overflow-hidden">
-        <Header user={user} workspaceSwitcher={<WorkspaceSwitcher workspaces={await listUserWorkspacesAction()} selectedId={(await getOrCreateWorkspaceAction())?.id ?? ""} />} />
+        <Header user={user} workspaceSwitcher={<WorkspaceSwitcher workspaces={await listUserWorkspacesAction()} selectedId={workspace?.id ?? ""} />} />
         <main id="main-content" className="flex-1 overflow-y-auto p-4 md:p-6 relative animate-page-entrance">
           {children}
         </main>

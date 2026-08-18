@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
 import { useToast } from "@/components/ui/toast";
@@ -148,7 +149,7 @@ export default function NewEventWizardPage() {
       </div>
 
       {/* Wizard Step Stepper Progress */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-4 gap-2" aria-label="Event creation progress">
         {steps.map((step) => {
           const isDone = currentStep > step.num;
           const isCurrent = currentStep === step.num;
@@ -158,7 +159,10 @@ export default function NewEventWizardPage() {
             <button
               key={step.num}
               onClick={() => step.num < currentStep && setCurrentStep(step.num)}
-              className={`p-3 rounded-2xl border flex items-center gap-3 text-left transition-all ${
+              disabled={step.num > currentStep}
+              aria-current={isCurrent ? "step" : undefined}
+              aria-label={`Step ${step.num}: ${step.label}${isCurrent ? ", current step" : isDone ? ", completed" : ""}`}
+              className={`min-h-11 p-2 sm:p-3 rounded-2xl border flex items-center justify-center sm:justify-start gap-3 text-left transition-all ${
                 isCurrent
                   ? "bg-blue-50 border-blue-400 text-blue-900 shadow-sm"
                   : isDone
@@ -202,47 +206,50 @@ export default function NewEventWizardPage() {
 
             <CardContent className="space-y-4 pt-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700">Event Title *</label>
-                <input
+                <label htmlFor="event-title" className="text-xs font-semibold text-slate-700">Event Title *</label>
+                <Input
+                  id="event-title"
                   type="text"
                   required
                   value={title}
                   onChange={(e) => handleTitleChange(e.target.value)}
                   placeholder="e.g. Campus Excellence & Leadership Awards 2026"
-                  className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl px-4 py-2.5 border border-slate-200 focus:outline-none focus:border-blue-500 font-medium"
+                  className="rounded-2xl bg-slate-50 text-xs"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700">Public URL Slug</label>
+                <label htmlFor="event-slug" className="text-xs font-semibold text-slate-700">Public URL Slug</label>
                 <div className="flex items-center">
                   <span className="bg-slate-100 text-slate-600 text-xs px-3 py-2.5 rounded-l-2xl border border-r-0 border-slate-200 font-mono font-medium">
                     {getAppOrigin()}/e/
                   </span>
-                  <input
+                  <Input
+                    id="event-slug"
                     type="text"
                     value={slug}
                     onChange={(e) => setSlug(e.target.value)}
                     placeholder="campus-excellence-2026"
-                    className="w-full bg-slate-50 text-slate-900 text-xs font-mono rounded-r-2xl px-3 py-2.5 border border-slate-200 focus:outline-none focus:border-blue-500 font-medium"
+                    className="rounded-l-none rounded-r-2xl bg-slate-50 text-xs font-mono"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700">Description / Overview</label>
+                <label htmlFor="event-description" className="text-xs font-semibold text-slate-700">Description / Overview</label>
                 <textarea
+                  id="event-description"
                   rows={3}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Describe the purpose, scope, and significance of this award program..."
-                  className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl p-3 border border-slate-200 focus:outline-none focus:border-blue-500 font-medium"
+                  className="min-h-24 w-full rounded-2xl border border-border-subtle bg-surface px-3 py-3 text-base text-content outline-none transition focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/25 sm:text-sm"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700">Visibility Setting</label>
-                <div className="grid grid-cols-3 gap-3">
+                <span id="visibility-label" className="text-xs font-semibold text-slate-700">Visibility Setting</span>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" role="group" aria-labelledby="visibility-label">
                   {[
                     { id: "PUBLIC", label: "Public", desc: "Accessible to anyone with the link", icon: Globe },
                     { id: "UNLISTED", label: "Link only", desc: "Accessible only through the organizer's shared link", icon: EyeOff },
@@ -252,9 +259,10 @@ export default function NewEventWizardPage() {
                     return (
                       <button
                         key={item.id}
-                        type="button"
-                        onClick={() => setVisibility(item.id)}
-                        className={`p-3 rounded-2xl border text-left flex flex-col gap-1 transition-all ${
+                      type="button"
+                      onClick={() => setVisibility(item.id)}
+                      aria-pressed={visibility === item.id}
+                      className={`min-h-11 p-3 rounded-2xl border text-left flex flex-col gap-1 transition-all ${
                           visibility === item.id
                             ? "bg-blue-50 border-blue-400 text-slate-900 font-bold"
                             : "bg-white border-slate-200 text-slate-600 hover:border-slate-300 font-medium"
@@ -296,21 +304,23 @@ export default function NewEventWizardPage() {
                     <Sparkles className="w-3.5 h-3.5" /> Nomination Phase
                   </h4>
                   <div className="space-y-1">
-                    <label className="text-[11px] text-slate-600 font-medium">Nominations Open</label>
-                    <input
+                    <label htmlFor="nomination-start" className="text-[11px] text-slate-600 font-medium">Nominations Open</label>
+                    <Input
+                      id="nomination-start"
                       type="datetime-local"
                       value={nominationStart}
                       onChange={(e) => setNominationStart(e.target.value)}
-                      className="w-full bg-white text-slate-900 text-xs rounded-xl p-2.5 border border-slate-200 focus:outline-none font-medium"
+                      className="rounded-xl bg-white text-xs"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[11px] text-slate-600 font-medium">Nominations Close</label>
-                    <input
+                    <label htmlFor="nomination-end" className="text-[11px] text-slate-600 font-medium">Nominations Close</label>
+                    <Input
+                      id="nomination-end"
                       type="datetime-local"
                       value={nominationEnd}
                       onChange={(e) => setNominationEnd(e.target.value)}
-                      className="w-full bg-white text-slate-900 text-xs rounded-xl p-2.5 border border-slate-200 focus:outline-none font-medium"
+                      className="rounded-xl bg-white text-xs"
                     />
                   </div>
                 </div>
@@ -320,21 +330,23 @@ export default function NewEventWizardPage() {
                     <Check className="w-3.5 h-3.5" /> Voting Phase
                   </h4>
                   <div className="space-y-1">
-                    <label className="text-[11px] text-slate-600 font-medium">Voting Opens</label>
-                    <input
+                    <label htmlFor="voting-start" className="text-[11px] text-slate-600 font-medium">Voting Opens</label>
+                    <Input
+                      id="voting-start"
                       type="datetime-local"
                       value={votingStart}
                       onChange={(e) => setVotingStart(e.target.value)}
-                      className="w-full bg-white text-slate-900 text-xs rounded-xl p-2.5 border border-slate-200 focus:outline-none font-medium"
+                      className="rounded-xl bg-white text-xs"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[11px] text-slate-600 font-medium">Voting Closes</label>
-                    <input
+                    <label htmlFor="voting-end" className="text-[11px] text-slate-600 font-medium">Voting Closes</label>
+                    <Input
+                      id="voting-end"
                       type="datetime-local"
                       value={votingEnd}
                       onChange={(e) => setVotingEnd(e.target.value)}
-                      className="w-full bg-white text-slate-900 text-xs rounded-xl p-2.5 border border-slate-200 focus:outline-none font-medium"
+                      className="rounded-xl bg-white text-xs"
                     />
                   </div>
                 </div>
@@ -375,6 +387,8 @@ export default function NewEventWizardPage() {
                     </div>
 
                     <button
+                      type="button"
+                      aria-label={`Remove ${cat.name}`}
                       onClick={() => handleRemoveCategory(cat.id)}
                       className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
                     >
@@ -388,19 +402,21 @@ export default function NewEventWizardPage() {
               <div className="p-4 rounded-2xl bg-white border border-dashed border-slate-300 space-y-3">
                 <h5 className="text-xs font-bold text-slate-900">Add New Category</h5>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <input
+                  <Input
+                    aria-label="Category name"
                     type="text"
                     placeholder="Category Name (e.g. Student Leader of the Year)"
                     value={newCatName}
                     onChange={(e) => setNewCatName(e.target.value)}
-                    className="bg-slate-50 text-slate-900 text-xs rounded-xl p-2.5 border border-slate-200 focus:outline-none font-medium"
+                    className="rounded-xl bg-slate-50 text-xs"
                   />
-                  <input
+                  <Input
+                    aria-label="Category description"
                     type="text"
                     placeholder="Short Description or Criteria"
                     value={newCatDesc}
                     onChange={(e) => setNewCatDesc(e.target.value)}
-                    className="bg-slate-50 text-slate-900 text-xs rounded-xl p-2.5 border border-slate-200 focus:outline-none font-medium"
+                    className="rounded-xl bg-slate-50 text-xs"
                   />
                 </div>
                 <Button
@@ -471,11 +487,12 @@ export default function NewEventWizardPage() {
               </div>
 
               <div className="space-y-1.5 pt-2 border-t border-slate-100">
-                <label className="text-xs font-semibold text-slate-700">Target Audience</label>
+                <label htmlFor="target-audience" className="text-xs font-semibold text-slate-700">Target Audience</label>
                 <select
+                  id="target-audience"
                   value={audienceType}
                   onChange={(e) => setAudienceType(e.target.value)}
-                  className="w-full bg-slate-50 text-slate-900 text-xs rounded-2xl p-3 border border-slate-200 focus:outline-none font-medium"
+                  className="min-h-11 w-full rounded-2xl border border-border-subtle bg-surface px-3 text-base text-content outline-none transition focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/25 sm:text-sm"
                 >
                   <option value="PUBLIC">Public — Anyone can participate</option>
                   <option value="STUDENTS">Students & Campus Community</option>

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { events, voteSessions, workflowStages } from "@/lib/db/schema";
 import { getClientIp } from "@/lib/request-ip";
+import { evaluateWorkflowWindow, workflowWindowMessage } from "@/lib/workflow/policy";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 
 const schema = z.object({ sessionId: z.string().trim().min(10).max(255) });
@@ -20,9 +21,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const ipAddress = getClientIp(request.headers);
   const limit = await consumeRateLimit(`ballot-session:${event.id}`, ipAddress, { limit: 20, windowMs: 5 * 60 * 1000 });
   if (!limit.allowed) return NextResponse.json({ error: "Too many ballot session attempts. Please try again later." }, { status: 429, headers: rateLimitHeaders(limit) });
-  const [stage] = await db.select().from(workflowStages).where(and(eq(workflowStages.eventId, event.id), eq(workflowStages.stageType, "VOTING"), eq(workflowStages.status, "ACTIVE"))).limit(1);
+  const [stage] = await db.select().from(workflowStages).where(and(eq(workflowStages.eventId, event.id), eq(workflowStages.stageType, "VOTING"))).limit(1);
   const now = new Date();
-  if (!stage || (stage.startsAt && now < stage.startsAt) || (stage.endsAt && now > stage.endsAt)) return NextResponse.json({ error: "Voting is not currently open for this event." }, { status: 403 });
+  const votingWindow = evaluateWorkflowWindow({ eventStatus: event.status, stage, now });
+  if (!votingWindow.allowed) return NextResponse.json({ error: workflowWindowMessage("Voting", votingWindow.state) }, { status: 403 });
   const token = `ballot-${parsed.data.sessionId}`;
   await db.insert(voteSessions).values({ eventId: event.id, sessionToken: token, ipAddress, userAgent: (request.headers.get("user-agent") ?? "").slice(0, 1000), verificationMethod: ((event.verificationConfig as { method?: "NONE" | "EMAIL_OTP" | "INVITATION_CODE" })?.method ?? "NONE"), status: "IN_PROGRESS" }).onConflictDoNothing();
   return NextResponse.json({ success: true });

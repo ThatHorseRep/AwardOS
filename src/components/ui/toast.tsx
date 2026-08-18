@@ -121,8 +121,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                   key={id}
                   role={role}
                   className={cn(
-                    "pointer-events-auto flex items-start gap-3 rounded-2xl border border-border-subtle",
-                    "bg-surface p-3.5 shadow-lg animate-in slide-in-from-bottom-2 fade-in duration-200"
+                    "pointer-events-auto flex items-start gap-3 rounded-lg border border-border-subtle",
+                    "bg-surface p-3.5 shadow-lg animate-in slide-in-from-bottom-2 fade-in duration-200 motion-reduce:animate-none"
                   )}
                 >
                   <Icon className={cn("w-4 h-4 shrink-0 mt-0.5", tone)} />
@@ -133,7 +133,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                     type="button"
                     onClick={() => dismiss(id)}
                     aria-label="Dismiss notification"
-                    className="shrink-0 text-content-muted hover:text-content transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
+                    className="-m-2 flex size-11 shrink-0 items-center justify-center rounded-lg text-content-muted transition-colors hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>

@@ -18,6 +18,8 @@ import {
   MAX_NOMINEE_TEXT_LENGTH,
   MAX_SUGGESTION_TEXT_LENGTH,
 } from "@/lib/sanitize";
+import { evaluateWorkflowWindow, workflowWindowMessage } from "@/lib/workflow/policy";
+import { verifyWorkflowStartToken } from "@/lib/workflow/start-token";
 
 export async function POST(
   request: NextRequest,
@@ -39,7 +41,7 @@ export async function POST(
       );
     }
 
-    const { nominations, suggestedCategory, sessionId } = parsed.data;
+    const { nominations, suggestedCategory, sessionId, nominationStartToken } = parsed.data;
 
     // 1. Verify event exists
     const eventList = await db
@@ -76,15 +78,18 @@ export async function POST(
       )
       .limit(1);
 
-    const now = new Date();
-    if (
-      !nominationStage ||
-      nominationStage.status !== "ACTIVE" ||
-      (nominationStage.startsAt && now < nominationStage.startsAt) ||
-      (nominationStage.endsAt && now > nominationStage.endsAt)
-    ) {
+    const startPayload = nominationStartToken ? verifyWorkflowStartToken(nominationStartToken) : null;
+    const startedAt = startPayload?.eventId === event.id ? new Date(startPayload.startedAt) : null;
+    const nominationWindow = evaluateWorkflowWindow({
+      eventStatus: event.status,
+      stage: nominationStage,
+      now: new Date(),
+      startedAt,
+      allowInProgressGrace: true,
+    });
+    if (!nominationWindow.allowed) {
       return NextResponse.json(
-        { error: "Nominations are not currently open." },
+        { error: workflowWindowMessage("Nominations", nominationWindow.state) },
         { status: 403 }
       );
     }

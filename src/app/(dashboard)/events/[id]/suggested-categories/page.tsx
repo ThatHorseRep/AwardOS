@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, Sparkles, CheckCircle, XCircle, MessageSquare, Loader2, Inbox } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { getSuggestedCategoriesAction, approveSuggestionAction, rejectSuggestionAction } from "@/actions/nominations";
 import { getEventDetailsAction } from "@/actions/events";
@@ -60,8 +61,9 @@ export default function SuggestedCategoriesInboxPage() {
     try {
       const response = await approveSuggestionAction(eventId, approvalText, categoryName.trim());
       if (response.success) {
+        setSuggestions((current) => current.filter((suggestion) => suggestion.suggestionText !== approvalText));
         setApprovalText(null);
-        await loadData();
+        toast.success("Category suggestion approved.");
       }
     } catch (err) {
       console.error("Failed to approve suggestion:", err);
@@ -77,7 +79,8 @@ export default function SuggestedCategoriesInboxPage() {
     try {
       const response = await rejectSuggestionAction(eventId, text);
       if (response.success) {
-        await loadData();
+        setSuggestions((current) => current.filter((suggestion) => suggestion.suggestionText !== text));
+        toast.success("Category suggestion rejected.");
       }
     } catch (err) {
       console.error("Failed to reject suggestion:", err);
@@ -112,7 +115,7 @@ export default function SuggestedCategoriesInboxPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
           <Link href={`/events/${eventId}`}>
-            <Button variant="ghost" size="icon" className="mt-1 text-slate-700 hover:bg-slate-200">
+            <Button variant="ghost" size="icon" aria-label="Back to event" className="mt-1 text-slate-700 hover:bg-slate-200">
               <ArrowLeft className="w-4 h-4" />
             </Button>
           </Link>
@@ -209,13 +212,14 @@ export default function SuggestedCategoriesInboxPage() {
               </CardHeader>
               <CardContent className="space-y-4 pt-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700">Category Name</label>
-                  <input
+                  <label htmlFor="approved-category-name" className="text-xs font-semibold text-slate-700">Category Name</label>
+                  <Input
+                    id="approved-category-name"
                     type="text"
                     value={categoryName}
                     onChange={(e) => setCategoryName(e.target.value)}
                     placeholder="e.g. Best Student Volunteer"
-                    className="w-full bg-white text-slate-900 text-xs rounded-2xl px-3.5 py-2.5 border border-purple-200 focus:outline-none focus:border-purple-500 font-medium"
+                    className="rounded-2xl bg-white text-xs"
                   />
                 </div>
 

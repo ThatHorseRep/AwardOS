@@ -8,6 +8,7 @@ import {
   categories,
   nominees,
   voteSessions,
+  workflowStages,
 } from "@/lib/db/schema";
 import { eq, and, desc, isNull, gt, inArray } from "drizzle-orm";
 import { cookies, headers } from "next/headers";
@@ -377,24 +378,22 @@ export async function getPublicBallotDetailsAction(slug: string) {
   // Server-side "already voted" check. Reads the HTTP-only cookie the votes route set
   // (page scripts cannot see or fake it) and confirms it maps to a real submitted
   // ballot before gating the UI, so a stale cookie never blocks a legitimate voter.
-  let hasVoted = false;
-  if (isCookieEnforcedMethod(verificationConfig.method)) {
+  const hasVotedPromise = (async () => {
+    if (!isCookieEnforcedMethod(verificationConfig.method)) return false;
     const cookieStore = await cookies();
     const votedCookie = cookieStore.get(votedCookieName(slug))?.value;
-    if (votedCookie) {
-      hasVoted = (await resolveVotedBallot(event.id, votedCookie)) !== null;
-    }
-  }
+    return votedCookie ? (await resolveVotedBallot(event.id, votedCookie)) !== null : false;
+  })();
 
   // Fetch active nominees directly (write-sync is done at nomination submission time)
   // Do NOT call ensureNomineesForRawNominationsAction here - it's a write op in a read path
 
   // Fetch active categories
-  const eventCategories = await db
-    .select()
-    .from(categories)
-    .where(and(eq(categories.eventId, event.id), eq(categories.isActive, true)))
-    .orderBy(categories.displayOrder);
+  const [eventCategories, votingStageRows, hasVoted] = await Promise.all([
+    db.select().from(categories).where(and(eq(categories.eventId, event.id), eq(categories.isActive, true))).orderBy(categories.displayOrder),
+    db.select().from(workflowStages).where(and(eq(workflowStages.eventId, event.id), eq(workflowStages.stageType, "VOTING"))).limit(1),
+    hasVotedPromise,
+  ]);
 
   // One query for every nominee on the ballot instead of one per category.
   // This runs on every ballot page load, so the old per-category loop scaled
@@ -428,6 +427,7 @@ export async function getPublicBallotDetailsAction(slug: string) {
     ...cat,
     nominees: nomineesByCategory.get(cat.id) ?? [],
   }));
+  const votingStage = votingStageRows[0];
 
   return {
     id: event.id,
@@ -440,6 +440,7 @@ export async function getPublicBallotDetailsAction(slug: string) {
     // previously handed to any anonymous caller who loaded the ballot.
     verificationConfig: { method: verificationConfig.method || "NONE" },
     categories: categoriesWithNominees,
+    votingStage: votingStage ?? null,
     hasVoted,
   };
 }

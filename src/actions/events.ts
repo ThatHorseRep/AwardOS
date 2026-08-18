@@ -8,7 +8,6 @@ import {
   workflowStages,
   eventBranding,
   nominations,
-  votes,
   voteSessions,
   auditLogs,
   archiveConfigs,
@@ -20,9 +19,11 @@ import {
   EVENT_ADMINS,
   WORKSPACE_ADMINS,
 } from "./_rbac";
-import { eq, and, isNull, count, lt, sql } from "drizzle-orm";
-import { syncNomineesForEvent } from "@/lib/nominations/sync";
+import { eq, and, isNull, count, lt, sql, inArray } from "drizzle-orm";
+import { getEventVoteAccounting } from "@/lib/voting/accounting";
 import { z } from "zod";
+import { evaluateWorkflowWindow } from "@/lib/workflow/policy";
+import { issueWorkflowStartToken } from "@/lib/workflow/start-token";
 import { sanitizePlainText } from "@/lib/sanitize";
 import {
   getBallotRosterHash,
@@ -319,7 +320,6 @@ export async function getEventDetailsAction(eventId: string) {
     .where(eq(eventBranding.eventId, event.id))
     .limit(1);
   const branding = brandingList[0] || null;
-
   // Fetch event-level counts
   const nomCountResult = await db
     .select({ val: count() })
@@ -327,11 +327,7 @@ export async function getEventDetailsAction(eventId: string) {
     .where(eq(nominations.eventId, event.id));
   const nominationsCount = nomCountResult[0]?.val || 0;
 
-  const votesCountResult = await db
-    .select({ val: count() })
-    .from(votes)
-    .where(eq(votes.eventId, event.id));
-  const votesCount = votesCountResult[0]?.val || 0;
+  const voteAccounting = await getEventVoteAccounting(event.id);
 
   return {
     ...event,
@@ -339,7 +335,7 @@ export async function getEventDetailsAction(eventId: string) {
     stages,
     branding,
     nominationsCount,
-    votesCount,
+    voteAccounting,
   };
 }
 
@@ -382,14 +378,12 @@ export async function deleteEventAction(
   );
   if (confirmationName.trim() !== event.name)
     throw new Error("Enter the event name exactly to confirm deletion.");
-  const [{ voteCount }] = await db
-    .select({ voteCount: count() })
-    .from(votes)
-    .where(eq(votes.eventId, eventId));
+  const voteAccounting = await getEventVoteAccounting(eventId);
+  const submittedBallots = voteAccounting.submittedBallots;
   if (
     (event.status === "ACTIVE" ||
       event.status === "COMPLETED" ||
-      Number(voteCount) > 0) &&
+      submittedBallots > 0) &&
     !confirmPublished
   )
     throw new Error(
@@ -420,7 +414,7 @@ export async function deleteEventAction(
           recoverableUntil: new Date(
             deletedAt.getTime() + 30 * 86400000,
           ).toISOString(),
-          voteCount: Number(voteCount),
+          submittedBallots,
         },
       });
   });
@@ -552,29 +546,26 @@ export async function getPublicEventDetailsAction(slug: string) {
     .where(and(eq(categories.eventId, event.id), eq(categories.isActive, true)))
     .orderBy(categories.displayOrder);
 
-  // Was `ensureNomineesForRawNominationsAction`, which calls
-  // requireWorkspaceRole and therefore threw for every signed-out visitor —
-  // breaking the public event and nomination pages for exactly the people they
-  // exist for. syncNomineesForEvent is the unguarded library function the
-  // nominations route already uses for this.
-  await syncNomineesForEvent(event.id);
-
-  const categoriesWithNominees = await Promise.all(
-    eventCategories.map(async (cat) => {
-      const nomineeList = await db
+  // Public reads must remain side-effect free. Nominee synchronization happens
+  // at nomination submission and explicit organizer cleanup boundaries.
+  const categoryIds = eventCategories.map((category) => category.id);
+  const nomineeRows = categoryIds.length
+    ? await db
         .select()
         .from(nominees)
-        .where(
-          and(eq(nominees.categoryId, cat.id), eq(nominees.status, "ACTIVE")),
-        )
-        .orderBy(nominees.displayOrder);
-
-      return {
-        ...cat,
-        nominees: nomineeList,
-      };
-    }),
-  );
+        .where(and(inArray(nominees.categoryId, categoryIds), eq(nominees.status, "ACTIVE")))
+        .orderBy(nominees.displayOrder)
+    : [];
+  const nomineesByCategory = new Map<string, typeof nomineeRows>();
+  for (const nominee of nomineeRows) {
+    const list = nomineesByCategory.get(nominee.categoryId) ?? [];
+    list.push(nominee);
+    nomineesByCategory.set(nominee.categoryId, list);
+  }
+  const categoriesWithNominees = eventCategories.map((category) => ({
+    ...category,
+    nominees: nomineesByCategory.get(category.id) ?? [],
+  }));
 
   // Fetch workflow stages
   const stages = await db
@@ -590,6 +581,11 @@ export async function getPublicEventDetailsAction(slug: string) {
     .where(eq(eventBranding.eventId, event.id))
     .limit(1);
   const branding = brandingList[0] || null;
+  const nominationWindow = evaluateWorkflowWindow({
+    eventStatus: event.status,
+    stage: stages.find((stage) => stage.stageType === "NOMINATIONS"),
+    now: new Date(),
+  });
 
   return {
     id: event.id,
@@ -602,6 +598,9 @@ export async function getPublicEventDetailsAction(slug: string) {
     categories: categoriesWithNominees,
     stages,
     branding,
+    nominationStartToken: nominationWindow.allowed
+      ? issueWorkflowStartToken({ eventId: event.id, stageType: "NOMINATIONS", startedAt: new Date().toISOString() })
+      : null,
   };
 }
 

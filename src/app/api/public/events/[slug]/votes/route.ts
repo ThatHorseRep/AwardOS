@@ -19,7 +19,7 @@ import {
   votedCookieName,
   votedCookieOptions,
 } from "@/lib/voting-cookie";
-import { canSubmitBallotAt } from "@/lib/voting-window";
+import { evaluateWorkflowWindow, workflowWindowMessage } from "@/lib/workflow/policy";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { issueBallotReceipt } from "@/lib/ballot-receipt";
 
@@ -79,41 +79,25 @@ export async function POST(
     // Both gates have to hold. Previously an ACTIVE voting stage was taken as
     // sufficient on its own, which meant a DRAFT, PAUSED, or COMPLETED event
     // still accepted ballots as long as a stage row said ACTIVE.
-    if (event.status !== "ACTIVE") {
-      return NextResponse.json(
-        { error: "Voting is not currently open for this event." },
-        { status: 403 }
-      );
-    }
-
     const stages = await db
       .select()
       .from(workflowStages)
       .where(eq(workflowStages.eventId, event.id));
     const votingStage = stages.find((s) => s.stageType === "VOTING");
 
-    if (votingStage) {
-      if (votingStage.status !== "ACTIVE") {
-        return NextResponse.json(
-          { error: "Voting is not currently open for this event." },
-          { status: 403 }
-        );
-      }
-
-      // startsAt/endsAt were stored and configured by admins but never checked,
-      // so a schedule window had no effect on who could vote.
-      const now = Date.now();
-      if (votingStage.startsAt && now < new Date(votingStage.startsAt).getTime()) {
-        return NextResponse.json(
-          { error: "Voting has not opened yet for this event." },
-          { status: 403 }
-        );
-      }
-      if (votingStage.endsAt && now > new Date(votingStage.endsAt).getTime()) {
-        const deadline = new Date(votingStage.endsAt);
-        const [startedSession] = await db.select({ startedAt: voteSessions.startedAt }).from(voteSessions).where(and(eq(voteSessions.eventId, event.id), eq(voteSessions.sessionToken, ballotId), eq(voteSessions.status, "IN_PROGRESS"))).limit(1);
-        if (!canSubmitBallotAt({ now: new Date(now), startsAt: votingStage.startsAt, endsAt: deadline, startedAt: startedSession?.startedAt ?? null })) return NextResponse.json({ error: "Voting has closed for this event." }, { status: 403 });
-      }
+    const [startedSession] = await db.select({ startedAt: voteSessions.startedAt }).from(voteSessions).where(and(eq(voteSessions.eventId, event.id), eq(voteSessions.sessionToken, ballotId), eq(voteSessions.status, "IN_PROGRESS"))).limit(1);
+    const votingWindow = evaluateWorkflowWindow({
+      eventStatus: event.status,
+      stage: votingStage,
+      now: new Date(),
+      startedAt: startedSession?.startedAt ?? null,
+      allowInProgressGrace: true,
+    });
+    if (!votingWindow.allowed) {
+      return NextResponse.json(
+        { error: workflowWindowMessage("Voting", votingWindow.state) },
+        { status: 403 },
+      );
     }
 
     const verificationConfig = (event.verificationConfig as { method?: "NONE" | "EMAIL_OTP" | "INVITATION_CODE" } | null) ?? {};
@@ -432,7 +416,7 @@ export async function POST(
           .where(eq(invitationCodes.id, claimedInvitationId));
       }
 
-      return { voteSessionId, categoriesVoted };
+      return { voteSessionId, categoriesVoted, categoriesSkipped };
     });
 
     const receipt = issueBallotReceipt({
@@ -444,7 +428,8 @@ export async function POST(
       success: true,
       message: "Ballot cast successfully.",
       receipt,
-      voteCount: result.categoriesVoted,
+      selectedVotes: result.categoriesVoted,
+      skippedResponses: result.categoriesSkipped,
       timestamp: new Date().toISOString(),
     });
 

@@ -62,7 +62,7 @@ export default function Sidebar() {
                 <Link 
                   href={item.href}
                   className={`
-                    flex items-center px-3 py-2 rounded-xl transition-all duration-200 text-xs font-semibold group active:scale-[0.97]
+                    flex min-h-11 items-center rounded-lg px-3 py-2 text-xs font-semibold transition-all duration-200 group active:scale-[0.97]
                     ${isActive 
                       ? 'bg-accent text-accent-contrast shadow-sm' 
                       : 'text-content-secondary hover:text-content hover:bg-surface-raised'
@@ -87,7 +87,7 @@ export default function Sidebar() {
         <button
           onClick={() => setCollapsed(!collapsed)}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="flex items-center justify-center w-full py-2 rounded-xl text-content-secondary hover:text-content hover:bg-surface-raised transition-colors text-xs font-medium"
+          className="flex min-h-11 w-full items-center justify-center rounded-lg py-2 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-raised hover:text-content"
         >
           {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>

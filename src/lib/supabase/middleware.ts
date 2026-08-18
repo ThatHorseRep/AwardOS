@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { DEV_BYPASS_COOKIE, isDevBypassActive } from "@/lib/dev-mode";
+import { safeInternalPath } from "@/lib/navigation-intent";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -91,7 +92,7 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/certificates");
 
   if (isProtectedRoute && !user && !isDevBypass) {
-    return redirectTo("/sign-in", { redirect: request.nextUrl.pathname });
+    return redirectTo("/sign-in", { redirect: safeInternalPath(`${request.nextUrl.pathname}${request.nextUrl.search}`) });
   }
 
   // Auth routes — redirect to dashboard if already authenticated.
@@ -104,7 +105,7 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/forgot-password");
 
   if (isAuthRoute && user) {
-    return redirectTo("/dashboard");
+    return redirectTo(safeInternalPath(request.nextUrl.searchParams.get("redirect")));
   }
 
   return supabaseResponse;

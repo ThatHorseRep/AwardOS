@@ -11,6 +11,7 @@ function SignInForm() {
   const [isPending, startTransition] = useTransition();
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
+  const redirectPath = searchParams.get("redirect") || "/dashboard";
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = (formData: FormData) => {
@@ -26,7 +27,7 @@ function SignInForm() {
       await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${origin}/api/auth/callback`,
+          redirectTo: `${origin}/api/auth/callback?next=${encodeURIComponent(redirectPath)}`,
         },
       });
     } catch (err: unknown) {
@@ -48,6 +49,7 @@ function SignInForm() {
       )}
 
       <form action={handleSubmit} className="space-y-3">
+        <input type="hidden" name="redirect" value={redirectPath} />
         <div>
           <label htmlFor="email" className="block text-xs font-semibold text-content mb-1">
             Email address

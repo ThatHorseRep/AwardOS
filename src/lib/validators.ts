@@ -148,6 +148,7 @@ export const submitNominationSchema = z.object({
     .max(150, "Suggested category must be at most 150 characters")
     .optional(),
   sessionId: z.string().trim().min(8).max(128).optional(),
+  nominationStartToken: z.string().trim().max(2048).optional(),
 }).refine(
   ({ nominations, suggestedCategory }) => nominations.length > 0 || Boolean(suggestedCategory),
   "Submit at least one nomination or category suggestion"

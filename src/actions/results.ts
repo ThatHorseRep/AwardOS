@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { archiveConfigs, auditLogs, events, eventBranding, categories, nominees, votes, voteSessions, voterOtps, invitationCodes, specialAwards, officialResults, resultActions } from "@/lib/db/schema";
 import { eq, and, sql, isNull, desc } from "drizzle-orm";
 import { requireEventAccess, requireWorkspaceRole, RESULTS_MANAGERS, EVENT_ADMINS, ALL_MEMBERS } from "./_rbac";
+import { discloseCandidate } from "@/lib/results/disclosure";
+import { resultPercentage } from "@/lib/results/math";
 
 /**
  * Tabulation core. Takes an event id that has ALREADY been authorized — either
@@ -91,9 +93,11 @@ async function tabulateEventResults(eventId: string) {
         (b.overrideRank ?? Number.MAX_SAFE_INTEGER) || b.votes - a.votes,
     );
 
-    // Compute ranks and percentages
+    // Compute ranks and percentages from the same displayed vote totals. Raw
+    // selections remain available separately for audit/export purposes.
+    const displayedTotal = activeCandidates.reduce((sum, candidate) => sum + candidate.votes, 0);
     const rankedWinners = activeCandidates.map((cand, idx) => {
-      const percentageVal = totalCategoryVotes > 0 ? (cand.votes / totalCategoryVotes) * 100 : 0;
+      const percentageVal = resultPercentage(cand.votes, displayedTotal);
       const percent = percentageVal.toFixed(1) + "%";
 
       return {
@@ -108,7 +112,8 @@ async function tabulateEventResults(eventId: string) {
     categoryResults.push({
       id: cat.id,
       categoryName: cat.name,
-      totalVotes: totalCategoryVotes,
+      totalVotes: displayedTotal,
+      rawTotalVotes: totalCategoryVotes,
       winners: rankedWinners,
     });
   }
@@ -234,10 +239,19 @@ export async function getPublicEventResultsAction(slug: string) {
   // slug plus the `liveResultsMode` check above, not by workspace membership.
   const results = await tabulateEventResults(event.id);
   const awards = await listSpecialAwards(event.id);
+  const disclosedResults = results.categoriesResults.map((category) => ({
+    id: category.id,
+    categoryName: category.categoryName,
+    totalVotes: event.liveResultsMode === "VOTE_COUNTS" || event.liveResultsMode === "FULL_LEADERBOARD"
+      ? category.totalVotes
+      : undefined,
+    winners: category.winners.map((candidate) => discloseCandidate(candidate, event.liveResultsMode)),
+  }));
 
   return {
     ...results,
     slug: event.slug,
+    categoriesResults: disclosedResults,
     specialAwards: awards,
   };
 }
@@ -299,7 +313,7 @@ export async function getVoterLogsExportAction(eventId: string) {
       verified: o.verified ? "YES" : "NO"
     })),
     codes: codes.map(c => ({
-      code: c.code,
+      codeId: c.id,
       status: c.status,
       usedAt: c.usedAt ? new Date(c.usedAt).toLocaleString() : "",
       expiresAt: c.expiresAt ? new Date(c.expiresAt).toLocaleString() : ""

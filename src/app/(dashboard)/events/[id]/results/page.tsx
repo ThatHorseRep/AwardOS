@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { Award, ArrowLeft, Globe, ExternalLink, Loader2, Trophy, Ban, Undo2, Plus, Trash2, Save } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import { LoadError } from "@/components/shared/load-error";
@@ -147,7 +148,7 @@ export default function OrganizerResultsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
           <Link href={`/events/${eventId}`}>
-            <Button variant="ghost" size="icon" className="mt-1">
+            <Button variant="ghost" size="icon" aria-label="Back to event" className="mt-1">
               <ArrowLeft className="w-4 h-4" />
             </Button>
           </Link>
@@ -204,31 +205,34 @@ export default function OrganizerResultsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <form onSubmit={handleCreateSpecialAward} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <input
+            <Input
+              aria-label="Special award title"
               type="text"
               required
               placeholder="Award Title (e.g. Organizer's Choice)"
               value={awardName}
               onChange={(e) => setAwardName(e.target.value)}
-              className="bg-slate-900 text-slate-200 text-xs rounded-xl px-3 py-2 border border-slate-800 focus:outline-none focus:border-amber-500"
+              className="rounded-xl bg-slate-900 text-xs text-slate-200"
             />
-            <input
+            <Input
+              aria-label="Special award recipient"
               type="text"
               required
               placeholder="Recipient Name"
               value={recipientName}
               onChange={(e) => setRecipientName(e.target.value)}
-              className="bg-slate-900 text-slate-200 text-xs rounded-xl px-3 py-2 border border-slate-800 focus:outline-none focus:border-amber-500"
+              className="rounded-xl bg-slate-900 text-xs text-slate-200"
             />
             <div className="flex gap-2">
-              <input
+              <Input
+                aria-label="Special award citation"
                 type="text"
                 placeholder="Description / Citation"
                 value={awardDescription}
                 onChange={(e) => setAwardDescription(e.target.value)}
-                className="w-full bg-slate-900 text-slate-200 text-xs rounded-xl px-3 py-2 border border-slate-800 focus:outline-none focus:border-amber-500"
+                className="w-full rounded-xl bg-slate-900 text-xs text-slate-200"
               />
-              <Button type="submit" variant="primary" disabled={submittingAward} className="bg-amber-600 hover:bg-amber-500 text-white shrink-0 text-xs">
+              <Button type="submit" variant="primary" aria-label="Add special award" disabled={submittingAward} className="bg-amber-600 hover:bg-amber-500 text-white shrink-0 text-xs">
                 {submittingAward ? <Loader2 className="animate-spin w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
               </Button>
             </div>
@@ -245,7 +249,7 @@ export default function OrganizerResultsPage() {
                     </div>
                     {sa.description && <p className="text-[11px] text-slate-400 mt-1">{sa.description}</p>}
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => handleDeleteSpecialAward(sa.id)} className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 h-7 px-2">
+                  <Button variant="ghost" size="sm" aria-label={`Delete ${sa.name}`} onClick={() => handleDeleteSpecialAward(sa.id)} className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 h-7 px-2">
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                 </div>

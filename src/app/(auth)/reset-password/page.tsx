@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 /**
  * Final step of the password reset flow.
@@ -92,7 +94,7 @@ export default function ResetPasswordPage() {
             New password
           </label>
           <div className="relative">
-            <input
+            <Input
               id="password"
               name="password"
               type={showPassword ? "text" : "password"}
@@ -101,12 +103,13 @@ export default function ResetPasswordPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full px-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-2xl text-white placeholder:text-zinc-500 text-xs focus:outline-none focus:border-blue-500 transition-all pr-16 font-mono"
+              className="pr-16 font-mono"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-300 text-[11px] font-semibold"
+              aria-label={showPassword ? "Hide passwords" : "Show passwords"}
+              className="absolute right-1 top-1/2 flex h-11 -translate-y-1/2 items-center px-3 text-xs font-semibold text-content-secondary hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               {showPassword ? "Hide" : "Show"}
             </button>
@@ -117,7 +120,7 @@ export default function ResetPasswordPage() {
           <label htmlFor="confirm" className="block text-xs font-semibold text-zinc-300 mb-1">
             Confirm new password
           </label>
-          <input
+          <Input
             id="confirm"
             name="confirm"
             type={showPassword ? "text" : "password"}
@@ -126,17 +129,18 @@ export default function ResetPasswordPage() {
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             placeholder="••••••••"
-            className="w-full px-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-2xl text-white placeholder:text-zinc-500 text-xs focus:outline-none focus:border-blue-500 transition-all font-mono"
+            className="font-mono"
           />
         </div>
 
-        <button
+        <Button
           type="submit"
           disabled={isPending}
-          className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold text-xs rounded-2xl py-2.5 transition-colors"
+          isLoading={isPending}
+          className="w-full"
         >
-          {isPending ? "Updating…" : "Update password"}
-        </button>
+          Update password
+        </Button>
       </form>
 
       <p className="text-center text-zinc-400 text-xs font-medium">

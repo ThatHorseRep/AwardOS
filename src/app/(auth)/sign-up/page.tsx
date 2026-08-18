@@ -6,6 +6,9 @@ import { signUpAction } from "@/actions/auth";
 import { createClient } from "@/lib/supabase/client";
 import { getAppOrigin } from "@/lib/app-url";
 import { useSearchParams } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 function SignUpForm() {
   const [isPending, startTransition] = useTransition();
@@ -52,13 +55,12 @@ function SignUpForm() {
           <label htmlFor="name" className="block text-xs font-semibold text-content mb-1">
             Full name
           </label>
-          <input
+          <Input
             id="name"
             name="name"
             type="text"
             required
             placeholder="Jane Doe"
-            className="w-full px-3.5 py-2 bg-surface-raised border border-border-subtle rounded-xl text-content placeholder:text-content-muted text-xs focus:outline-none focus:border-accent transition-all font-normal"
           />
         </div>
 
@@ -66,13 +68,12 @@ function SignUpForm() {
           <label htmlFor="email" className="block text-xs font-semibold text-content mb-1">
             Email address
           </label>
-          <input
+          <Input
             id="email"
             name="email"
             type="email"
             required
             placeholder="you@example.com"
-            className="w-full px-3.5 py-2 bg-surface-raised border border-border-subtle rounded-xl text-content placeholder:text-content-muted text-xs focus:outline-none focus:border-accent transition-all font-normal"
           />
         </div>
 
@@ -81,40 +82,33 @@ function SignUpForm() {
             Password
           </label>
           <div className="relative">
-            <input
+            <Input
               id="password"
               name="password"
               type={showPassword ? "text" : "password"}
               required
               placeholder="••••••••"
-              className="w-full px-3.5 py-2 bg-surface-raised border border-border-subtle rounded-xl text-content placeholder:text-content-muted text-xs focus:outline-none focus:border-accent transition-all pr-10 font-mono"
+              className="pr-11 font-mono"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
               aria-label={showPassword ? "Hide password" : "Show password"}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-secondary hover:text-content p-0.5"
+              className="absolute right-1 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center text-content-secondary hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
-              {showPassword ? (
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-.722-3.25"/><path d="M2 8a10.645 10.645 0 0 0 20 0"/><path d="m20 15-1.726-2.05"/><path d="m4 15 1.726-2.05"/><path d="m9 18 .722-3.25"/></svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-              )}
+              {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
             </button>
           </div>
         </div>
 
-        <button
+        <Button
           type="submit"
           disabled={isPending}
-          className="w-full py-2.5 px-4 bg-accent hover:bg-accent-hover text-accent-contrast font-semibold text-xs rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-1 shadow-sm active:scale-[0.97]"
+          isLoading={isPending}
+          className="mt-1 w-full"
         >
-          {isPending ? (
-            <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-          ) : (
-            "Create account"
-          )}
-        </button>
+          Create account
+        </Button>
       </form>
 
       <div className="relative py-0.5">

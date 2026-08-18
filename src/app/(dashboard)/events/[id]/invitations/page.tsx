@@ -159,7 +159,7 @@ export default function InvitationCodesPanelPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
           <Link href={`/events/${eventId}?tab=settings`}>
-            <Button variant="ghost" size="icon" className="mt-1">
+            <Button variant="ghost" size="icon" aria-label="Back to event settings" className="mt-1">
               <ArrowLeft className="w-4 h-4" />
             </Button>
           </Link>
@@ -233,8 +233,9 @@ export default function InvitationCodesPanelPage() {
             <CardContent>
               <form onSubmit={handleGenerate} className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300">Quantity (1 - 500)</label>
+                  <label htmlFor="invitation-quantity" className="text-xs font-semibold text-slate-300">Quantity (1 - 500)</label>
                   <input
+                    id="invitation-quantity"
                     type="number"
                     min={1}
                     max={500}
@@ -245,8 +246,9 @@ export default function InvitationCodesPanelPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300">Code Prefix Tag (Optional)</label>
+                  <label htmlFor="invitation-prefix" className="text-xs font-semibold text-slate-300">Code Prefix Tag (Optional)</label>
                   <input
+                    id="invitation-prefix"
                     type="text"
                     maxLength={8}
                     placeholder="e.g. VIP, FACULTY"
@@ -257,8 +259,9 @@ export default function InvitationCodesPanelPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300">Expiration Schedule</label>
+                  <label htmlFor="invitation-expiration" className="text-xs font-semibold text-slate-300">Expiration Schedule</label>
                   <select
+                    id="invitation-expiration"
                     value={expiresDays}
                     onChange={(e) => setExpiresDays(parseInt(e.target.value))}
                     className="w-full bg-slate-900 text-slate-200 text-xs rounded-xl px-3 py-2.5 border border-slate-800 focus:outline-none"

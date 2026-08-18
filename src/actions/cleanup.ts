@@ -9,7 +9,7 @@ import {
   nominees,
   auditLogs,
 } from "@/lib/db/schema";
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, isNull } from "drizzle-orm";
 import { ensureUserRecord } from "@/lib/ensure-user";
 import {
   requireWorkspaceRole,
@@ -305,6 +305,8 @@ export async function approveMergeSuggestionAction(
 
     if (sugList.length === 0) throw new Error("Suggestion not found");
     const sug = sugList[0];
+    if (sug.status === "APPROVED") return { success: true, alreadyApplied: true };
+    if (sug.status !== "PENDING") throw new Error("Only pending suggestions can be approved");
 
     const finalName = customName?.trim() || sug.suggestedName;
     const normalizedName = finalName.toLowerCase().trim();
@@ -333,6 +335,7 @@ export async function approveMergeSuggestionAction(
                 eq(nominationsTable.eventId, sug.eventId),
                 eq(nominationsTable.categoryId, sug.categoryId),
                 inArray(nominationsTable.nomineeText, sourceNames),
+                isNull(nominationsTable.resolvedNomineeId),
               ),
             )
         : [];
@@ -384,9 +387,16 @@ export async function approveMergeSuggestionAction(
             eq(nominationsTable.eventId, sug.eventId),
             eq(nominationsTable.categoryId, sug.categoryId),
             eq(nominationsTable.nomineeText, sourceName),
+            isNull(nominationsTable.resolvedNomineeId),
           ),
         );
     }
+
+    const [authoritativeCount] = await tx
+      .select({ count: sql<number>`count(*)::int` })
+      .from(nominationsTable)
+      .where(and(eq(nominationsTable.resolvedNomineeId, nomineeId), eq(nominationsTable.isLatest, true)));
+    await tx.update(nominees).set({ nominationCount: authoritativeCount?.count ?? 0, updatedAt: new Date() }).where(eq(nominees.id, nomineeId));
 
     // 3. Mark suggestion status APPROVED
     await tx
@@ -457,9 +467,15 @@ export async function undoMergeSuggestionAction(suggestionId: string) {
       throw new Error("Only approved suggestions can be undone");
     }
 
-    // 1. Revert resolvedNomineeId to null for all matching raw nominations
+    const [targetNominee] = await tx
+      .select({ id: nominees.id })
+      .from(nominees)
+      .where(and(eq(nominees.categoryId, sug.categoryId), eq(nominees.normalizedName, sug.suggestedName.toLowerCase().trim())))
+      .limit(1);
+
+    // 1. Revert only links still owned by this suggestion's target nominee.
     const sourceNames = sug.sourceNominees as string[];
-    for (const sourceName of sourceNames) {
+    for (const sourceName of targetNominee ? sourceNames : []) {
       await tx
         .update(nominationsTable)
         .set({ resolvedNomineeId: null })
@@ -468,8 +484,17 @@ export async function undoMergeSuggestionAction(suggestionId: string) {
             eq(nominationsTable.eventId, sug.eventId),
             eq(nominationsTable.categoryId, sug.categoryId),
             eq(nominationsTable.nomineeText, sourceName),
+            eq(nominationsTable.resolvedNomineeId, targetNominee!.id),
           ),
         );
+    }
+
+    if (targetNominee) {
+      const [authoritativeCount] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(nominationsTable)
+        .where(and(eq(nominationsTable.resolvedNomineeId, targetNominee.id), eq(nominationsTable.isLatest, true)));
+      await tx.update(nominees).set({ nominationCount: authoritativeCount?.count ?? 0, updatedAt: new Date() }).where(eq(nominees.id, targetNominee.id));
     }
 
     // 2. Mark suggestion status back to PENDING
@@ -558,9 +583,13 @@ export async function bulkApproveMergeSuggestionsAction(
       })
       .from(nominationsTable)
       .where(
-        inArray(nominationsTable.eventId, [
-          ...new Set(pending.map((suggestion) => suggestion.eventId)),
-        ]),
+        and(
+          inArray(nominationsTable.eventId, [
+            ...new Set(pending.map((suggestion) => suggestion.eventId)),
+          ]),
+          eq(nominationsTable.isLatest, true),
+          isNull(nominationsTable.resolvedNomineeId),
+        ),
       );
     const nominationCountByKey = new Map<string, number>();
     for (const row of nominationRows) {
@@ -701,8 +730,18 @@ export async function bulkApproveMergeSuggestionsAction(
             inArray(nominationsTable.nomineeText, [
               ...new Set(group.sourceNames),
             ]),
+            eq(nominationsTable.isLatest, true),
+            isNull(nominationsTable.resolvedNomineeId),
           ),
         );
+    }
+
+    for (const nomineeId of new Set(resolvedIdByKey.values())) {
+      const [authoritativeCount] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(nominationsTable)
+        .where(and(eq(nominationsTable.resolvedNomineeId, nomineeId), eq(nominationsTable.isLatest, true)));
+      await tx.update(nominees).set({ nominationCount: authoritativeCount?.count ?? 0, updatedAt: new Date() }).where(eq(nominees.id, nomineeId));
     }
 
     await tx

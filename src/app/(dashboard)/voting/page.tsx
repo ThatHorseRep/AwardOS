@@ -273,14 +273,15 @@ export default function OrganizerVotingPage() {
             <form onSubmit={handleSaveSettings} className="space-y-4 text-xs">
               {/* 1. Voter Authentication & Security Method */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-content flex items-center gap-1.5">
+                <label htmlFor="verification-method" className="text-xs font-semibold text-content flex items-center gap-1.5">
                   <Fingerprint className="w-4 h-4 text-accent" />
                   <span>Voter authentication & integrity method</span>
                 </label>
                 <select
+                  id="verification-method"
                   value={verificationMethod}
                   onChange={(e) => setVerificationMethod(e.target.value as VerificationMethod)}
-                  className="w-full bg-surface-raised text-content text-xs rounded-xl px-3.5 py-2 border border-border-subtle focus:outline-none focus:border-accent font-normal"
+                  className="min-h-11 w-full bg-surface-raised text-content text-xs rounded-xl px-3.5 py-2 border border-border-subtle focus:outline-none focus:border-accent font-normal"
                 >
                   <option value="NONE">Frictionless — Cookie & device fingerprint (1-click voting)</option>
                   <option value="EMAIL_OTP">Standard — Email passcode (6-digit OTP verification)</option>
@@ -305,14 +306,15 @@ export default function OrganizerVotingPage() {
 
               {/* 2. Program Visibility */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-content flex items-center gap-1.5">
+                <label htmlFor="program-visibility" className="text-xs font-semibold text-content flex items-center gap-1.5">
                   <Globe className="w-4 h-4 text-accent" />
                   <span>Program visibility</span>
                 </label>
                 <select
+                  id="program-visibility"
                   value={visibility}
                   onChange={(e) => setVisibility(e.target.value as typeof visibility)}
-                  className="w-full bg-surface-raised text-content text-xs rounded-xl px-3.5 py-2 border border-border-subtle focus:outline-none focus:border-accent font-normal"
+                  className="min-h-11 w-full bg-surface-raised text-content text-xs rounded-xl px-3.5 py-2 border border-border-subtle focus:outline-none focus:border-accent font-normal"
                 >
                   <option value="UNLISTED">Link only: accessible through the organizer&apos;s shared URL</option>
                   <option value="PUBLIC">Public: accessible to anyone with the URL</option>
@@ -322,14 +324,15 @@ export default function OrganizerVotingPage() {
 
               {/* 3. Live Results Mode */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-content flex items-center gap-1.5">
+                <label htmlFor="live-results-mode" className="text-xs font-semibold text-content flex items-center gap-1.5">
                   <BarChart2 className="w-4 h-4 text-accent" />
                   <span>Live results leaderboard visibility</span>
                 </label>
                 <select
+                  id="live-results-mode"
                   value={liveResultsMode}
                   onChange={(e) => setLiveResultsMode(e.target.value as LiveResultsMode)}
-                  className="w-full bg-surface-raised text-content text-xs rounded-xl px-3.5 py-2 border border-border-subtle focus:outline-none focus:border-accent font-normal"
+                  className="min-h-11 w-full bg-surface-raised text-content text-xs rounded-xl px-3.5 py-2 border border-border-subtle focus:outline-none focus:border-accent font-normal"
                 >
                   <option value="FULL_LEADERBOARD">Full leaderboard — Show rank, percentages & raw vote counts</option>
                   <option value="PERCENTAGES">Percentages only — Hide raw vote counts, show percentages</option>
@@ -340,14 +343,15 @@ export default function OrganizerVotingPage() {
 
               {/* 4. Target Audience */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-content flex items-center gap-1.5">
+                <label htmlFor="target-audience" className="text-xs font-semibold text-content flex items-center gap-1.5">
                   <Users className="w-4 h-4 text-accent" />
                   <span>Target audience group</span>
                 </label>
                 <select
+                  id="target-audience"
                   value={audienceType}
                   onChange={(e) => setAudienceType(e.target.value as AudienceType)}
-                  className="w-full bg-surface-raised text-content text-xs rounded-xl px-3.5 py-2 border border-border-subtle focus:outline-none focus:border-accent font-normal"
+                  className="min-h-11 w-full bg-surface-raised text-content text-xs rounded-xl px-3.5 py-2 border border-border-subtle focus:outline-none focus:border-accent font-normal"
                 >
                   <option value="PUBLIC">General public</option>
                   <option value="STUDENTS">Students & campus</option>

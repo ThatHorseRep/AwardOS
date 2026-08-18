@@ -30,6 +30,8 @@ import {
 import { INVITATION_CODE_LENGTH } from "@/lib/constants";
 import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 import { LoadError } from "@/components/shared/load-error";
+import { evaluateWorkflowWindow } from "@/lib/workflow/policy";
+import { Input } from "@/components/ui/input";
 
 type PublicBallot = Awaited<ReturnType<typeof getPublicBallotDetailsAction>>;
 type VerificationSession =
@@ -263,7 +265,7 @@ export default function PublicBallotPage() {
     );
   }
 
-  const isVotingActive = event.status === "ACTIVE";
+  const isVotingActive = evaluateWorkflowWindow({ eventStatus: event.status, stage: event.votingStage, now: new Date() }).allowed;
 
   if (!isVotingActive) {
     return (
@@ -354,7 +356,7 @@ export default function PublicBallotPage() {
           <CardContent className="pt-4">
             <form onSubmit={handleSendOtp} className="space-y-4">
               <label htmlFor="voter-email" className="block text-xs font-semibold text-content">Email address</label>
-              <input
+              <Input
                 id="voter-email"
                 name="email"
                 type="email"
@@ -363,7 +365,7 @@ export default function PublicBallotPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="voter@college.edu"
-                className="w-full bg-surface-raised text-content text-xs rounded-xl px-3.5 py-2.5 border border-border-subtle focus:outline-none focus:border-accent font-normal"
+                className="bg-surface-raised font-normal"
               />
               <Button
                 type="submit"
@@ -394,7 +396,7 @@ export default function PublicBallotPage() {
           <CardContent className="pt-4">
             <form onSubmit={handleVerifyOtp} className="space-y-4">
               <label htmlFor="voter-otp" className="block text-xs font-semibold text-content">Six digit verification code</label>
-              <input
+              <Input
                 id="voter-otp"
                 name="otp"
                 type="text"
@@ -406,7 +408,7 @@ export default function PublicBallotPage() {
                 value={otpCode}
                 onChange={(e) => setOtpCode(e.target.value)}
                 placeholder="123456"
-                className="w-full bg-surface-raised text-center text-content text-lg tracking-widest rounded-xl px-4 py-2.5 border border-border-subtle focus:outline-none focus:border-accent font-mono font-bold"
+                className="bg-surface-raised text-center text-lg font-mono font-bold tracking-widest"
               />
               <Button
                 type="submit"
@@ -454,7 +456,7 @@ export default function PublicBallotPage() {
           <CardContent className="pt-4">
             <form onSubmit={handleVerifyInvitation} className="space-y-4">
               <label htmlFor="invitation-code" className="block text-xs font-semibold text-content">Invitation code</label>
-              <input
+              <Input
                 id="invitation-code"
                 name="invitationCode"
                 type="text"
@@ -463,7 +465,7 @@ export default function PublicBallotPage() {
                 value={invitationCode}
                 onChange={(e) => setInvitationCode(e.target.value)}
                 placeholder="Enter your code"
-                className="w-full bg-surface-raised text-center text-content text-base tracking-widest rounded-xl px-4 py-2.5 border border-border-subtle focus:outline-none focus:border-accent font-mono font-bold uppercase"
+                className="bg-surface-raised text-center font-mono text-base font-bold uppercase tracking-widest"
               />
               <Button
                 type="submit"

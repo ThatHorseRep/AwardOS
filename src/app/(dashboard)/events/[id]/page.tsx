@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Trophy, ArrowLeft, Calendar, Users, Vote, Sparkles, ExternalLink, Upload, Copy as CopyIcon, Image as ImageIcon, Layers, Settings as SettingsIcon, Sliders, Plus, Trash2, Edit2, Clock, Loader2, ShieldAlert, ChevronDown, ChevronUp, Save, MessageSquare, ArrowUp, ArrowDown } from "lucide-react";
@@ -36,6 +36,7 @@ export default function EventDetailPage() {
   const [showBulkImportModal, setShowBulkImportModal] = useState(false);
 
   const [event, setEvent] = useState<EventDetails>(null);
+  const hasLoadedEvent = useRef(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -88,7 +89,7 @@ export default function EventDetailPage() {
     const ids = event.categories.map((category: { id: string }) => category.id);
     [ids[index], ids[target]] = [ids[target], ids[index]];
     setReorderingCategory(categoryId);
-    try { await reorderCategoriesAction(eventId, ids); window.location.reload(); }
+    try { await reorderCategoriesAction(eventId, ids); setLoadAttempt((value) => value + 1); }
     catch (error) { toast.error(error instanceof Error ? error.message : "We could not reorder these categories."); setReorderingCategory(null); }
   }
   const [deleteEventOpen, setDeleteEventOpen] = useState(false);
@@ -134,7 +135,7 @@ export default function EventDetailPage() {
         toast.success("Category created.");
       }
       setCategoryEditorOpen(false);
-      window.location.reload();
+      setLoadAttempt((value) => value + 1);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "We could not save this category.");
     } finally {
@@ -154,7 +155,7 @@ export default function EventDetailPage() {
         toast.success("Category deleted.");
       }
       setCategoryToRemove(null);
-      window.location.reload();
+      setLoadAttempt((value) => value + 1);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "We could not remove this category.");
     } finally {
@@ -164,10 +165,12 @@ export default function EventDetailPage() {
 
   useEffect(() => {
     async function loadData() {
-      setLoading(true); setLoadError(false);
+      if (!hasLoadedEvent.current) setLoading(true);
+      setLoadError(false);
       try {
         const data = await getEventDetailsAction(eventId);
         setEvent(data);
+        hasLoadedEvent.current = Boolean(data);
         if (data) {
           setVisibility(data.visibility || "PRIVATE");
           setLiveResultsMode(data.liveResultsMode || "HIDDEN");
@@ -464,7 +467,7 @@ export default function EventDetailPage() {
             <div className="bg-surface rounded-2xl p-5 border border-border-subtle shadow-sm flex items-center justify-between text-content hover-lift">
               <div>
                 <span className="text-xs font-semibold text-content-secondary uppercase tracking-wider block">Votes cast</span>
-                <span className="text-3xl font-bold text-content mt-1 block tabular-nums">{event.votesCount}</span>
+                <span className="text-3xl font-bold text-content mt-1 block tabular-nums">{event.voteAccounting.submittedBallots}</span>
               </div>
               <div className="w-10 h-10 rounded-xl bg-surface-raised border border-border-subtle text-accent flex items-center justify-center font-bold">
                 <Vote className="w-5 h-5" />
@@ -781,7 +784,7 @@ export default function EventDetailPage() {
                           size="sm"
                           onClick={async () => {
                             await updateWorkflowStageStatusAction(eventId, s.id, "ACTIVE");
-                            window.location.reload();
+                            setLoadAttempt((value) => value + 1);
                           }}
                           className="rounded-xl font-semibold text-xs"
                         >
@@ -794,7 +797,7 @@ export default function EventDetailPage() {
                           size="sm"
                           onClick={async () => {
                             await updateWorkflowStageStatusAction(eventId, s.id, "COMPLETED");
-                            window.location.reload();
+                            setLoadAttempt((value) => value + 1);
                           }}
                           className="rounded-xl font-semibold text-xs"
                         >
@@ -1154,7 +1157,7 @@ export default function EventDetailPage() {
         onClose={() => setShowBulkImportModal(false)}
         onSuccess={() => {
           setShowBulkImportModal(false);
-          window.location.reload();
+          setLoadAttempt((value) => value + 1);
         }}
       />
 
@@ -1197,7 +1200,7 @@ export default function EventDetailPage() {
         size="sm"
         footer={<div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setDeleteEventOpen(false)}>Cancel</Button><Button variant="danger" isLoading={deletingEvent} disabled={deleteConfirmation !== event?.name} onClick={() => void handleDeleteEvent()}>Delete event</Button></div>}
       >
-        <div className="space-y-4"><label className="block text-sm font-medium">Enter <strong>{event?.name}</strong> to confirm<input value={deleteConfirmation} onChange={(e) => setDeleteConfirmation(e.target.value)} className="mt-2 w-full rounded-lg border border-border-subtle bg-surface px-3 py-2" /></label>{(event?.status === "ACTIVE" || event?.status === "COMPLETED" || Number(event?.votesCount) > 0) && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={confirmPublishedDelete} onChange={(e) => setConfirmPublishedDelete(e.target.checked)} className="mt-1" /><span>I understand this published or voted event will be removed from public access.</span></label>}</div>
+        <div className="space-y-4"><label className="block text-sm font-medium">Enter <strong>{event?.name}</strong> to confirm<input value={deleteConfirmation} onChange={(e) => setDeleteConfirmation(e.target.value)} className="mt-2 w-full rounded-lg border border-border-subtle bg-surface px-3 py-2" /></label>{(event?.status === "ACTIVE" || event?.status === "COMPLETED" || Number(event?.voteAccounting.submittedBallots) > 0) && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={confirmPublishedDelete} onChange={(e) => setConfirmPublishedDelete(e.target.checked)} className="mt-1" /><span>I understand this published or voted event will be removed from public access.</span></label>}</div>
       </Modal>
 
       <Modal

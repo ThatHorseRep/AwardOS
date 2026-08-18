@@ -11,6 +11,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { getPublicEventDetailsAction } from "@/actions/events";
 import { ShareKitModal } from "@/components/sharing/share-kit-modal";
 import { LoadError } from "@/components/shared/load-error";
+import { evaluateWorkflowWindow } from "@/lib/workflow/policy";
 
 type PublicEvent = Awaited<ReturnType<typeof getPublicEventDetailsAction>>;
 type PublicNominee = NonNullable<PublicEvent>["categories"][number]["nominees"][number];
@@ -83,11 +84,11 @@ export default function PublicEventPage() {
 
   // Find active or pending stages
   const activeStage = event.stages?.find((s) => s.status === "ACTIVE") || event.stages?.find((s) => s.status === "PENDING") || event.stages?.[0];
-  const activeStageType = activeStage?.stageType;
   const stageName = activeStage?.displayName || "Event live";
 
-  const isNominationActive = activeStageType === "NOMINATIONS" || event.status === "ACTIVE";
-  const isVotingActive = activeStageType === "VOTING" || event.status === "ACTIVE";
+  const now = new Date();
+  const isNominationActive = evaluateWorkflowWindow({ eventStatus: event.status, stage: event.stages?.find((stage) => stage.stageType === "NOMINATIONS"), now }).allowed;
+  const isVotingActive = evaluateWorkflowWindow({ eventStatus: event.status, stage: event.stages?.find((stage) => stage.stageType === "VOTING"), now }).allowed;
   const isResultsPublished = event.liveResultsMode !== "HIDDEN";
 
   const deadlineStr = activeStage?.endsAt
@@ -139,25 +140,24 @@ export default function PublicEventPage() {
 
           {/* Call to Action Buttons */}
           <div className="pt-4 flex flex-wrap items-center justify-center sm:justify-start gap-3">
-            <Link href={`/e/${event.slug}/vote`}>
+            {isVotingActive ? <Link href={`/e/${event.slug}/vote`}>
               <Button
                 variant="primary"
                 size="lg"
-                disabled={!isVotingActive}
                 className="px-6 py-2.5 rounded-xl text-xs font-semibold shadow-sm"
               >
                 <Vote className="w-4 h-4 mr-1.5" />
                 <span>{isVotingActive ? "Cast your ballot" : "Voting closed"}</span>
                 <ArrowRight className="w-4 h-4 ml-1.5" />
               </Button>
-            </Link>
+            </Link> : <Button variant="primary" size="lg" disabled className="px-6 py-2.5 text-xs font-semibold shadow-sm"><Vote className="mr-1.5 size-4" />Voting closed</Button>}
 
-            <Link href={`/e/${event.slug}/nominate`}>
-              <Button variant="secondary" size="lg" disabled={!isNominationActive} className="px-5 py-2.5 rounded-xl text-xs font-semibold">
+            {isNominationActive ? <Link href={`/e/${event.slug}/nominate`}>
+              <Button variant="secondary" size="lg" className="px-5 py-2.5 rounded-xl text-xs font-semibold">
                 <Users className="w-4 h-4 mr-1.5" />
-                <span>{isNominationActive ? "Submit nomination" : "Nominations closed"}</span>
+                <span>Submit nomination</span>
               </Button>
-            </Link>
+            </Link> : <Button variant="secondary" size="lg" disabled className="px-5 py-2.5 text-xs font-semibold"><Users className="mr-1.5 size-4" />Nominations closed</Button>}
 
             {isResultsPublished && (
               <Link href={`/e/${event.slug}/results`}>

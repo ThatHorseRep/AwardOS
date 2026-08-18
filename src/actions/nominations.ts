@@ -5,6 +5,7 @@ import { suggestedCategories, categories, nominations, events, nominees } from "
 import { eq, and, count, desc, sql, isNull } from "drizzle-orm";
 import { requireEventAccess, requireWorkspaceRole, CONTENT_MODERATORS } from "./_rbac";
 import { syncNomineesForEvent } from "@/lib/nominations/sync";
+import { authoritativeNominationCount } from "@/lib/nominations/counts";
 
 /**
  * Asserts the caller is a content moderator AND that `eventId` belongs to the
@@ -97,7 +98,7 @@ export async function getEventNominationsAction(eventId: string) {
         bio: nominees.bio,
         status: nominees.status,
         source: nominees.source,
-        nominationCount: nominees.nominationCount,
+        nominationCount: authoritativeNominationCount,
         displayOrder: nominees.displayOrder,
       })
       .from(nominees)

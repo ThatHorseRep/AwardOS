@@ -29,9 +29,9 @@ export default function AuthLayout({
       </div>
 
       {/* Surface Card Container */}
-      <div className="relative z-10 w-full max-w-sm mx-auto bg-surface border border-border-subtle rounded-2xl p-6 sm:p-7 shadow-sm my-auto shrink-0 text-content">
+      <main id="main-content" className="relative z-10 my-auto w-full max-w-sm shrink-0 rounded-lg border border-border-subtle bg-surface p-6 text-content shadow-sm sm:p-7">
         {children}
-      </div>
+      </main>
 
       {/* Footer */}
       <p className="relative z-10 text-center text-xs text-content-secondary shrink-0 pb-2">

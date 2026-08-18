@@ -118,7 +118,7 @@ export default function EventBrandingPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
           <Link href={`/events/${eventId}`}>
-            <Button variant="ghost" size="icon" className="mt-1">
+            <Button variant="ghost" size="icon" aria-label="Back to event" className="mt-1">
               <ArrowLeft className="w-4 h-4" />
             </Button>
           </Link>

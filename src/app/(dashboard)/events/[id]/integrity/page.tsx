@@ -43,22 +43,21 @@ export default function VotingIntegrityDashboardPage() {
   // UI State: track which alerts have expanded detail panels
   const [expandedAlerts, setExpandedAlerts] = useState<{ [alertId: string]: boolean }>({});
 
-  const loadData = useCallback(async () => {
-    setLoading(true); setLoadError(false);
+  const loadData = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
+    setLoadError(false);
     try {
       const eventDetails = await getEventDetailsAction(eventId);
-      setEvent(eventDetails);
-
       const alertList = await getIntegrityAlertsAction(eventId);
-      setAlerts(alertList);
-
       const sessionList = await getEventVoteSessionsAction(eventId);
+      setEvent(eventDetails);
+      setAlerts(alertList);
       setSessions(sessionList);
     } catch (err) {
       console.error("Failed to load integrity page details:", err);
       setLoadError(true);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, [eventId]);
 
@@ -85,7 +84,7 @@ export default function VotingIntegrityDashboardPage() {
           scanned: result.scannedCount || 0,
           alerts: result.alertsCreated || 0,
         });
-        await loadData();
+        await loadData(false);
       }
     } catch (err) {
       console.error("Failed to trigger audit scan:", err);
@@ -122,7 +121,7 @@ export default function VotingIntegrityDashboardPage() {
       });
 
       setSelectedAlert(null);
-      await loadData();
+      await loadData(false);
     } catch (err) {
       console.error("Failed to resolve alert:", err);
       toast.error("Error submitting resolution.");
@@ -137,7 +136,7 @@ export default function VotingIntegrityDashboardPage() {
 
     try {
       await quarantineSessionsAction([sessionId]);
-      await loadData();
+      await loadData(false);
     } catch (err) {
       console.error("Failed to flag session:", err);
       toast.error("Error flagging vote session.");
@@ -153,7 +152,7 @@ export default function VotingIntegrityDashboardPage() {
 
     try {
       await restoreSessionsAction([sessionId]);
-      await loadData();
+      await loadData(false);
     } catch (err) {
       console.error("Failed to restore session:", err);
       toast.error("Error restoring vote session.");
@@ -183,7 +182,7 @@ export default function VotingIntegrityDashboardPage() {
   }
 
   // Summary counts
-  const totalVotesCount = sessions.length;
+  const submittedBallots = sessions.length;
   const activeAlerts = alerts.filter((a) => a.status === "NEW");
   const activeAlertsCount = activeAlerts.length;
   const disqualifiedCount = sessions.filter((s) => s.status === "INVALIDATED").length;
@@ -195,7 +194,7 @@ export default function VotingIntegrityDashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
           <Link href={`/events/${eventId}`}>
-            <Button variant="ghost" size="icon" className="mt-1">
+            <Button variant="ghost" size="icon" aria-label="Back to event" className="mt-1">
               <ArrowLeft className="w-4 h-4" />
             </Button>
           </Link>
@@ -249,7 +248,7 @@ export default function VotingIntegrityDashboardPage() {
         <Card className="border-slate-800 bg-slate-950/20">
           <CardContent className="pt-6">
             <span className="text-[10px] text-slate-500 uppercase block font-semibold">Total Scanned Ballots</span>
-            <div className="text-2xl font-bold text-white mt-1">{totalVotesCount}</div>
+            <div className="text-2xl font-bold text-white mt-1">{submittedBallots}</div>
             <span className="text-[10px] text-slate-400 mt-1 block">Active ballot sessions submitted</span>
           </CardContent>
         </Card>
@@ -365,7 +364,7 @@ export default function VotingIntegrityDashboardPage() {
                                 const note = window.prompt("Optional acknowledgement note:") || "";
                                 const { acknowledgeAlertAction } = await import("@/actions/integrity");
                                 await acknowledgeAlertAction(alert.id, note.trim());
-                                await loadData();
+                                await loadData(false);
                               } catch (err) {
                                 console.error("Failed to acknowledge alert:", err);
                                 toast.error("Error acknowledging alert.");
