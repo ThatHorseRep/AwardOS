@@ -464,9 +464,11 @@ test("event analytics expose canonical submitted-ballot metrics", async ({ conte
   await context.addCookies([{ name: "awardos_workspace_id", value: fixture("E2E_WORKSPACE_ID"), url: "http://127.0.0.1:3100", httpOnly: true, sameSite: "Lax" }]);
   const eventId = fixture("E2E_BALLOT_EVENT_ID");
   await page.goto(`/events/${eventId}/analytics`);
-  await expect(page.getByRole("heading", { name: /Real-Time Turnout & Telemetry Analytics/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Voting Activity & Analytics" })).toBeVisible();
   await expect(page.getByText("Valid submitted ballot sessions")).toBeVisible();
   await expect(page.getByText("Community impact", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: /view vote totals/i })).toHaveAttribute("href", `/events/${eventId}/results`);
+  await expect(page.getByRole("link", { name: /review submitted ballots/i })).toHaveAttribute("href", `/events/${eventId}/integrity`);
 });
 
 test("event integrity exposes submitted sessions and audit scanning", async ({ context, page }, testInfo) => {

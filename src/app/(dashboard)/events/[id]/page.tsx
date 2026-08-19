@@ -464,15 +464,18 @@ export default function EventDetailPage() {
               </div>
             </div>
 
+            <Link href={`/events/${eventId}/analytics`} className="block rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
             <div className="bg-surface rounded-2xl p-5 border border-border-subtle shadow-sm flex items-center justify-between text-content hover-lift">
               <div>
-                <span className="text-xs font-semibold text-content-secondary uppercase tracking-wider block">Votes cast</span>
+                <span className="text-xs font-semibold text-content-secondary uppercase tracking-wider block">Ballots submitted</span>
                 <span className="text-3xl font-bold text-content mt-1 block tabular-nums">{event.voteAccounting.submittedBallots}</span>
+                <span className="text-[11px] text-accent font-semibold mt-1 block">View voting activity</span>
               </div>
               <div className="w-10 h-10 rounded-xl bg-surface-raised border border-border-subtle text-accent flex items-center justify-center font-bold">
                 <Vote className="w-5 h-5" />
               </div>
             </div>
+            </Link>
           </div>
 
           <Card className="border-border-subtle bg-surface-raised rounded-2xl shadow-sm px-5 py-5 text-content">
@@ -480,7 +483,7 @@ export default function EventDetailPage() {
               <div>
                 <p className="text-sm font-bold text-content">Continue the admin workflow</p>
                 <p className="text-xs text-content-secondary mt-1 max-w-xl font-normal">
-                  Review nominees before opening the voting ballot, or jump directly to the ballot control center once the roster is ready.
+                  Review nominees before opening the voting ballot, or inspect this event&apos;s voting activity and ballot controls once the roster is ready.
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-2.5">
@@ -490,10 +493,10 @@ export default function EventDetailPage() {
                     <span>Review nominees</span>
                   </Button>
                 </Link>
-                <Link href="/voting">
+                <Link href={`/events/${eventId}/analytics`}>
                   <Button variant="primary" size="sm" className="rounded-xl font-semibold text-xs">
                     <Vote className="w-4 h-4 mr-1.5" />
-                    <span>Open voting hub</span>
+                    <span>View voting activity</span>
                   </Button>
                 </Link>
               </div>
@@ -541,12 +544,12 @@ export default function EventDetailPage() {
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-2">
                     <Sliders className="w-5 h-5 text-accent" />
-                    <CardTitle className="text-sm font-bold text-content">Real-time analytics hub</CardTitle>
+                    <CardTitle className="text-sm font-bold text-content">Voting activity & analytics</CardTitle>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <p className="text-xs text-content-secondary leading-relaxed font-normal">
-                    Monitor voting velocity timeline charts, category turnout shares, and voter device telemetry.
+                    See submitted ballots, turnout by category, voting velocity, and integrity signals for this event.
                   </p>
                 </CardContent>
               </Card>

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { TrendingUp, ArrowLeft, Smartphone, Clock, Loader2, ArrowUpRight, BarChart3, Calendar, Zap, Monitor } from "lucide-react";
+import { TrendingUp, ArrowLeft, Smartphone, Clock, Loader2, ArrowUpRight, BarChart3, Calendar, Zap, Monitor, ShieldAlert, Trophy } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -71,10 +71,10 @@ export default function OrganizerAnalyticsDashboardPage() {
           <div>
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
               <TrendingUp className="w-6 h-6 text-blue-600" />
-              <span>Real-Time Turnout & Telemetry Analytics</span>
+              <span>Voting Activity & Analytics</span>
             </h1>
             <p className="text-slate-600 text-xs mt-1 font-medium">
-              Monitor voter turnout velocity, peak voting windows, and device operating system telemetry.
+              Track submitted ballots and turnout for this event. Review ballot-level concerns in Integrity and nominee totals in Results.
             </p>
           </div>
         </div>
@@ -83,6 +83,15 @@ export default function OrganizerAnalyticsDashboardPage() {
           <Zap className="w-3.5 h-3.5 text-emerald-600 animate-pulse" /> Live Telemetry Connected
         </Badge>
       </div>
+
+      <nav aria-label="Voting activity destinations" className="flex flex-wrap gap-2">
+        <Link href={`/events/${eventId}/results`}>
+          <Button variant="outline" size="sm"><Trophy className="mr-2 size-4" />View vote totals</Button>
+        </Link>
+        <Link href={`/events/${eventId}/integrity`}>
+          <Button variant="outline" size="sm"><ShieldAlert className="mr-2 size-4" />Review submitted ballots</Button>
+        </Link>
+      </nav>
 
       {/* Metrics row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -146,14 +155,17 @@ export default function OrganizerAnalyticsDashboardPage() {
             </CardHeader>
             <CardContent className="pt-4">
               {analytics.velocityData.length === 0 ? (
-                <div className="py-12 text-center text-slate-500 text-xs italic font-medium">No hourly records collected.</div>
+                <div className="py-12 text-center text-slate-500 text-xs font-medium">
+                  <p>No submitted ballots yet.</p>
+                  <p className="mt-1 font-normal">Voting activity will appear here after the first valid ballot is submitted.</p>
+                </div>
               ) : (
                 <div className="space-y-3 pt-2">
                   {analytics.velocityData.map((d, idx: number) => (
                     <div key={idx} className="space-y-1.5">
                       <div className="flex justify-between text-[11px] font-mono">
                         <span className="text-slate-600 font-semibold">{d.hour}</span>
-                        <span className="text-slate-900 font-bold">{d.votes} votes</span>
+                        <span className="text-slate-900 font-bold">{d.votes} ballots</span>
                       </div>
                       <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
                         <div
@@ -210,7 +222,7 @@ export default function OrganizerAnalyticsDashboardPage() {
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
               {analytics.categoryTurnout.length === 0 ? (
-                <div className="text-center text-slate-500 text-xs italic py-8 font-medium">No categories turnout metrics.</div>
+                <div className="text-center text-slate-500 text-xs py-8 font-medium">Category turnout appears after submitted ballots include category responses.</div>
               ) : (
                 analytics.categoryTurnout.map((cat, idx: number) => (
                   <div key={idx} className="space-y-1">
