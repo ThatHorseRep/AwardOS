@@ -1,7 +1,7 @@
 import { getOrCreateWorkspaceAction } from '@/actions/workspaces';
 import { db } from '@/lib/db';
 import { events, nominations, voteSessions } from '@/lib/db/schema';
-import { count, countDistinct, eq, and, isNull } from 'drizzle-orm';
+import { count, countDistinct, desc, eq, and, isNull } from 'drizzle-orm';
 import { CalendarPlus, Sparkles, UserPlus, Calendar, CheckSquare, Users, ChevronRight, Vote, Award, ArrowUpRight } from 'lucide-react';
 import EmptyState from '@/components/shared/empty-state'
 import Link from 'next/link'
@@ -41,7 +41,7 @@ export default async function DashboardPage() {
         .select()
         .from(events)
         .where(and(eq(events.workspaceId, workspace.id), isNull(events.deletedAt)))
-        .orderBy(events.createdAt)
+        .orderBy(desc(events.createdAt))
         .limit(4)
     } catch (err) {
       console.warn("Dashboard stats query error:", err)
@@ -68,7 +68,7 @@ export default async function DashboardPage() {
             <Sparkles className="w-3.5 h-3.5 text-accent" /> Workspace live overview
           </div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-content">
-            {totalEvents} Active {totalEvents === 1 ? 'Program' : 'Programs'}
+            {totalEvents} {totalEvents === 1 ? 'Program' : 'Programs'} in this workspace
           </h1>
           <p className="text-xs md:text-sm text-content-secondary leading-relaxed max-w-[65ch]">
             Review incoming nominations, monitor voter turnout, and oversee active ballots across your workspace.

@@ -1,9 +1,10 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { ShieldAlert, ShieldCheck, ChevronRight, AlertTriangle } from "lucide-react";
+import { ShieldAlert, ShieldCheck, ChevronRight, AlertTriangle, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { getWorkspaceIntegritySummaryAction } from "@/actions/integrity";
 
 export default async function WorkspaceIntegrityPage() {
@@ -55,7 +56,9 @@ export default async function WorkspaceIntegrityPage() {
 
       {events.length === 0 ? (
         <Card className="rounded-2xl bg-surface border-border-subtle shadow-sm p-12 text-center text-content-secondary text-xs font-normal">
-          No events yet. Integrity monitoring begins once an event starts collecting ballots.
+          <p className="font-semibold text-content">No events to monitor yet.</p>
+          <p className="mt-1">Integrity monitoring begins after an event starts collecting submitted ballots.</p>
+          <Link href="/events/new" className="mt-4 inline-flex"><Button size="sm"><Plus className="mr-2 size-4" />Create event</Button></Link>
         </Card>
       ) : (
         <div className="space-y-3">

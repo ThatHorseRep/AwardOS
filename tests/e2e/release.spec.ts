@@ -284,8 +284,8 @@ test("organizer can open the desktop ballot preview", async ({ context, page }) 
   await context.addCookies([{ name: "awardos_dev_mode", value: "true", url: "http://127.0.0.1:3100", httpOnly: true, sameSite: "Lax" }]);
   await context.addCookies([{ name: "awardos_workspace_id", value: fixture("E2E_WORKSPACE_ID"), url: "http://127.0.0.1:3100", httpOnly: true, sameSite: "Lax" }]);
   await page.goto("/events");
-  const eventCard = page.getByText(fixture("E2E_BALLOT_EVENT_NAME"), { exact: true }).locator("xpath=ancestor::div[.//a[normalize-space()='Manage']][1]");
-  const manageHref = await eventCard.getByRole("link", { name: "Manage" }).getAttribute("href");
+  const eventCard = page.getByText(fixture("E2E_BALLOT_EVENT_NAME"), { exact: true }).locator("xpath=ancestor::div[.//a[contains(@href, '/events/')]][1]");
+  const manageHref = await eventCard.locator("a[href^='/events/']").getAttribute("href");
   expect(manageHref).toBeTruthy();
   await page.goto(`${manageHref}/ballot-preview`);
   await expect(page.getByRole("heading", { name: "Ballot preview" })).toBeVisible();
@@ -538,8 +538,8 @@ test("workspace operational roll-ups expose populated navigation", async ({ cont
   const surfaces = [
     ["/nominations", "Nominations & category inbox"],
     ["/voting", "Voting setup"],
-    ["/results", "Official Results & Tally Center"],
-    ["/analytics", "Real-Time Analytics & Telemetry Directory"],
+    ["/results", "Vote totals & results"],
+    ["/analytics", "Voting activity"],
     ["/exports", "Workspace Data Exporter Hub"],
     ["/branding", "Branding & theme studio"],
     ["/cleanup", "AI nomination cleanup engine"],

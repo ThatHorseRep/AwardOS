@@ -4,7 +4,8 @@ import Link from "next/link";
 import { getEventsAction } from "@/actions/events";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Award, ChevronRight, Trophy } from "lucide-react";
+import { Award, ChevronRight, Trophy, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default async function GlobalResultsPage() {
   const events = await getEventsAction();
@@ -14,16 +15,18 @@ export default async function GlobalResultsPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
           <Award className="w-6 h-6 text-amber-500" />
-          <span>Official Results & Tally Center</span>
+          <span>Vote totals & results</span>
         </h1>
         <p className="text-slate-600 text-xs mt-1 font-medium">
-          Select an event below to manage, disqualify, audit tallies, and publish winners leaderboards.
+          Select an event to review nominee totals, confirm winners, and control public result visibility.
         </p>
       </div>
 
       {events.length === 0 ? (
-        <Card className="border-slate-200/80 bg-white p-12 text-center text-slate-500 text-xs shadow-sm rounded-3xl font-medium">
-          No events found. Create an event to begin collecting and managing results.
+        <Card className="border-border-subtle bg-surface p-12 text-center text-content-secondary text-xs shadow-sm rounded-2xl font-medium">
+          <p className="font-semibold text-content">No events have vote totals yet.</p>
+          <p className="mt-1">Create an event, prepare its ballot, and collect submitted ballots before reviewing results.</p>
+          <Link href="/events/new" className="mt-4 inline-flex"><Button size="sm"><Plus className="mr-2 size-4" />Create event</Button></Link>
         </Card>
       ) : (
         <div className="space-y-3">
@@ -51,7 +54,7 @@ export default async function GlobalResultsPage() {
 
               <Link href={`/events/${evt.id}/results`}>
                 <button className="px-4 py-2 rounded-full text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 flex items-center gap-1.5 transition-all shadow-md shadow-blue-600/20">
-                  <span>Manage Results</span>
+                  <span>View vote totals</span>
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </Link>

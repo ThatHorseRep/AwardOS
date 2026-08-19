@@ -63,7 +63,7 @@ export default async function EventsPage() {
                   href={`/events/${evt.id}`}
                   className="text-accent hover:underline font-semibold inline-flex items-center gap-1 group/btn"
                 >
-                  Manage
+                  {evt.status === 'DRAFT' ? 'Continue setup' : evt.status === 'ACTIVE' ? 'Manage live event' : 'Review event'}
                   <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover/btn:translate-x-1" />
                 </Link>
               </div>

@@ -4,7 +4,8 @@ import Link from "next/link";
 import { getEventsAction } from "@/actions/events";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { TrendingUp, ChevronRight, BarChart3 } from "lucide-react";
+import { TrendingUp, ChevronRight, BarChart3, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default async function GlobalAnalyticsPage() {
   const events = await getEventsAction();
@@ -14,16 +15,18 @@ export default async function GlobalAnalyticsPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
           <TrendingUp className="w-6 h-6 text-blue-600" />
-          <span>Real-Time Analytics & Telemetry Directory</span>
+          <span>Voting activity</span>
         </h1>
         <p className="text-slate-600 text-xs mt-1 font-medium">
-          Select an event below to track voting velocities, voter device distributions, and category turnouts.
+          Select an event to see submitted ballots, turnout, voting pace, and device information.
         </p>
       </div>
 
       {events.length === 0 ? (
-        <Card className="border-slate-200/80 bg-white p-12 text-center text-slate-500 text-xs shadow-sm rounded-3xl font-medium">
-          No events found. Create an event to begin tracking telemetry and analytics.
+        <Card className="border-border-subtle bg-surface p-12 text-center text-content-secondary text-xs shadow-sm rounded-2xl font-medium">
+          <p className="font-semibold text-content">No events to monitor yet.</p>
+          <p className="mt-1">Create an event first. Submitted ballot activity will appear here after voting begins.</p>
+          <Link href="/events/new" className="mt-4 inline-flex"><Button size="sm"><Plus className="mr-2 size-4" />Create event</Button></Link>
         </Card>
       ) : (
         <div className="space-y-3">
@@ -43,7 +46,7 @@ export default async function GlobalAnalyticsPage() {
                       {evt.status}
                     </Badge>
                     <span className="text-[10px] text-slate-500 font-medium">
-                      Active Voting Telemetry
+                      Voting activity and turnout
                     </span>
                   </div>
                 </div>
@@ -51,7 +54,7 @@ export default async function GlobalAnalyticsPage() {
 
               <Link href={`/events/${evt.id}/analytics`}>
                 <button className="px-4 py-2 rounded-full text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 flex items-center gap-1.5 transition-all shadow-md shadow-blue-600/20">
-                  <span>View Analytics</span>
+                  <span>View activity</span>
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </Link>

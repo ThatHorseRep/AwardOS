@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Trophy, Vote, Sparkles, ShieldCheck, ArrowRight, Clock, CheckCircle2, Users, Loader2, Share2, Info, X } from "lucide-react";
+import { Trophy, Vote, Sparkles, ShieldCheck, ArrowRight, Clock, CheckCircle2, Users, Loader2, Share2, Info } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { getPublicEventDetailsAction } from "@/actions/events";
 import { ShareKitModal } from "@/components/sharing/share-kit-modal";
 import { LoadError } from "@/components/shared/load-error";
+import { Modal } from "@/components/ui/modal";
 import { evaluateWorkflowWindow } from "@/lib/workflow/policy";
 
 type PublicEvent = Awaited<ReturnType<typeof getPublicEventDetailsAction>>;
@@ -273,37 +274,14 @@ export default function PublicEventPage() {
 
       {/* Nominee Full Bio Modal */}
       {selectedNomineeModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-page-entrance font-sans">
-          <div className="w-full max-w-md bg-surface border border-border-subtle rounded-2xl p-6 space-y-5 shadow-2xl relative text-content">
-            <button
-              onClick={() => setSelectedNomineeModal(null)}
-              aria-label="Close modal"
-              className="absolute right-4 top-4 p-1 text-content-secondary hover:text-content rounded-lg hover:bg-surface-raised font-bold"
-            >
-              <X className="w-4 h-4" />
-            </button>
-
+        <Modal
+          open
+          onClose={() => setSelectedNomineeModal(null)}
+          title={selectedNomineeModal.nominee.name}
+          description={`Category: ${selectedNomineeModal.categoryName}`}
+          size="sm"
+          footer={(
             <div className="flex items-center gap-3">
-              <Avatar name={selectedNomineeModal.nominee.name} size="lg" />
-              <div>
-                <h3 className="font-bold text-content text-base">
-                  {selectedNomineeModal.nominee.name}
-                </h3>
-                <Badge variant="default" size="sm" className="mt-1">
-                  Category: {selectedNomineeModal.categoryName}
-                </Badge>
-              </div>
-            </div>
-
-            {selectedNomineeModal.nominee.bio ? (
-              <p className="text-xs text-content-secondary leading-relaxed font-normal">
-                {selectedNomineeModal.nominee.bio}
-              </p>
-            ) : (
-              <p className="text-xs text-content-secondary italic">No biography provided for this nominee.</p>
-            )}
-
-            <div className="flex items-center gap-3 pt-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -328,8 +306,21 @@ export default function PublicEventPage() {
                 </Link>
               )}
             </div>
-          </div>
-        </div>
+          )}
+        >
+            <div className="flex items-center gap-3">
+              <Avatar name={selectedNomineeModal.nominee.name} size="lg" />
+            </div>
+
+            {selectedNomineeModal.nominee.bio ? (
+              <p className="text-xs text-content-secondary leading-relaxed font-normal">
+                {selectedNomineeModal.nominee.bio}
+              </p>
+            ) : (
+              <p className="text-xs text-content-secondary italic">No biography provided for this nominee.</p>
+            )}
+
+        </Modal>
       )}
 
       {/* Share & Embed Kit Modal */}
