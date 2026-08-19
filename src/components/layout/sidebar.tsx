@@ -19,7 +19,7 @@ const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
   { icon: Calendar, label: 'Events', href: '/events' },
   { icon: Inbox, label: 'Nominations', href: '/nominations' },
-  { icon: Vote, label: 'Voting hub', href: '/voting' },
+  { icon: Vote, label: 'Voting setup', href: '/voting' },
   { icon: Users, label: 'Members', href: '/team' },
   { icon: Settings, label: 'Settings', href: '/settings' },
 ]

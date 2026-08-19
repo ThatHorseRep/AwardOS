@@ -1,7 +1,7 @@
 import { getOrCreateWorkspaceAction } from '@/actions/workspaces';
 import { db } from '@/lib/db';
-import { events, nominations, votes } from '@/lib/db/schema';
-import { count, eq, and, isNull } from 'drizzle-orm';
+import { events, nominations, voteSessions } from '@/lib/db/schema';
+import { count, countDistinct, eq, and, isNull } from 'drizzle-orm';
 import { CalendarPlus, Sparkles, UserPlus, Calendar, CheckSquare, Users, ChevronRight, Vote, Award, ArrowUpRight } from 'lucide-react';
 import EmptyState from '@/components/shared/empty-state'
 import Link from 'next/link'
@@ -12,7 +12,7 @@ export default async function DashboardPage() {
 
   let totalEvents = 0
   let totalNominations = 0
-  let totalVotes = 0
+  let submittedBallots = 0
   let recentEvents: Array<typeof events.$inferSelect> = []
 
   if (workspace?.id) {
@@ -30,12 +30,12 @@ export default async function DashboardPage() {
         .where(and(eq(events.workspaceId, workspace.id), isNull(events.deletedAt)))
       totalNominations = nominationsResult[0]?.val || 0
 
-      const votesResult = await db
-        .select({ val: count() })
-        .from(votes)
-        .innerJoin(events, eq(votes.eventId, events.id))
-        .where(and(eq(events.workspaceId, workspace.id), isNull(events.deletedAt)))
-      totalVotes = votesResult[0]?.val || 0
+      const ballotsResult = await db
+        .select({ val: countDistinct(voteSessions.id) })
+        .from(voteSessions)
+        .innerJoin(events, eq(voteSessions.eventId, events.id))
+        .where(and(eq(events.workspaceId, workspace.id), eq(voteSessions.status, 'SUBMITTED'), isNull(events.deletedAt)))
+      submittedBallots = ballotsResult[0]?.val || 0
 
       recentEvents = await db
         .select()
@@ -51,7 +51,7 @@ export default async function DashboardPage() {
   const quickActions = [
     { icon: CalendarPlus, title: 'Create event', subtitle: 'Start a new award program', href: '/events/new' },
     { icon: Sparkles, title: 'AI assistant', subtitle: 'Auto-generate category lists', href: '/settings/ai' },
-    { icon: Vote, title: 'Voting hub', subtitle: 'Oversee active ballot streams', href: '/voting' },
+    { icon: Vote, title: 'Voting setup', subtitle: 'Configure and preview event ballots', href: '/voting' },
     { icon: UserPlus, title: 'Invite team', subtitle: 'Add workspace collaborators', href: '/team' },
   ]
 
@@ -115,8 +115,8 @@ export default async function DashboardPage() {
 
         <div className="bg-surface rounded-2xl p-5 border border-border-subtle shadow-sm hover-lift flex items-center justify-between">
           <div>
-            <span className="text-xs font-medium text-content-secondary block">Total votes recorded</span>
-            <span className="text-3xl font-bold text-content mt-1 block tabular-nums">{totalVotes}</span>
+            <span className="text-xs font-medium text-content-secondary block">Submitted ballots</span>
+            <span className="text-3xl font-bold text-content mt-1 block tabular-nums">{submittedBallots}</span>
           </div>
           <div className="w-11 h-11 rounded-xl bg-surface-muted border border-border-subtle flex items-center justify-center text-content">
             <CheckSquare className="w-5 h-5" />

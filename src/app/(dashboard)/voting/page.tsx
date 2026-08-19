@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { Vote, ShieldCheck, Eye, ExternalLink, Sliders, TrendingUp, Loader2, Calendar, Check, Globe, BarChart2, Users, Fingerprint, MessageSquare } from "lucide-react";
+import { Vote, ShieldCheck, Eye, ExternalLink, Sliders, TrendingUp, Loader2, Calendar, Check, Globe, BarChart2, Users, Fingerprint, MessageSquare, Trophy } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -109,10 +109,10 @@ export default function OrganizerVotingPage() {
         <div>
           <h1 className="text-2xl font-bold text-content tracking-tight flex items-center gap-2">
             <Vote className="w-6 h-6 text-accent" />
-            <span>Voting & ballot control center</span>
+            <span>Voting setup</span>
           </h1>
           <p className="text-content-secondary text-xs mt-1 font-normal">
-            Configure ballot security, manage voter verification, and preview live voting portals.
+            Configure ballot access and preview each event. Open an event&apos;s activity view to monitor submitted ballots and turnout.
           </p>
         </div>
 
@@ -208,8 +208,12 @@ export default function OrganizerVotingPage() {
 
         <CardContent className="space-y-4 pt-4">
           {eventList.length === 0 ? (
-            <div className="text-center py-8 text-content-secondary text-xs italic font-normal">
-              No event programs created yet.
+            <div className="py-10 text-center text-content-secondary text-xs font-normal">
+              <p className="font-semibold text-content">No events are ready for voting setup.</p>
+              <p className="mt-1">Create an event first, then return here to configure ballot access and preview voting.</p>
+              <Link href="/events/new" className="mt-4 inline-flex">
+                <Button variant="primary" size="sm">Create event</Button>
+              </Link>
             </div>
           ) : (
             eventList.map((ev) => {
@@ -237,7 +241,21 @@ export default function OrganizerVotingPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <Link href={`/events/${ev.id}/analytics`}>
+                      <Button variant="primary" size="sm" className="rounded-xl font-semibold text-xs">
+                        <TrendingUp className="w-3.5 h-3.5 mr-1" />
+                        <span>Voting activity</span>
+                      </Button>
+                    </Link>
+
+                    <Link href={`/events/${ev.id}/results`}>
+                      <Button variant="outline" size="sm" className="rounded-xl font-semibold text-xs">
+                        <Trophy className="w-3.5 h-3.5 mr-1" />
+                        <span>Vote totals</span>
+                      </Button>
+                    </Link>
+
                     <Link href={`/e/${ev.slug}/vote`} target="_blank">
                       <Button variant="outline" size="sm" className="rounded-xl font-semibold text-xs">
                         <Eye className="w-3.5 h-3.5 mr-1" />

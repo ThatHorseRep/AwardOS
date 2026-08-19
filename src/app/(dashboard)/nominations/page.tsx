@@ -121,7 +121,7 @@ export default function OrganizerNominationsPage() {
           <Link href="/voting">
             <Button variant="outline" size="sm" className="rounded-xl font-semibold text-xs">
               <Eye className="w-4 h-4 mr-1.5" />
-              <span>Voting hub</span>
+              <span>Voting setup</span>
             </Button>
           </Link>
 

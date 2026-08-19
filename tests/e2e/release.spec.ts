@@ -537,7 +537,7 @@ test("workspace operational roll-ups expose populated navigation", async ({ cont
 
   const surfaces = [
     ["/nominations", "Nominations & category inbox"],
-    ["/voting", "Voting & ballot control center"],
+    ["/voting", "Voting setup"],
     ["/results", "Official Results & Tally Center"],
     ["/analytics", "Real-Time Analytics & Telemetry Directory"],
     ["/exports", "Workspace Data Exporter Hub"],

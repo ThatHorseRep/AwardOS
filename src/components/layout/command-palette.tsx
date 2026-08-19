@@ -33,7 +33,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
     { label: "Create New Event Wizard", path: "/events/new", icon: Trophy, category: "Events" },
     { label: "Raw Nominations Stream", path: "/nominations", icon: UserCheck, category: "Nominations" },
     { label: "AI Nomination Cleanup Engine", path: "/cleanup", icon: Sparkles, category: "AI Tools" },
-    { label: "Voting & Ballot Control Center", path: "/voting", icon: Vote, category: "Voting" },
+    { label: "Voting Setup", path: "/voting", icon: Vote, category: "Voting" },
     { label: "Official Results Leaderboard", path: "/results", icon: Award, category: "Results" },
     { label: "Anti-Fraud Security Monitoring", path: "/integrity", icon: ShieldAlert, category: "Security" },
     { label: "Real-Time Velocity Analytics", path: "/analytics", icon: BarChart3, category: "Analytics" },
