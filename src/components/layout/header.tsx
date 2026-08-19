@@ -2,6 +2,7 @@
 
 import type React from 'react'
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Menu, Bell, X, LayoutDashboard, Calendar, Inbox, Vote, Users, Settings, LogOut, User, Search, Sparkles } from 'lucide-react'
 import { signOutAction } from '@/actions/auth'
 import Link from 'next/link'
@@ -169,8 +170,8 @@ export default function Header({ user, workspaceSwitcher }: HeaderProps) {
       </div>
 
       {/* Mobile Drawer Navigation */}
-      {mobileMenuOpen && (
-        <><button type="button" aria-label="Close navigation" className="fixed inset-0 top-16 z-40 bg-black/40 md:hidden" onClick={() => setMobileMenuOpen(false)} /><nav aria-label="Mobile navigation" className="fixed inset-x-0 bottom-0 top-16 z-50 overflow-y-auto border-b border-border-subtle bg-surface/95 p-4 backdrop-blur-2xl animate-slide-up motion-reduce:animate-none md:hidden">
+      {mobileMenuOpen && typeof document !== 'undefined' && createPortal(
+        <><button type="button" aria-label="Close navigation" className="fixed inset-x-0 bottom-0 top-16 z-40 bg-black/40 md:hidden" onClick={() => setMobileMenuOpen(false)} /><nav aria-label="Mobile navigation" className="fixed inset-x-0 bottom-0 top-16 z-50 overflow-y-auto border-b border-border-subtle bg-surface/95 p-4 backdrop-blur-2xl animate-slide-up motion-reduce:animate-none md:hidden">
           <ul className="space-y-1">
             {navItems.map((item) => {
               const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(`${item.href}`))
@@ -194,7 +195,8 @@ export default function Header({ user, workspaceSwitcher }: HeaderProps) {
               )
             })}
           </ul>
-        </nav></>
+        </nav></>,
+        document.body
       )}
       <CommandPalette isOpen={commandOpen} onClose={() => setCommandOpen(false)} />
       <AIAssistantPanel isOpen={assistantOpen} onClose={() => setAssistantOpen(false)} eventId={eventId} />

@@ -137,6 +137,35 @@ test("dashboard shell loads with development bypass", async ({ context, page }) 
   await expect(page.locator("body")).not.toContainText("Application error");
 });
 
+test("mobile dashboard navigation is viewport anchored and dismissible", async ({ context, page }) => {
+  test.skip(!test.info().project.name.startsWith("mobile"), "Mobile navigation geometry is covered by the mobile project.");
+  await context.addCookies([
+    { name: "awardos_dev_mode", value: "true", url: "http://127.0.0.1:3100", httpOnly: true, sameSite: "Lax" },
+    { name: "awardos_workspace_id", value: fixture("E2E_WORKSPACE_ID"), url: "http://127.0.0.1:3100", httpOnly: true, sameSite: "Lax" },
+  ]);
+  await page.goto("/dashboard");
+  const menuButton = page.getByRole("button", { name: "Open menu" });
+  await expect(menuButton).toBeVisible();
+  await menuButton.click();
+
+  const navigation = page.getByRole("navigation", { name: "Mobile navigation" });
+  await expect(navigation).toBeVisible();
+  const bounds = await navigation.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { top: rect.top, left: rect.left, right: rect.right, bottom: rect.bottom };
+  });
+  expect(bounds.top).toBeCloseTo(64, 0);
+  expect(bounds.left).toBeCloseTo(0, 0);
+  expect(bounds.right).toBeCloseTo(360, 0);
+  expect(bounds.bottom).toBeCloseTo(800, 0);
+  await expect(navigation.getByRole("link", { name: "Dashboard" })).toBeVisible();
+  await expect(navigation.getByRole("link", { name: "Events" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+
+  await page.getByRole("button", { name: "Close navigation" }).click();
+  await expect(navigation).toBeHidden();
+});
+
 test("security headers are present", async ({ request }) => {
   const response = await request.get("/");
   expect(response.headers()["x-content-type-options"]).toBe("nosniff");
