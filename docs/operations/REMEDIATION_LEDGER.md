@@ -142,3 +142,66 @@ regression-pinned.
   init 200, submission 200 with receipt, one SUBMITTED session, correct vote
   row, duplicate 409, no extra rows, cleared-storage retry 409. Production
   voting persistence is verified.
+
+## Domain Remediation Sweep (2026-08-21)
+
+Autonomous investigation of the remaining product domains, smallest-correct-fix
+policy, every fix pinned by route/action-level integration tests.
+
+### DOMAIN 1 — Nominations: nominee sync race (FIXED, fe63a9a)
+- `syncNomineesForEvent` ran unsynchronised. Two concurrent submissions naming
+  the same person both read the same unresolved nomination set under READ
+  COMMITTED; with no unique constraint on (event_id, category_id,
+  normalized_name), each transaction inserted its own copy of the nominee —
+  duplicate entries on the public ballot splitting votes.
+- Fix: per-event `pg_advisory_xact_lock` at the top of the sync transaction.
+  The second sync waits, then finds nothing left to resolve. No schema change;
+  sequential idempotency was already guaranteed by the unresolved filter.
+- Pinned by `tests/integration/nomination-sync.test.ts` (4 tests): canonical
+  resolution incl. casing variants, re-run idempotency with counter integrity,
+  concurrent syncs, cache vs authoritative-count agreement.
+
+### DOMAIN 2 — Cleanup/merging: undo of custom-named approvals silently no-oped (FIXED, d017b50)
+- The AI-cleanup UI lets organizers rename a merge target on approval
+  (`customName`), but that name is not persisted on the suggestion row and
+  `undoMergeSuggestionAction` relocated the merge target by `suggestedName`
+  only. Undoing a custom-named approval therefore relinked nothing while
+  flipping status back to PENDING and writing an "undone" audit entry — the
+  organiser believes the merge is reverted; raw nominations stay consumed.
+- Fix: undo now recovers the actual merge target from the approval audit entry
+  (`details.nomineeId`), falling back to the suggested-name lookup for legacy
+  rows. Ownership filter unchanged (only links pointing at the recorded target
+  are reverted), so links taken over by later merges still survive undo.
+- Companion gap closed: `bulkApproveMergeSuggestionsAction` wrote no approval
+  audit entries at all, which would have left bulk-approved suggestions without
+  the audit trail undo now depends on. Bulk approvals now mirror the single-
+  approve audit record including the resolved nomineeId.
+- Pinned by `tests/integration/cleanup-undo.test.ts` (4 tests): custom-name
+  approve→undo round trip, suggested-name path parity, no-steal on later
+  takeover, bulk-approve→undo.
+
+### Domains investigated, no defects found
+- DOMAIN 3 Results: tabulation counts SUBMITTED sessions only; disqualified
+  top-rank candidates are guarded in both public and dashboard rendering;
+  snapshot winner semantics consistent; override/disqualify paths audited.
+- DOMAIN 4 Workflow/lifecycle: stage transitions transactional and guarded;
+  delete/restore/purge correct; purge preserves audit history (SET NULL).
+- DOMAIN 5 Invitations/OTP: hashed codes, constant-time compare, attempt caps,
+  IP+email rate limits, expiry re-checked at submit, OTP consumed on use,
+  invitation codes locked FOR UPDATE — all previously hardened and verified.
+- DOMAIN 6 Auth/account/members: last-owner protection on remove AND demote,
+  self-removal blocked, cross-workspace member scoping, ownership transfer only
+  via targeted invite, deletion preflight/status flow intact.
+- DOMAIN 7 Analytics/integrity: every aggregate path filters SUBMITTED; the
+  only exceptions are legitimate (status breakdowns, IN_PROGRESS promotion).
+- DOMAIN 8 Exports/certificates: sensitive exports behind EVENT_ADMINS,
+  roster exports behind CONTENT_MODERATORS; certificate candidates scoped to
+  workspace and published winners only.
+- DOMAIN 9 Branding/workspace/settings: cross-workspace event binding via
+  requireEventAccess throughout; branding writes admin-gated.
+- DOMAIN 10 Public voter experience: 409 duplicate semantics correct after the
+  voting persistence fix; ballot reads side-effect free; voted-cookie gating
+  server-verified.
+
+Quality gates at sweep completion: tsc clean, ESLint clean, vitest 105/105
+(26 files). Both fixes pushed to main and auto-deployed to Vercel production.
