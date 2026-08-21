@@ -90,6 +90,15 @@ export async function syncNomineesForEvent(eventId: string) {
   }
 
   return await db.transaction(async (tx) => {
+    // Serialise syncs for this event. Two nominations naming the same person
+    // can be submitted concurrently, and both post-submit syncs would read the
+    // same unresolved set under READ COMMITTED: with no unique constraint on
+    // (event_id, category_id, normalized_name) each transaction would insert
+    // its own copy of the nominee, putting duplicate entries on the public
+    // ballot and splitting votes. The per-event advisory lock makes the second
+    // sync wait, after which it finds nothing left to resolve.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${eventId}))`);
+
     let createdCount = 0;
     let linkedCount = 0;
 
