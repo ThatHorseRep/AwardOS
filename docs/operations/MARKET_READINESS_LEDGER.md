@@ -158,3 +158,29 @@ persistence (prior INTEGRATION/PRODUCTION evidence stands), but five confirmed
 defects (P1-F1…F5) affect operator trust and configuration correctness and are
 queued for remediation phases. No fixes applied in this phase.
 
+
+---
+
+## PHASE 1 REMEDIATION — CORE EVENT READINESS FIXES (2026-08-21)
+
+Commit `275d3cc` (pushed; Vercel production deployment sha-verified). All five
+confirmed Phase 1 defects fixed and regression-pinned. 17 tests added
+(suite: 110 → 127 across 27 → 29 files).
+
+| ID | Fix | Regression coverage |
+|----|-----|---------------------|
+| P1-F1 | Forward-only lifecycle in `updateWorkflowStageStatusAction`: only PENDING stages activate (completed/skipped are terminal), only the ACTIVE stage completes, unsupported statuses rejected; event page hides activation buttons the server would reject | stage-transition.test.ts: reactivation rejected, earlier-stage-while-later-active rejected, mark-completed only from ACTIVE, unsupported statuses, auth failure propagates, race test tightened to exactly-one-active + guard-aware |
+| P1-F2 | Global unique index on `events.slug` (migration `0009_global_event_slug`, applied to production after verifying zero duplicate live slugs) + friendly collision errors on create and duplicate. Public `/e/{slug}` resolution is now deterministic by construction | event-creation.test.ts: cross-workspace slug rejected with readable error; DB-level uniqueness proven via constraint violation; original event untouched |
+| P1-F3 | Ballot-settings modal prefills from stored `verification_config.method` (new `storedVerificationMethod()` helper) and sends the method only when explicitly changed — unrelated saves can no longer rewrite voter authentication or silently flip the level | ballot-settings.test.ts: NONE/EMAIL_OTP/INVITATION_CODE each preserved on unrelated saves, explicit change persists, post-ballot lock intact, helper maps every config shape truthfully |
+| P1-F4 | Wizard's Advanced card now persists `verification_config.method = EMAIL_OTP` (STANDARD stays NONE); copy renamed "Advanced Email OTP Verification" and states exactly what is enforced | event-creation.test.ts: ADVANCED → `{method:"EMAIL_OTP"}` persisted; STANDARD → `{method:"NONE"}` preserved |
+| P1-F5 | Explicit UTC contract: new `parseUtcDateTimeInput()` used by create/timeline actions (bare datetime-local strings = UTC instants; explicit offsets honored; unparseable input rejected instead of storing garbage); "(UTC)" labels on wizard step 2 and timeline editor | event-creation.test.ts: bare inputs store exact UTC instants; +05:30 / −04:00 offsets round-trip to correct instants; null clearing stores NULLs |
+
+### Gates at close
+Vitest 127/127 · tsc clean · ESLint 0 errors/0 warnings · production build
+success · git diff --check clean · migration applied to production (DATABASE:
+`unq_event_slug` present, no duplicates incl. soft-deleted rows) · deployed
+sha equals HEAD.
+
+### Intentionally deferred
+MR-0-F1 (AI cleanup Google-key gap) untouched per scope; P1-U1–U6 UX items;
+Playwright infrastructure; dependency majors.
