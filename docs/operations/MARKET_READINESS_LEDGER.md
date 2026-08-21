@@ -253,3 +253,66 @@ P2-F1 (MEDIUM) → P2-F2 (LOW-MED) → P2-F3 (LOW). F2's fix is one predicate an
 
 ### Phase 2 verdict
 **PASS WITH DOCUMENTED LIMITATIONS** — three confirmed defects, zero data-corruption paths found in intake/counting; ledger updated only.
+
+
+---
+
+## PHASE 2 REMEDIATION — NOMINATIONS INTEGRITY FIXES (2026-08-21)
+
+Commit `05fe202` (code+tests) and `<<P2DOCS>>` (this entry). All three
+confirmed Phase 2 defects fixed and regression-pinned. 8 tests added
+(suite: 127 → 135 across 29 → 30 files).
+
+### Reproduction evidence (RED, all observed before any fix)
+- P2-F1 `does not create ballot nominees from superseded versions`: got
+  `['Alice', 'Alicia']` on the ballot roster after an edit-resubmission;
+  expected `['Alicia']`. [UNIT-INTEGRATION]
+- P2-F1 `cannot resurrect deleted nominees from superseded versions`: got
+  `['Alice', 'Alicia', 'Bob']` after organizer-delete + fresh submission;
+  superseded "Alice" returned from released links. [UNIT-INTEGRATION]
+- P2-F2 `single approval links only the authoritative latest version`: got
+  `links.n === 2` — single approval consumed both versions while bulk
+  consumed one. [UNIT-INTEGRATION]
+- P2-F3 tag-only payload (`"<b></b>"`): route answered HTTP 200 success with
+  zero rows persisted; resubmission variant additionally wiped the voter's
+  previous latest set. [UNIT-INTEGRATION]
+
+### Root causes & exact remediation
+| ID | Root cause | Fix | Files |
+|----|-----------|-----|-------|
+| P2-F1 | Sync's unresolved query omitted `is_latest`, so superseded versions resolved into phantom nominees; sync also never retired nominees whose latest support vanished | Candidate query filtered to `is_latest = true`; reconciliation step inside the same locked transaction sets `status='REMOVED'` for ACTIVE nominees with `source='NOMINATION'` and zero latest-version links (MANUAL/AI_SUGGESTED untouched; advisory lock, grouping, counting unchanged) | `src/lib/nominations/sync.ts` |
+| P2-F2 | Single approve linked/matched all nomination versions; bulk filtered `isLatest=true` | Both predicates added to single approve's matching query and link loop — now byte-for-byte the bulk semantics. FOR UPDATE locking, scoping, audit, custom names, undo untouched | `src/actions/cleanup.ts` |
+| P2-F3 | Sanitize ran inside the tx with silent skip; empty-payload success possible | Sanitize moved BEFORE the transaction (entries that strip empty can no longer burn submission numbers or flip the prior latest set); payload where ALL entries strip empty rejected with HTTP 422 pre-tx. Rate limit, window checks, session lock, suggestion flow unchanged | `public/.../nominations/route.ts` |
+
+### Tests added / updated
+- `tests/integration/nomination-resubmission.test.ts`: +2 P2-F1 pins (phantom
+  prevention incl. REMOVED-retirement assertion + authoritative-count check;
+  superseded-vector resurrection prevention). [UNIT-INTEGRATION]
+- `tests/integration/cleanup-undo.test.ts`: +2 P2-F2 pins (single approve
+  latest-only incl. cached-counter parity; single/bulk equivalence). Existing
+  undo/no-steal/concurrency pins pass unmodified. [UNIT-INTEGRATION]
+- `tests/integration/nomination-route-sanitization.test.ts`: new file, 4 P2-F3
+  pins (tag-only → non-2xx with zero rows; valid nomination persists; mixed
+  payload keeps sanitized-but-real entries; rejected resubmission cannot wipe
+  the prior valid set). [UNIT-INTEGRATION]
+
+### Verification at close
+RED phase reproduced all four defect behaviors first; GREEN after fix.
+Vitest **135/135** across 30 files · tsc clean · ESLint 0 errors/0 warnings ·
+production build success · `git diff --check` clean · diff inspection
+confirms no changes outside the three fix targets and their tests (no schema,
+dependency, or unrelated-route changes).
+
+### Post-deploy
+Deployed commit sha-verified against Vercel production; existing
+`scripts/production-smoke-vote.mjs` executed against the live alias (PASS).
+No browser-based nomination-flow verification performed (no disposable
+TEST_DATABASE_URL) — stated explicitly.
+
+### Known limitation (documented, not silently expanded)
+Deleting a nominee whose LATEST source nomination is still unresolved lets the
+next sync re-resolve it — identical semantics to a fresh nomination of that
+name arriving, since the voter's current intent is on record. Preventing that
+would need a nominations exclusion marker (schema change), out of scope per
+change-control rules. The SUPERSEDED-version revival vector is closed and
+pinned; MANUAL/AI_SUGGESTED nominees are never auto-retired.
