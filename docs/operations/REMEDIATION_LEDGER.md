@@ -205,3 +205,77 @@ policy, every fix pinned by route/action-level integration tests.
 
 Quality gates at sweep completion: tsc clean, ESLint clean, vitest 105/105
 (26 files). Both fixes pushed to main and auto-deployed to Vercel production.
+
+## Deep Reliability & Production-Behavior Sweep (2026-08-21, pass 2)
+
+Second autonomous sweep focused on the failure class that caused the voting
+incident: writes that report success without persisting correctly, duplicate
+submissions, and unserialised read-modify-write transactions.
+
+### Defect: same-session nomination resubmissions could double-count (FIXED, b8b4bb8)
+- The public nominations route versions returning voters by reading
+  `max(submission_number)` for their session, flipping prior rows to
+  `is_latest = false`, then inserting a new set. Under READ COMMITTED two rapid
+  submissions from one session (double-click, retry after a slow response, two
+  tabs) both read the same max, both flip, and both insert — leaving two
+  `is_latest` sets that every authoritative count (`authoritativeNominationCount`,
+  exports, organizer roster) counts twice. No unique constraint backstops this.
+- Fix: per-session `pg_advisory_xact_lock(hashtext(event_id || ':' || session_id))`
+  at the top of the transaction — the second submission waits and then versions
+  correctly (last-write-wins resubmission semantics preserved). Same pattern as
+  the nominee-sync fix; no schema change.
+- Pinned by `tests/integration/nomination-resubmission.test.ts` (2 tests) via
+  the real HTTP route handler against PGlite: sequential resubmission replaces
+  the latest set with submission #2; concurrent submissions converge to exactly
+  one latest set with no stale-latest rows.
+- Evidence level: race window identified STATIC (single-connection PGlite cannot
+  interleave transactions), fix correctness pinned INTEGRATION.
+
+### Defect: concurrent merge-suggestion approvals could duplicate nominees (FIXED, b8b4bb8)
+- `approveMergeSuggestionAction` read the suggestion's status inside its
+  transaction without a lock. Two organizers approving the same suggestion
+  concurrently both observed PENDING, both found no existing nominee for the
+  target name (no unique constraint on normalized name), and both inserted
+  their own copy of the merge target — duplicate ballot entries splitting votes.
+  The bulk approver had the same exposure across overlapping batches.
+- Fix: `FOR UPDATE` row locks on the suggestion selects in single approve,
+  undo, and bulk approve. Contention now waits (or fails loudly); it can never
+  silently resolve one suggestion twice or report success while approving
+  nothing (`skipLocked` was considered and rejected as a false-success risk).
+- Pinned by new test in `tests/integration/cleanup-undo.test.ts`: two
+  concurrent approvals leave exactly one nominee for the merged name and all
+  source links pointing at it.
+- Evidence level: race window identified STATIC, post-fix invariant pinned
+  INTEGRATION.
+
+### Domains re-verified this pass (no defects found)
+- DOMAIN 1 Event lifecycle: settings changes workspace-scoped and verification
+  method locked once ballots exist; VOTING activation gated on categories,
+  nominees, valid window, method, and reviewed ballot-roster hash inside the
+  transition transaction. Noted STATIC observations (not fixed — no confirmed
+  defect): (a) two admins activating different stages near-simultaneously can
+  transiently leave two ACTIVE stages; (b) event duplication copies the parent
+  stage config including the parent's reviewed roster hash, so an identical-
+  structure clone can open voting without a fresh preview review.
+- DOMAIN 3 Voting residuals: receipt verification binds HMAC → slug-resolved
+  event → SUBMITTED session before confirming; voted-cookie gating is
+  server-side; covered by existing 17 route-level tests plus production smoke.
+- DOMAIN 7 Invite acceptance: uses are claimed by a conditional atomic
+  `UPDATE ... WHERE uses_count < max_uses`, membership is upserted, ownership
+  transfer shares the transaction — previously remediated, confirmed intact.
+- DOMAIN 8 Authorization coverage: scripted scan of every exported action;
+  all ID-taking mutations resolve ownership (requireEventAccess /
+  requireSessionAccess / requireAlertAccess / session identity). Integrity
+  quarantine/restore/alert actions guard through private ownership helpers.
+- DOMAIN 9 Analytics: delegates entirely to the tested vote-accounting core;
+  submitted-only filters throughout.
+- DOMAIN 10 Certificates: disqualify clears isWinner immediately; restore
+  stays conservative (no winner until republish) — no false certificates.
+- DOMAINS 11/12 Client success paths: scripted scan found no fire-and-forget
+  mutations; dashboard handlers await the action, reload server data, and only
+  toast on thrown errors; public nominate/vote flows verified previously.
+
+Quality gates after fixes: tsc clean · ESLint clean · vitest 108/108 (27
+files) · production build passing. Committed b8b4bb8, pushed to main, deployed
+to Vercel production, and re-verified with the disposable-fixture production
+voting smoke (9/9).
