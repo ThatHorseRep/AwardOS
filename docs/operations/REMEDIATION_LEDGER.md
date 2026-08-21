@@ -98,3 +98,40 @@ state.
 
 All registered pages have passed the route/viewport gate and focused page
 verification requirements recorded by this remediation program.
+
+## Voting persistence incident — 2026-08-21
+
+A real-world failure report ("votes submit successfully but are not recorded;
+the same voter can vote repeatedly") was reproduced, root-caused, fixed, and
+regression-pinned.
+
+- Root cause: the NONE-mode guard in
+  `src/app/api/public/events/[slug]/votes/route.ts` rejected any submission
+  whose session token already existed in `vote_sessions` regardless of status.
+  The ballot-session initialization route creates an `IN_PROGRESS` row with
+  that same token on every ballot page load, so every first submission from a
+  normal browser session was rejected as "already cast" (HTTP 409). The client
+  treats 409 "already cast" as a duplicate-vote redirect to the thank-you page,
+  producing a false success with nothing persisted and unlimited retries.
+  Verified-mode (EMAIL_OTP / INVITATION_CODE) events were unaffected because
+  their guards match on verified email or code status.
+- Fix: the guard now matches only `status = 'SUBMITTED'` sessions; the
+  pre-existing `IN_PROGRESS` promotion path handles initialization rows as
+  designed. Duplicate protection (token replay 409, device-fingerprint partial
+  unique index, email/code constraints, concurrent-submission safety) is
+  unchanged and re-proven.
+- Regression coverage: `tests/integration/vote-persistence.test.ts` drives the
+  real route handlers against a real Postgres (PGlite) through the full
+  production sequence — ballot-session init → submit → database inspection →
+  receipt verification → Voting Activity accounting → results tabulation — for
+  NONE, EMAIL_OTP, and INVITATION_CODE modes, plus failure/retry/window
+  behaviour. 17 tests. The prior dedup suite inserted sessions via raw SQL and
+  could not see route-level defects; that gap is now closed.
+- OTP edge case reviewed and pinned as intended: the pre-submit email match
+  intentionally ignores session status so FLAGGED/INVALIDATED ballots block the
+  same email from immediately recasting. `IN_PROGRESS` rows never carry a
+  verified email, so first-time voters cannot false-positive.
+- Deployed-database check (read-only): all three `vote_sessions` unique
+  indexes, both `votes` indexes, and all vote columns present in the configured
+  Supabase project; row distribution (5 IN_PROGRESS vs 1 SUBMITTED sessions)
+  corroborates the reported non-persistence before the fix.

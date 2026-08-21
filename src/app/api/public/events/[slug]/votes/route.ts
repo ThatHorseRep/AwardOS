@@ -333,13 +333,20 @@ export async function POST(
         throw new Error("A ballot from this device has already been submitted for this event.");
       }
 
+      // Only a SUBMITTED session with this token is an already-cast ballot.
+      // This check previously matched any status, which rejected every
+      // first-time NONE-mode ballot: the ballot-session initialization route
+      // creates an IN_PROGRESS row with this same token on page load, so the
+      // guard found it, threw "already cast", and the client's 409 handler
+      // redirected to the thank-you page with nothing persisted.
       const existingVoteSession = await tx
           .select()
           .from(voteSessions)
           .where(
             and(
               eq(voteSessions.eventId, event.id),
-              eq(voteSessions.sessionToken, ballotId)
+              eq(voteSessions.sessionToken, ballotId),
+              eq(voteSessions.status, "SUBMITTED")
             )
           )
           .limit(1);
