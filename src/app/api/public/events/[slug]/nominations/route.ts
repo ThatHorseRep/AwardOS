@@ -122,6 +122,16 @@ export async function POST(
     // 3. Save to database in a transaction
     let hasNominations = false;
     await db.transaction(async (tx) => {
+      // Serialise resubmissions from the same voter session. Two rapid
+      // submissions (double-click, retry after a slow response, two tabs) each
+      // read the same max(submission_number) under READ COMMITTED and both
+      // leave their own rows flagged is_latest=true, double-counting this
+      // voter in every authoritative nomination count. The per-session lock
+      // makes the second submission wait, then version correctly.
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${event.id} || ':' || ${actualSessionId}))`
+      );
+
       // Save nominations
       if (nominations.length > 0) {
         const [previousSubmission] = await tx

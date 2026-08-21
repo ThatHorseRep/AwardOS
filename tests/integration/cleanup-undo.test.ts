@@ -219,6 +219,40 @@ describe("merge suggestion approve/undo", () => {
     expect(after.rows[0].n).toBe(0);
   });
 
+  it("concurrent approvals of one suggestion resolve a single nominee", async () => {
+    const fx = await seedVotingFixture(db);
+    ctx.value = {
+      user: { id: fx.userId },
+      workspace: { id: fx.workspaceId },
+      member: {},
+    };
+
+    await insertNomination(fx, "Race Person", "s1");
+    const suggestionId = await seedSuggestion(fx, ["Race Person"], "Race Person");
+
+    const { approveMergeSuggestionAction } = await import("@/actions/cleanup");
+    const outcomes = await Promise.allSettled([
+      approveMergeSuggestionAction(suggestionId),
+      approveMergeSuggestionAction(suggestionId),
+    ]);
+    // One applies, the other either reports already-applied or waits and sees
+    // APPROVED — neither may create a second nominee.
+    expect(outcomes.some((o) => o.status === "fulfilled")).toBe(true);
+
+    const nomineesForText = await db.query<{ n: number }>(
+      `SELECT count(DISTINCT n.id)::int AS n FROM nominees n
+       WHERE n.event_id = $1 AND n.category_id = $2 AND n.normalized_name = 'race person'`,
+      [fx.eventId, fx.categoryId] as never[]
+    );
+    expect(nomineesForText.rows[0].n).toBe(1);
+
+    const links = await db.query<{ target: string | null }>(
+      `SELECT resolved_nominee_id::text AS target FROM nominations WHERE nominee_text = 'Race Person'`,
+      [] as never[]
+    );
+    expect(links.rows[0].target).not.toBeNull();
+  });
+
   it("undo does not steal links a later merge took over", async () => {
     const fx = await seedVotingFixture(db);
     ctx.value = {

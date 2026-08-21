@@ -297,11 +297,15 @@ export async function approveMergeSuggestionAction(
   );
 
   return await db.transaction(async (tx) => {
+    // FOR UPDATE serialises competing reviewers. Without it, two concurrent
+    // approvals both read PENDING, both find no existing nominee, and both
+    // insert their own copy of the merge target.
     const sugList = await tx
       .select()
       .from(aiMergeSuggestions)
       .where(eq(aiMergeSuggestions.id, suggestionId))
-      .limit(1);
+      .limit(1)
+      .for("update");
 
     if (sugList.length === 0) throw new Error("Suggestion not found");
     const sug = sugList[0];
@@ -458,7 +462,8 @@ export async function undoMergeSuggestionAction(suggestionId: string) {
       .select()
       .from(aiMergeSuggestions)
       .where(eq(aiMergeSuggestions.id, suggestionId))
-      .limit(1);
+      .limit(1)
+      .for("update");
 
     if (sugList.length === 0) throw new Error("Suggestion not found");
     const sug = sugList[0];
@@ -581,6 +586,10 @@ export async function bulkApproveMergeSuggestionsAction(
 
   // Loop and approve each suggestion in a single transaction
   return await db.transaction(async (tx) => {
+    // Lock the batch's rows so two overlapping bulk approvals (or a bulk
+    // racing a single approval) cannot resolve the same suggestion twice.
+    // Blocking locks keep the outcome honest: a contended batch either waits
+    // or fails loudly — it never reports success while approving nothing.
     const pending = await tx
       .select()
       .from(aiMergeSuggestions)
@@ -589,7 +598,8 @@ export async function bulkApproveMergeSuggestionsAction(
           inArray(aiMergeSuggestions.id, suggestionIds),
           eq(aiMergeSuggestions.status, "PENDING"),
         ),
-      );
+      )
+      .for("update");
 
     if (pending.length === 0) {
       return { success: true };
