@@ -467,15 +467,47 @@ export async function undoMergeSuggestionAction(suggestionId: string) {
       throw new Error("Only approved suggestions can be undone");
     }
 
-    const [targetNominee] = await tx
-      .select({ id: nominees.id })
-      .from(nominees)
-      .where(and(eq(nominees.categoryId, sug.categoryId), eq(nominees.normalizedName, sug.suggestedName.toLowerCase().trim())))
+    // The approval may have applied an organizer-typed custom name, which is
+    // never persisted on the suggestion row — so the merge target cannot be
+    // recovered from suggestedName alone. The approval audit entry records the
+    // actual target nomineeId, so recover it from there.
+    const sourceNames = sug.sourceNominees as string[];
+    let targetNomineeId: string | undefined;
+    const [approvalAudit] = await tx
+      .select({ details: auditLogs.details })
+      .from(auditLogs)
+      .where(
+        and(
+          eq(auditLogs.targetType, "ai_merge_suggestion"),
+          eq(auditLogs.targetId, suggestionId),
+          eq(auditLogs.action, "ai_cleanup.suggestion_approved"),
+        ),
+      )
+      .orderBy(desc(auditLogs.createdAt))
       .limit(1);
+    const auditedNomineeId =
+      approvalAudit?.details &&
+      typeof approvalAudit.details === "object" &&
+      "nomineeId" in approvalAudit.details
+        ? (approvalAudit.details as { nomineeId?: unknown }).nomineeId
+        : undefined;
+    if (typeof auditedNomineeId === "string") {
+      targetNomineeId = auditedNomineeId;
+    }
+
+    if (!targetNomineeId) {
+      // Fallback for approvals whose audit trail predates the nomineeId
+      // detail: the created nominee remains discoverable by suggested name.
+      const [fallback] = await tx
+        .select({ id: nominees.id })
+        .from(nominees)
+        .where(and(eq(nominees.categoryId, sug.categoryId), eq(nominees.normalizedName, sug.suggestedName.toLowerCase().trim())))
+        .limit(1);
+      targetNomineeId = fallback?.id;
+    }
 
     // 1. Revert only links still owned by this suggestion's target nominee.
-    const sourceNames = sug.sourceNominees as string[];
-    for (const sourceName of targetNominee ? sourceNames : []) {
+    for (const sourceName of targetNomineeId ? sourceNames : []) {
       await tx
         .update(nominationsTable)
         .set({ resolvedNomineeId: null })
@@ -484,17 +516,17 @@ export async function undoMergeSuggestionAction(suggestionId: string) {
             eq(nominationsTable.eventId, sug.eventId),
             eq(nominationsTable.categoryId, sug.categoryId),
             eq(nominationsTable.nomineeText, sourceName),
-            eq(nominationsTable.resolvedNomineeId, targetNominee!.id),
+            eq(nominationsTable.resolvedNomineeId, targetNomineeId!),
           ),
         );
     }
 
-    if (targetNominee) {
+    if (targetNomineeId) {
       const [authoritativeCount] = await tx
         .select({ count: sql<number>`count(*)::int` })
         .from(nominationsTable)
-        .where(and(eq(nominationsTable.resolvedNomineeId, targetNominee.id), eq(nominationsTable.isLatest, true)));
-      await tx.update(nominees).set({ nominationCount: authoritativeCount?.count ?? 0, updatedAt: new Date() }).where(eq(nominees.id, targetNominee.id));
+        .where(and(eq(nominationsTable.resolvedNomineeId, targetNomineeId), eq(nominationsTable.isLatest, true)));
+      await tx.update(nominees).set({ nominationCount: authoritativeCount?.count ?? 0, updatedAt: new Date() }).where(eq(nominees.id, targetNomineeId));
     }
 
     // 2. Mark suggestion status back to PENDING
@@ -533,8 +565,11 @@ export async function bulkApproveMergeSuggestionsAction(
     .where(inArray(aiMergeSuggestions.id, suggestionIds));
 
   let user;
+  const workspaceIdByEvent = new Map<string, string>();
   for (const owner of owners) {
-    ({ user } = await requireEventAccess(owner.eventId, CONTENT_MODERATORS, "manage_nominees"));
+    const access = await requireEventAccess(owner.eventId, CONTENT_MODERATORS, "manage_nominees");
+    user = access.user;
+    workspaceIdByEvent.set(owner.eventId, access.workspace.id);
   }
 
   if (!user) {
@@ -757,6 +792,24 @@ export async function bulkApproveMergeSuggestionsAction(
           pending.map((s) => s.id),
         ),
       );
+
+    // Mirror the single-approve audit trail (including the resolved nomineeId)
+    // so undo can relocate the merge target for bulk-approved suggestions too.
+    await tx.insert(auditLogs).values(
+      pending.map((sug) => ({
+        workspaceId: workspaceIdByEvent.get(sug.eventId)!,
+        eventId: sug.eventId,
+        actorId: user.id,
+        action: "ai_cleanup.suggestion_approved",
+        targetType: "ai_merge_suggestion",
+        targetId: sug.id,
+        details: {
+          nomineeId: resolvedIdByKey.get(groupKey(sug.categoryId, sug.suggestedName.toLowerCase().trim())),
+          finalName: sug.suggestedName,
+          bulk: true,
+        },
+      })),
+    );
 
     return { success: true };
   });
