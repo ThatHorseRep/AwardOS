@@ -304,10 +304,18 @@ confirms no changes outside the three fix targets and their tests (no schema,
 dependency, or unrelated-route changes).
 
 ### Post-deploy
-Deployed commit sha-verified against Vercel production; existing
-`scripts/production-smoke-vote.mjs` executed against the live alias (PASS).
-No browser-based nomination-flow verification performed (no disposable
-TEST_DATABASE_URL) — stated explicitly.
+Push of `05fe202` triggered Vercel production deployment `dpl_9VQe2Hdzrrc2C3CgKug3rXmKJ5ax`
+(target=production, readyState=READY, holding alias `awardos-alpha.vercel.app`;
+alias answers HTTP 200). Deployment-sha metadata could not be read this session
+(no API token available), so the deployed build was verified BEHAVIORALLY
+instead: a disposable labeled production fixture drove the live nominations
+endpoint — tag-only payload → HTTP 422 (P2-F3 live), valid nomination → 200 +
+persisted, sync produced exactly one ACTIVE nominee, and an edit-resubmission
+retired the superseded nominee to REMOVED off the ballot roster (P2-F1 live).
+All four probes PASS; old code fails all four. [HTTP-RUNTIME + DATABASE]
+Existing `scripts/production-smoke-vote.mjs` executed against the live alias:
+all vote-path checks PASS, fixture removed. No browser-based nomination-flow
+verification performed (no disposable TEST_DATABASE_URL) — stated explicitly.
 
 ### Known limitation (documented, not silently expanded)
 Deleting a nominee whose LATEST source nomination is still unresolved lets the
