@@ -120,6 +120,29 @@ export async function POST(
     const userAgent = (request.headers.get("user-agent") || "").slice(0, 512);
 
     // 3. Save to database in a transaction
+    // Sanitize before opening the transaction. This endpoint is public and
+    // unauthenticated, so text is cleaned at the boundary rather than at each
+    // consumer — exports, certificates and AI prompts all read the stored
+    // value, and only the React views escape it for themselves. Doing it here
+    // also means an entry that strips to nothing (e.g. "<b></b>" passes schema
+    // validation) cannot flip this voter's previous latest set or burn a
+    // submission number, and a payload whose entries ALL strip empty is
+    // rejected outright instead of being acknowledged as a success that
+    // persisted nothing.
+    const cleanedNominations = nominations
+      .map((nom) => ({
+        ...nom,
+        nomineeText: sanitizePlainText(nom.nomineeText, MAX_NOMINEE_TEXT_LENGTH),
+      }))
+      .filter((nom) => nom.nomineeText.length > 0);
+
+    if (nominations.length > 0 && cleanedNominations.length === 0) {
+      return NextResponse.json(
+        { error: "No valid nomination entries were provided." },
+        { status: 422 }
+      );
+    }
+
     let hasNominations = false;
     await db.transaction(async (tx) => {
       // Serialise resubmissions from the same voter session. Two rapid
@@ -133,7 +156,7 @@ export async function POST(
       );
 
       // Save nominations
-      if (nominations.length > 0) {
+      if (cleanedNominations.length > 0) {
         const [previousSubmission] = await tx
           .select({ maxSubmissionNumber: sql<number>`coalesce(max(${nominationsTable.submissionNumber}), 0)` })
           .from(nominationsTable)
@@ -145,25 +168,19 @@ export async function POST(
           .set({ isLatest: false })
           .where(and(eq(nominationsTable.eventId, event.id), eq(nominationsTable.sessionId, actualSessionId), eq(nominationsTable.isLatest, true)));
 
-        for (const nom of nominations) {
-          // This endpoint is public and unauthenticated, so the text is cleaned
-          // at the boundary rather than at each of the places it is later
-          // rendered — exports, certificates and AI prompts all read the stored
-          // value, and only the React views escape it for themselves.
-          const nomineeText = sanitizePlainText(nom.nomineeText, MAX_NOMINEE_TEXT_LENGTH);
-          if (!nomineeText) continue;
+        for (const nom of cleanedNominations) {
           await tx.insert(nominationsTable).values({
             eventId: event.id,
             categoryId: nom.categoryId,
-            nomineeText,
+            nomineeText: nom.nomineeText,
             sessionId: actualSessionId,
             submissionNumber,
             isLatest: true,
             ipAddress,
             userAgent,
           });
-          hasNominations = true;
         }
+        hasNominations = true;
       }
 
       // Save suggested category if present

@@ -99,6 +99,20 @@ async function insertNomination(
   );
 }
 
+async function insertVersionedNomination(
+  fx: Awaited<ReturnType<typeof seedVotingFixture>>,
+  text: string,
+  sessionId: string,
+  submissionNumber: number,
+  isLatest: boolean,
+) {
+  await db.query(
+    `INSERT INTO nominations (event_id, category_id, nominee_text, session_id, submission_number, is_latest)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [fx.eventId, fx.categoryId, text, sessionId, submissionNumber, isLatest] as never[]
+  );
+}
+
 describe("merge suggestion approve/undo", () => {
   it("undo reverts a custom-named approval even though the name was not stored", async () => {
     const fx = await seedVotingFixture(db);
@@ -286,5 +300,63 @@ describe("merge suggestion approve/undo", () => {
       [] as never[]
     );
     expect(owner.rows[0].target).toBe(second.rows[0].id);
+  });
+});
+
+describe("P2-F2: single and bulk approvals share latest-version semantics", () => {
+  async function seedVersionedFixture() {
+    const fx = await seedVotingFixture(db);
+    ctx.value = {
+      user: { id: fx.userId },
+      workspace: { id: fx.workspaceId },
+      member: {},
+    };
+
+    // One voter resubmitted the same name: v1 superseded, v2 authoritative.
+    await insertVersionedNomination(fx, "Jane Doe", "s1", 1, false);
+    await insertVersionedNomination(fx, "Jane Doe", "s1", 2, true);
+    const suggestionId = await seedSuggestion(fx, ["Jane Doe"], "Jane Doe");
+    return { fx, suggestionId };
+  }
+
+  async function linkedVersions() {
+    const res = await db.query<{ n: number; latest_linked: number }>(
+      `SELECT count(*)::int AS n,
+              count(*) FILTER (WHERE is_latest)::int AS latest_linked
+       FROM nominations WHERE resolved_nominee_id IS NOT NULL`,
+      [] as never[]
+    );
+    return res.rows[0];
+  }
+
+  it("single approval links only the authoritative latest version", async () => {
+    const { fx, suggestionId } = await seedVersionedFixture();
+
+    const { approveMergeSuggestionAction } = await import("@/actions/cleanup");
+    await approveMergeSuggestionAction(suggestionId);
+
+    const links = await linkedVersions();
+    // Exactly one row may be linked, and it must be the latest one.
+    expect(links.n).toBe(1);
+    expect(links.latest_linked).toBe(1);
+
+    // The cached counter is recomputed authoritatively inside the action.
+    const cached = await db.query<{ nomination_count: number }>(
+      `SELECT nomination_count FROM nominees
+       WHERE event_id = $1 AND normalized_name = 'jane doe'`,
+      [fx.eventId] as never[]
+    );
+    expect(cached.rows[0].nomination_count).toBe(1);
+  });
+
+  it("bulk approval produces identical link behavior on the same fixture", async () => {
+    const { suggestionId } = await seedVersionedFixture();
+
+    const { bulkApproveMergeSuggestionsAction } = await import("@/actions/cleanup");
+    await bulkApproveMergeSuggestionsAction([suggestionId]);
+
+    const links = await linkedVersions();
+    expect(links.n).toBe(1);
+    expect(links.latest_linked).toBe(1);
   });
 });

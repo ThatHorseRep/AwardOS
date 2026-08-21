@@ -73,6 +73,15 @@ async function latestRows(eventId: string) {
   return res.rows;
 }
 
+async function nomineeNames(eventId: string) {
+  const res = await db.query<{ name: string; status: string }>(
+    `SELECT name, status::text AS status FROM nominees
+     WHERE event_id = $1 ORDER BY name`,
+    [eventId] as never[]
+  );
+  return res.rows;
+}
+
 describe("nomination resubmission versioning", () => {
   it("replaces the previous latest set on resubmission", async () => {
     const fx = await seedVotingFixture(db);
@@ -116,5 +125,68 @@ describe("nomination resubmission versioning", () => {
       [fx.eventId] as never[]
     );
     expect(stale.rows[0].n).toBe(0);
+  });
+});
+
+describe("P2-F1: sync must ignore superseded submission versions", () => {
+  it("does not create ballot nominees from superseded versions", async () => {
+    const fx = await seedVotingFixture(db);
+    await seedNominationsStage(fx.eventId);
+
+    // The reported sequence: submit "Alice", then edit-resubmit to "Alicia".
+    // The route syncs nominees after every commit.
+    const first = await postNominations(fx.slug, "sess_phantom", fx.categoryId, "Alice");
+    expect(first.status).toBe(200);
+    const second = await postNominations(fx.slug, "sess_phantom", fx.categoryId, "Alicia");
+    expect(second.status).toBe(200);
+
+    // Only the name the voter's LATEST submission supports may remain on the
+    // ballot roster. The superseded "Alice" version must not survive as a
+    // zero-nomination ACTIVE phantom.
+    const rows = await nomineeNames(fx.eventId);
+    const activeNames = rows.filter((row) => row.status === "ACTIVE").map((row) => row.name);
+    expect(activeNames).toEqual(["Alicia"]);
+
+    // The retired entry is deactivated, not destroyed — it stays visible to
+    // organizer cleanup with its history intact.
+    const alice = rows.find((row) => row.name === "Alice");
+    expect(alice?.status).toBe("REMOVED");
+
+    const authoritative = await db.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM nominations
+       WHERE resolved_nominee_id = (SELECT id FROM nominees WHERE event_id = $1 AND status = 'ACTIVE' LIMIT 1)
+         AND is_latest = true`,
+      [fx.eventId] as never[]
+    );
+    expect(authoritative.rows[0].n).toBe(1);
+  });
+
+  it("cannot resurrect deleted nominees from superseded versions", async () => {
+    const fx = await seedVotingFixture(db);
+    await seedNominationsStage(fx.eventId);
+
+    await postNominations(fx.slug, "sess_revival", fx.categoryId, "Alice");
+    await postNominations(fx.slug, "sess_revival", fx.categoryId, "Alicia");
+
+    // Mimic the organizer deleting every nominee: deleteNomineeAction releases
+    // resolved_nominee_id on all versions (including superseded ones) and then
+    // removes the nominee rows. A later submission triggers a fresh sync.
+    await db.query(
+      `UPDATE nominations SET resolved_nominee_id = NULL WHERE event_id = $1`,
+      [fx.eventId] as never[]
+    );
+    await db.query(`DELETE FROM nominees WHERE event_id = $1`, [fx.eventId] as never[]);
+
+    const third = await postNominations(fx.slug, "sess_other_voter", fx.categoryId, "Bob");
+    expect(third.status).toBe(200);
+
+    // The superseded "Alice" version must be gone for good. The voter's
+    // LATEST "Alicia" nomination is live current intent, so sync resolving it
+    // is identical semantics to a fresh nomination of that name arriving —
+    // it is not a resurrection of a deleted roster decision.
+    const rows = await nomineeNames(fx.eventId);
+    expect(rows.map((row) => row.name)).not.toContain("Alice");
+    const activeNames = rows.filter((row) => row.status === "ACTIVE").map((row) => row.name);
+    expect(activeNames.sort()).toEqual(["Alicia", "Bob"]);
   });
 });

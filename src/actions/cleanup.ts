@@ -339,6 +339,10 @@ export async function approveMergeSuggestionAction(
                 eq(nominationsTable.eventId, sug.eventId),
                 eq(nominationsTable.categoryId, sug.categoryId),
                 inArray(nominationsTable.nomineeText, sourceNames),
+                // Mirror the bulk approver: only authoritative latest versions
+                // are consumed. Linking superseded versions here would diverge
+                // from bulk behavior and mask stale rows from the sync path.
+                eq(nominationsTable.isLatest, true),
                 isNull(nominationsTable.resolvedNomineeId),
               ),
             )
@@ -381,7 +385,9 @@ export async function approveMergeSuggestionAction(
       nomineeId = newNom[0].id;
     }
 
-    // 2. Point all matching raw nominations to this resolved nominee ID
+    // 2. Point all matching raw nominations to this resolved nominee ID.
+    // Latest versions only, matching the bulk approver exactly so both paths
+    // consume the same rows for the same suggestion.
     for (const sourceName of sourceNames) {
       await tx
         .update(nominationsTable)
@@ -391,6 +397,7 @@ export async function approveMergeSuggestionAction(
             eq(nominationsTable.eventId, sug.eventId),
             eq(nominationsTable.categoryId, sug.categoryId),
             eq(nominationsTable.nomineeText, sourceName),
+            eq(nominationsTable.isLatest, true),
             isNull(nominationsTable.resolvedNomineeId),
           ),
         );

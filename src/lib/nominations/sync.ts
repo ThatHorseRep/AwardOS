@@ -31,10 +31,21 @@ export async function syncNomineesForEvent(eventId: string) {
     return { createdCount: 0, linkedCount: 0 };
   }
 
+  // Only the authoritative latest version of each submission may drive the
+  // ballot roster. Without this filter a superseded version (an edit that
+  // renamed the nominee) still resolves into its own ACTIVE nominee with zero
+  // latest nominations behind it — a phantom entry on the public ballot — and
+  // a deleted nominee could be resurrected from those stale rows.
   const unresolvedNominations = await db
     .select({ categoryId: nominations.categoryId, nomineeText: nominations.nomineeText })
     .from(nominations)
-    .where(and(eq(nominations.eventId, eventId), isNull(nominations.resolvedNomineeId)));
+    .where(
+      and(
+        eq(nominations.eventId, eventId),
+        eq(nominations.isLatest, true),
+        isNull(nominations.resolvedNomineeId)
+      )
+    );
 
   if (!unresolvedNominations.length) {
     return { createdCount: 0, linkedCount: 0 };
@@ -196,6 +207,23 @@ export async function syncNomineesForEvent(eventId: string) {
         }
       }
     }
+
+    // Retire nomination-sourced nominees that no longer have a single latest
+    // version behind them. The canonical case: a voter edits "Alice" to
+    // "Alicia" — Alice was a real nominee when created, but after the
+    // resubmission nothing latest resolves to it, so leaving it ACTIVE would
+    // put a zero-nomination phantom on the public ballot. Only nominees this
+    // sync pipeline itself created (source NOMINATION) are retired; MANUAL and
+    // AI_SUGGESTED entries are organizer decisions and are never touched.
+    // A name that returns in a future submission is simply re-created here.
+    await tx.execute(sql`
+      UPDATE nominees SET status = 'REMOVED', updated_at = now()
+      WHERE event_id = ${eventId} AND status = 'ACTIVE' AND source = 'NOMINATION'
+        AND NOT EXISTS (
+          SELECT 1 FROM nominations
+          WHERE resolved_nominee_id = nominees.id AND is_latest = true
+        )
+    `);
 
     return { createdCount, linkedCount };
   });
