@@ -184,3 +184,72 @@ sha equals HEAD.
 ### Intentionally deferred
 MR-0-F1 (AI cleanup Google-key gap) untouched per scope; P1-U1–U6 UX items;
 Playwright infrastructure; dependency majors.
+
+
+---
+
+## PHASE 2 — NOMINATIONS, VOTER INTAKE & EVENT-DATA INTEGRITY AUDIT (2026-08-21)
+
+Scope: audit only. No code, schema, config, or test modifications. Baseline
+HEAD `32bf815` (deployed code `275d3cc`), tree clean at start.
+
+### Executive summary
+The nomination intake path is well-defended at the boundary (64KB cap, zod
+validation, sanitize-to-fixed-point, event-scoped category validation,
+DB-backed atomic rate limiting, per-session advisory lock for resubmission
+versioning) and the authoritative count layer (`authoritativeNominationCount`,
+latest+resolved-only SQL) is consistently used by every read surface — review
+roster, clean export, account-deletion impact. Three confirmed defects were
+found, all in the **nominee lifecycle** rather than intake: sync resolves
+superseded submission versions into phantom ballot nominees (P2-F1), single vs
+bulk merge-approval apply different version filters to the same logical
+operation (P2-F2), and the public endpoint can acknowledge a payload that
+persists nothing (P2-F3). None corrupt counts; all pollute or misdescribe the
+ballot roster.
+
+### Coverage matrix
+| Area | Result |
+|------|--------|
+| 2A Public nomination route (auth, window, rate, lock, tx) | PASS — controls verified in code; rate limiter is DB-backed atomic upsert (correct cross-instance) |
+| 2B Nominee sync | DEFECT P2-F1 (processes superseded versions); concurrency + idempotency + count-parity otherwise tested and passing |
+| 2C Nomination versioning / resubmission | PASS — per-session advisory lock, latest-flag flip, submission numbers regression-pinned |
+| 2D Nomination counting | PASS — every reader uses authoritative latest+resolved SQL; denormalized `nominees.nomination_count` maintained by writers but never trusted by reads |
+| 2E AI cleanup suggestions (single approve/reject/undo/bulk) | DEFECT P2-F2 (version-filter asymmetry); FOR UPDATE locking, workspace scoping, custom-name undo via audit-derived nomineeId, bulk audit trail all verified intact |
+| 2F Ballot roster consumption | PASS mechanics — ACTIVE-only roster, no write in read path, verification config exposure limited to method, roster hash covers effective set, empty-category publish guard present; but roster inherits P2-F1 phantoms |
+| 2G Manual nominee CRUD / reorder / move | PASS with observations — RBAC + ballot guards correct; no duplicate-name dedupe on manual create/update (O2) |
+| 2H Category deletion guard | PASS — counts all versions, conservative direction |
+| 2I Exports & analytics sources | PASS — RAW includes all versions w/ Latest flag, CLEAN uses authoritative count, VOTES_RAW gates sensitive fields, spreadsheet formula neutralization present |
+| 2J Bulk import | PASS — idempotency-key claim row, transactional, normalized-name dedupe consistent with sync keys post-trim |
+| 2K Receipt verify | PASS — scoped to event + SUBMITTED status |
+
+### Confirmed defects
+| ID | Sev | Evidence | Location | Root cause → impact → smallest safe fix |
+|----|-----|----------|----------|------------------------------------------|
+| P2-F1 | MEDIUM | STATIC code-path trace (runtime repro not performed this phase) | `src/lib/nominations/sync.ts:34-37`; route post-commit sync; `getPublicBallotDetailsAction` ACTIVE-only roster; `deleteNomineeAction` link release | Sync's unresolved query omits `is_latest`, so superseded versions resolve into nominees no latest submission supports → zero-nomination ACTIVE "phantom" nominees appear on the public ballot after an ordinary edit-resubmit, and organizer-deleted nominees can resurrect via the next submission's sync. Fix: filter sync candidates to `is_latest = true`. Regression: resubmission-sequence integration pin asserting nominee set equals latest-supported names and no resurrection post-delete |
+| P2-F2 | LOW-MED | STATIC code comparison of both writers | `cleanup.ts:385-397` (single approve, no isLatest filter) vs `cleanup.ts:764-781` (bulk, isLatest=true) | Same logical op consumes different row sets; single-approve silently absorbs superseded rows while bulk leaves them dangling for P2-F1's sync to revive later as phantoms. Fix: add `isLatest=true` to the single-approve link loop and its contextual count query. Regression: single vs bulk resolve identical nomination sets on one fixture |
+| P2-F3 | LOW | STATIC boundary analysis | nominations route ~L150-160 (`if (!nomineeText) continue`) + unconditional success response | Zod validates pre-sanitize text (`"<b></b>"` passes `trim().min(1)`), `sanitizePlainText` then empties it; if ALL entries strip empty, endpoint returns success with zero rows persisted and burns rate-limit budget — misleading acknowledgment on a public endpoint. Fix: track inserted count, reject with 422 when zero survive. Regression: tag-only payload expects non-2xx and zero rows |
+
+### Observations / design opportunities (not defects)
+- O1 `nominees.nomination_count` is written by four writers but no reader trusts it (all reads use authoritative SQL); candidate for deprecation.
+- O2 Manual create/update nominee lacks within-category duplicate-normalized-name guard (organizer-controlled; ballot review hash forces re-review).
+- O5 `bulkRejectMergeSuggestionsAction` rejects + audits outside a transaction (partial-failure window).
+- O6 Concurrent AI-cleanup triggers can emit duplicate PENDING suggestions (benign: approve dedupes by normalized name).
+- O8 `NOMINATIONS_RAW` export always includes sessionId (internal identifier, low sensitivity).
+
+### Verification gaps
+- Runtime reproduction of P2-F1/F2/F3 deferred to remediation phase (feasible in existing PGlite harness as RED pins). PGlite's single connection means concurrency interleavings cannot be proven locally — say-so rule applied to all lock claims above.
+- Browser-level nomination flow untested (no disposable TEST_DATABASE_URL).
+- MR-0-F1 still open: production cannot generate real AI merge suggestions (Google key gap), so suggestion-generation paths remain unit-level evidence only.
+
+### Previously fixed controls revalidated through the writer graph
+Voting persistence SUBMITTED guard · nomination resubmission per-session advisory lock · merge-suggestion FOR UPDATE locks (single + bulk) · custom-name undo recovering target from approval-audit `details.nomineeId` (incl. bulk-approved entries) · stage-transition per-event advisory lock · global slug uniqueness (unq_event_slug) · ballot receipt scoped to event + SUBMITTED · public verificationConfig exposure limited to `method`.
+
+### Risk ranking & recommended remediation order
+P2-F1 (MEDIUM) → P2-F2 (LOW-MED) → P2-F3 (LOW). F2's fix is one predicate and removes a feeding vector for F1.
+
+### Verdicts
+- **Small-event readiness:** CONDITIONAL PASS — intake, versioning, and counting are sound and regression-pinned; phantom-nominee pollution (P2-F1) is organizer-cleanable before publish but degrades trust in self-serve rosters.
+- **Market readiness implication:** fix P2-F1…F3 before opening nominations to third-party events at scale; none block internal pilots.
+
+### Phase 2 verdict
+**PASS WITH DOCUMENTED LIMITATIONS** — three confirmed defects, zero data-corruption paths found in intake/counting; ledger updated only.
