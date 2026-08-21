@@ -824,6 +824,14 @@ export async function updateWorkflowStageStatusAction(
   const { user, workspace } = await requireEventAccess(eventId, EVENT_ADMINS, "manage_events");
 
   return await db.transaction(async (tx) => {
+    // Serialise stage transitions per event. Two admins activating different
+    // stages near-simultaneously otherwise interleave under READ COMMITTED:
+    // each completes only stages before its own target, neither sees the
+    // other's uncommitted ACTIVE row, and both commits leave two ACTIVE
+    // stages open at once. The lock makes the second transition observe the
+    // first, preserving one-active-stage-at-a-time.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${eventId}))`);
+
     // 1. Get target stage
     const stageList = await tx
       .select()

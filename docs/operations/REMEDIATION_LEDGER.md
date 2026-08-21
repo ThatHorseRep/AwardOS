@@ -279,3 +279,39 @@ Quality gates after fixes: tsc clean · ESLint clean · vitest 108/108 (27
 files) · production build passing. Committed b8b4bb8, pushed to main, deployed
 to Vercel production, and re-verified with the disposable-fixture production
 voting smoke (9/9).
+
+## Final Reliability Closure Check (2026-08-21)
+
+Two remaining sweep observations investigated to verdict. No broad audit.
+
+### Observation 1 — Concurrent workflow-stage activation: CONFIRMED DEFECT, FIXED
+- Verdict: C. `updateWorkflowStageStatusAction` serialises nothing between two
+  transitions on different stage rows of the same event: each transaction
+  completes only stages ordered before its own target and never observes the
+  other's uncommitted ACTIVE row under READ COMMITTED, so two near-simultaneous
+  activations commit two ACTIVE stages — contradicting the action's own
+  one-active-stage invariant (explicit COMPLETED cascade).
+- Evidence level: race window STATIC (PGlite cannot hold two concurrent
+  transactions, so the interleaving itself is not locally reproducible); the
+  post-fix invariant is pinned INTEGRATION.
+- Fix (smallest correct): per-event `pg_advisory_xact_lock(hashtext(eventId))`
+  at the top of the transition transaction — the second transition observes
+  the first and cascades it to COMPLETED.
+- Regression coverage: `tests/integration/stage-transition.test.ts` (2 tests)
+  through the real action — later activation completes the earlier ACTIVE
+  stage; concurrent activations leave at most one ACTIVE stage.
+
+### Observation 2 — Event duplication inheriting the reviewed roster hash: NOT A DEFECT
+- Verdict: B. The inherited hash is inert. `getBallotRosterHash` includes
+  category.id and nominee.id in the SHA-256 payload, and duplicateEventAction
+  inserts cloned categories/nominees with fresh generated UUIDs. A clone's
+  computed roster hash can therefore never equal the inherited parent hash,
+  so activating VOTING on a clone is always blocked until a fresh
+  acknowledgeBallotReviewAction stamps the clone's own hash. The review gate
+  cannot be bypassed through cloning; no code changed.
+- Evidence level: STATIC with code-level certainty (deterministic SHA-256 over
+  freshly generated primary keys).
+
+Quality gates at closure: tsc clean · ESLint clean · vitest 110/110 (27
+files) · production build passing. Commit pushed to main; Vercel production
+deployment Ready.
