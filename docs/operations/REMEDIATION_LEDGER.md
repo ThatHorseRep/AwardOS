@@ -135,3 +135,10 @@ regression-pinned.
   indexes, both `votes` indexes, and all vote columns present in the configured
   Supabase project; row distribution (5 IN_PROGRESS vs 1 SUBMITTED sessions)
   corroborates the reported non-persistence before the fix.
+- Deployment and production verification: committed as 997b9da, pushed to
+  main, auto-deployed to Vercel production (Ready). A controlled smoke vote
+  against a disposable labeled event (`scripts/production-smoke-vote.mjs`,
+  self-cleaning cascade) passed all 9 checks against the live production API:
+  init 200, submission 200 with receipt, one SUBMITTED session, correct vote
+  row, duplicate 409, no extra rows, cleared-storage retry 409. Production
+  voting persistence is verified.
