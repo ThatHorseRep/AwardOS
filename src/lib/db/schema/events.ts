@@ -23,6 +23,9 @@ export const events = pgTable('events', {
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
 }, (table) => ({
   unqWorkspaceSlug: uniqueIndex('unq_workspace_slug').on(table.workspaceId, table.slug),
+  // Public URLs address events by slug alone, so the public slug namespace is
+  // global (migration 0009).
+  unqEventSlug: uniqueIndex('unq_event_slug').on(table.slug),
 }));
 
 export const eventBranding = pgTable('event_branding', {

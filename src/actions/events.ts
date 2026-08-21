@@ -19,8 +19,9 @@ import {
   EVENT_ADMINS,
   WORKSPACE_ADMINS,
 } from "./_rbac";
-import { eq, and, isNull, count, lt, sql, inArray } from "drizzle-orm";
+import { eq, and, isNull, count, lt, gt, sql, inArray } from "drizzle-orm";
 import { getEventVoteAccounting } from "@/lib/voting/accounting";
+import { parseUtcDateTimeInput } from "@/lib/schedule-time";
 import { z } from "zod";
 import { evaluateWorkflowWindow } from "@/lib/workflow/policy";
 import { issueWorkflowStartToken } from "@/lib/workflow/start-token";
@@ -138,6 +139,19 @@ export async function createEventAction(input: CreateEventInput) {
   const data = parsed.data;
 
   const newEventId = await db.transaction(async (tx) => {
+    // Public URLs address events by slug alone, so a slug is a global
+    // identifier: reject collisions up front with an operator-readable error.
+    // A database-level unique index (migration 0009) backs this under races.
+    const [slugOwner] = await tx
+      .select({ id: events.id })
+      .from(events)
+      .where(eq(events.slug, data.slug))
+      .limit(1);
+    if (slugOwner)
+      throw new Error(
+        "That event link is already in use. Choose a different URL slug.",
+      );
+
     // 1. Insert Event
     const [event] = await tx
       .insert(events)
@@ -150,6 +164,14 @@ export async function createEventAction(input: CreateEventInput) {
         visibility: data.visibility,
         verificationLevel: data.verificationLevel,
         audienceType: data.audienceType,
+        // The wizard's Advanced card advertises enforced voter verification,
+        // so the persisted ballot method must say the same thing. STANDARD
+        // stays frictionless (NONE) and can be switched later in ballot
+        // settings.
+        verificationConfig: {
+          method:
+            data.verificationLevel === "ADVANCED" ? "EMAIL_OTP" : "NONE",
+        },
         createdBy: user.id,
       })
       .returning();
@@ -175,8 +197,8 @@ export async function createEventAction(input: CreateEventInput) {
         displayName: "Nominations Stage",
         displayOrder: 2,
         status: "PENDING" as const,
-        startsAt: data.nominationStart ? new Date(data.nominationStart) : null,
-        endsAt: data.nominationEnd ? new Date(data.nominationEnd) : null,
+        startsAt: parseUtcDateTimeInput(data.nominationStart),
+        endsAt: parseUtcDateTimeInput(data.nominationEnd),
       },
       {
         stageType: "SCREENING" as const,
@@ -189,8 +211,8 @@ export async function createEventAction(input: CreateEventInput) {
         displayName: "Voting Stage",
         displayOrder: 4,
         status: "PENDING" as const,
-        startsAt: data.votingStart ? new Date(data.votingStart) : null,
-        endsAt: data.votingEnd ? new Date(data.votingEnd) : null,
+        startsAt: parseUtcDateTimeInput(data.votingStart),
+        endsAt: parseUtcDateTimeInput(data.votingEnd),
       },
       {
         stageType: "OFFICIAL_RESULTS" as const,
@@ -349,13 +371,18 @@ export async function updateEventTimelineAction(
 ) {
   await requireEventAccess(eventId, EVENT_ADMINS, "manage_events");
 
+  // Schedule inputs are datetime-local wall-clock strings under a UTC
+  // contract; parse centrally so the instant never depends on server timezone.
   for (const update of stageUpdates) {
+    const startsAt = parseUtcDateTimeInput(update.startsAt);
+    const endsAt = parseUtcDateTimeInput(update.endsAt);
+    if (update.startsAt && !startsAt)
+      throw new Error("Invalid start date or time.");
+    if (update.endsAt && !endsAt)
+      throw new Error("Invalid end date or time.");
     await db
       .update(workflowStages)
-      .set({
-        startsAt: update.startsAt ? new Date(update.startsAt) : null,
-        endsAt: update.endsAt ? new Date(update.endsAt) : null,
-      })
+      .set({ startsAt, endsAt })
       .where(
         and(
           eq(workflowStages.id, update.stageId),
@@ -704,6 +731,18 @@ export async function duplicateEventAction(
 
   // 2. Perform deep duplication in a transaction
   const newEvent = await db.transaction(async (tx) => {
+    // Public slugs are globally unique (see createEventAction); give the
+    // organizer a readable error instead of a raw constraint violation.
+    const [slugOwner] = await tx
+      .select({ id: events.id })
+      .from(events)
+      .where(eq(events.slug, newSlug))
+      .limit(1);
+    if (slugOwner)
+      throw new Error(
+        "That event link is already in use. Choose a different URL slug.",
+      );
+
     // A. Insert cloned event record
     const [cloned] = await tx
       .insert(events)
@@ -849,6 +888,44 @@ export async function updateWorkflowStageStatusAction(
     }
 
     const targetStage = stageList[0];
+
+    // The lifecycle is forward-only: a stage may only be activated while every
+    // later stage is still PENDING/SKIPPED, and only the currently ACTIVE
+    // stage may be marked completed. Without this, one click on a completed
+    // stage's "Activate" button would reopen nominations after voting (or
+    // worse, run two stages at once) on an event that already progressed.
+    if (newStatus !== "ACTIVE" && newStatus !== "COMPLETED")
+      throw new Error(`Unsupported stage transition: ${newStatus}.`);
+    if (newStatus === "COMPLETED" && targetStage.status !== "ACTIVE")
+      throw new Error("Only the currently active stage can be marked completed.");
+    if (newStatus === "ACTIVE") {
+      // Forward-only lifecycle: only a pending stage can be activated. Once a
+      // stage completes it stays completed — otherwise one click would reopen
+      // public nominations after voting/results already progressed.
+      if (targetStage.status !== "PENDING")
+        throw new Error(
+          "Completed stages can no longer be reopened. Only a pending stage can be activated.",
+        );
+      const laterStages = await tx
+        .select({
+          displayName: workflowStages.displayName,
+          status: workflowStages.status,
+        })
+        .from(workflowStages)
+        .where(
+          and(
+            eq(workflowStages.eventId, eventId),
+            gt(workflowStages.displayOrder, targetStage.displayOrder),
+          ),
+        );
+      const progressed = laterStages.filter(
+        (stage) => stage.status === "ACTIVE" || stage.status === "COMPLETED",
+      );
+      if (progressed.length > 0)
+        throw new Error(
+          `${progressed[0].displayName} has already started — earlier stages can no longer be reopened.`,
+        );
+    }
 
     if (newStatus === "ACTIVE" && targetStage.stageType === "VOTING") {
       const [eventRow] = await tx

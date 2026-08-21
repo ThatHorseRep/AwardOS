@@ -113,9 +113,14 @@ describe("workflow stage transitions", () => {
       updateWorkflowStageStatusAction(fx.eventId, nominationsId, "ACTIVE"),
       updateWorkflowStageStatusAction(fx.eventId, screeningId, "ACTIVE"),
     ]);
+
+    // Both orders are legal now that backward reactivation is guarded: either
+    // both transitions commit in forward order, or nominations loses the race
+    // to the reactivation guard and is rejected. What may never happen is two
+    // ACTIVE stages or a rejected forward transition.
     for (const outcome of outcomes) {
       if (outcome.status === "rejected") {
-        throw new Error(`Transition failed: ${String(outcome.reason)}`);
+        expect(String(outcome.reason)).toMatch(/no longer be reopened|later stage/i);
       }
     }
 
@@ -123,6 +128,106 @@ describe("workflow stage transitions", () => {
     // Postgres the per-event lock guarantees the later committer cascades the
     // earlier one to COMPLETED.
     const active = await activeStages(fx.eventId);
-    expect(active.length).toBeLessThanOrEqual(1);
+    expect(active).toEqual([screeningId]);
+  });
+
+  it("rejects reactivating a completed stage", async () => {
+    const fx = await seedVotingFixture(db);
+    ctx.value = {
+      user: { id: fx.userId },
+      workspace: { id: fx.workspaceId },
+      member: {},
+    };
+    const { nominationsId } = await seedStages(fx.eventId);
+
+    const { updateWorkflowStageStatusAction } = await import("@/actions/events");
+    await updateWorkflowStageStatusAction(fx.eventId, nominationsId, "ACTIVE");
+    await updateWorkflowStageStatusAction(fx.eventId, nominationsId, "COMPLETED");
+
+    await expect(
+      updateWorkflowStageStatusAction(fx.eventId, nominationsId, "ACTIVE")
+    ).rejects.toThrow(/no longer be reopened|later stage/i);
+
+    const statuses = await db.query<{ status: string }>(
+      `SELECT status::text AS status FROM workflow_stages WHERE event_id = $1`,
+      [fx.eventId] as never[]
+    );
+    expect(statuses.rows.map((r) => r.status)).not.toContain("ACTIVE");
+  });
+
+  it("rejects activating an earlier stage while a later one is active", async () => {
+    const fx = await seedVotingFixture(db);
+    ctx.value = {
+      user: { id: fx.userId },
+      workspace: { id: fx.workspaceId },
+      member: {},
+    };
+    const { nominationsId, screeningId } = await seedStages(fx.eventId);
+
+    const { updateWorkflowStageStatusAction } = await import("@/actions/events");
+    await updateWorkflowStageStatusAction(fx.eventId, screeningId, "ACTIVE");
+
+    await expect(
+      updateWorkflowStageStatusAction(fx.eventId, nominationsId, "ACTIVE")
+    ).rejects.toThrow(/no longer be reopened|later stage/i);
+
+    expect(await activeStages(fx.eventId)).toEqual([screeningId]);
+  });
+
+  it("only lets the currently active stage be marked completed", async () => {
+    const fx = await seedVotingFixture(db);
+    ctx.value = {
+      user: { id: fx.userId },
+      workspace: { id: fx.workspaceId },
+      member: {},
+    };
+    const { nominationsId, screeningId } = await seedStages(fx.eventId);
+
+    const { updateWorkflowStageStatusAction } = await import("@/actions/events");
+
+    await expect(
+      updateWorkflowStageStatusAction(fx.eventId, nominationsId, "COMPLETED")
+    ).rejects.toThrow(/currently active/i);
+
+    await updateWorkflowStageStatusAction(fx.eventId, screeningId, "ACTIVE");
+    await updateWorkflowStageStatusAction(fx.eventId, screeningId, "COMPLETED");
+
+    const row = await db.query<{ status: string }>(
+      `SELECT status::text AS status FROM workflow_stages WHERE id = $1`,
+      [screeningId] as never[]
+    );
+    expect(row.rows[0].status).toBe("COMPLETED");
+  });
+
+  it("rejects unsupported target statuses outright", async () => {
+    const fx = await seedVotingFixture(db);
+    ctx.value = {
+      user: { id: fx.userId },
+      workspace: { id: fx.workspaceId },
+      member: {},
+    };
+    const { nominationsId } = await seedStages(fx.eventId);
+
+    const { updateWorkflowStageStatusAction } = await import("@/actions/events");
+    for (const unsupported of ["PENDING", "SKIPPED"] as const) {
+      await expect(
+        updateWorkflowStageStatusAction(fx.eventId, nominationsId, unsupported)
+      ).rejects.toThrow(/unsupported/i);
+    }
+  });
+
+  it("propagates authorization failures before touching any stage", async () => {
+    const fx = await seedVotingFixture(db);
+    // No authenticated context at all: requireEventAccess must reject.
+    ctx.value = null;
+
+    const { nominationsId } = await seedStages(fx.eventId);
+    const { updateWorkflowStageStatusAction } = await import("@/actions/events");
+    await expect(
+      updateWorkflowStageStatusAction(fx.eventId, nominationsId, "ACTIVE")
+    ).rejects.toThrow();
+
+    const active = await activeStages(fx.eventId);
+    expect(active).toEqual([]);
   });
 });

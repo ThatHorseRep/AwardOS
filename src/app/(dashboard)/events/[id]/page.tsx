@@ -739,6 +739,16 @@ export default function EventDetailPage() {
               const isActive = s.status === "ACTIVE";
               const isCompleted = s.status === "COMPLETED";
               const currentDates = stageDates[s.id] || { startsAt: "", endsAt: "" };
+              // The lifecycle is forward-only: only a pending stage can be
+              // activated, so don't offer an activation button the server
+              // would reject.
+              const canActivate =
+                s.status === "PENDING" &&
+                !event.stages.some(
+                  (later) =>
+                    later.displayOrder > s.displayOrder &&
+                    (later.status === "ACTIVE" || later.status === "COMPLETED"),
+                );
 
               return (
                 <div
@@ -781,7 +791,7 @@ export default function EventDetailPage() {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      {!isActive && (
+                      {!isActive && canActivate && (
                         <Button
                           variant="primary"
                           size="sm"
@@ -815,7 +825,7 @@ export default function EventDetailPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border-subtle">
                       <div className="space-y-1">
                         <label className="text-xs font-semibold text-content flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-accent" /> Start date & time
+                          <Clock className="w-3 h-3 text-accent" /> Start date &amp; time (UTC)
                         </label>
                         <input
                           type="datetime-local"
@@ -827,7 +837,7 @@ export default function EventDetailPage() {
 
                       <div className="space-y-1">
                         <label className="text-xs font-semibold text-content flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-destructive" /> End date & time (deadline)
+                          <Clock className="w-3 h-3 text-destructive" /> End date &amp; time (deadline, UTC)
                         </label>
                         <input
                           type="datetime-local"

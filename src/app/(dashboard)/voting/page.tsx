@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
 import { getEventsAction, updateBallotSettingsAction } from "@/actions/events";
+import { storedVerificationMethod } from "@/lib/voting/settings";
 import { useToast } from "@/components/ui/toast";
 import { LoadError } from "@/components/shared/load-error";
 
@@ -52,8 +53,11 @@ export default function OrganizerVotingPage() {
 
   const openSettingsModal = (ev: EventSummary) => {
     setSelectedEventForSettings(ev);
-    const existingMethod = (ev.verificationConfig as VerificationConfig | null)?.method || (ev.verificationLevel === "ADVANCED" ? "INVITATION_CODE" : ev.verificationLevel === "STANDARD" ? "EMAIL_OTP" : "NONE");
-    setVerificationMethod(existingMethod);
+    // The stored verification_config is the source of truth for how voters
+    // authenticate. Deriving the display value from verification_level instead
+    // made the modal show — and on save, silently apply — a method that was
+    // never configured.
+    setVerificationMethod(storedVerificationMethod(ev.verificationConfig));
     setVisibility(ev.visibility || "PUBLIC");
     setLiveResultsMode(ev.liveResultsMode === "RANKINGS" ? "FULL_LEADERBOARD" : ev.liveResultsMode || "FULL_LEADERBOARD");
     setAudienceType(ev.audienceType || "PUBLIC");
@@ -67,14 +71,21 @@ export default function OrganizerVotingPage() {
     setSavingSettings(true);
     setSaveSuccess(false);
     try {
-      const verificationLevel = verificationMethod === "INVITATION_CODE" ? "ADVANCED" : "STANDARD";
+      // Only send the verification method when the organizer explicitly
+      // changed it: an unrelated save must never rewrite voter authentication.
+      const methodChanged =
+        verificationMethod !==
+        storedVerificationMethod(selectedEventForSettings.verificationConfig);
       await updateBallotSettingsAction({
         eventId: selectedEventForSettings.id,
-        verificationMethod,
-        verificationLevel,
         visibility,
         liveResultsMode,
         audienceType,
+        ...(methodChanged && {
+          verificationMethod,
+          verificationLevel:
+            verificationMethod === "INVITATION_CODE" ? "ADVANCED" : "STANDARD",
+        }),
       });
 
       setSaveSuccess(true);

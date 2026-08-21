@@ -295,6 +295,7 @@ export default function NewEventWizardPage() {
                 <Clock className="w-5 h-5 text-purple-600 shrink-0" />
                 <span>
                   AwardOS will automatically transition event stages when schedules are reached. You can also manually trigger stage progression anytime.
+                  All dates and times below are interpreted as <strong>UTC</strong>.
                 </span>
               </div>
 
@@ -476,11 +477,11 @@ export default function NewEventWizardPage() {
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-purple-700">Advanced OTP Verification</span>
+                      <span className="text-xs font-bold text-purple-700">Advanced Email OTP Verification</span>
                       <Badge variant="purple" size="sm">Strict</Badge>
                     </div>
                     <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
-                      Requires voters to verify via 6-digit Email OTP or single-use invitation codes before submitting.
+                      Every voter must verify a 6-digit code sent to their email before their ballot is accepted. Single-use invitation codes can be enabled later in Ballot settings.
                     </p>
                   </button>
                 </div>
