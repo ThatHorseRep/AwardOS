@@ -14,8 +14,11 @@ import { triggerIntegrityScanAction, getIntegrityAlertsAction, getEventVoteSessi
 
 type EventDetails = Awaited<ReturnType<typeof getEventDetailsAction>>;
 type IntegrityAlert = Awaited<ReturnType<typeof getIntegrityAlertsAction>>[number];
-type VoteSession = Awaited<ReturnType<typeof getEventVoteSessionsAction>>[number];
+type SessionPage = Awaited<ReturnType<typeof getEventVoteSessionsAction>>;
+type VoteSession = SessionPage["sessions"][number];
 type AffectedVotes = { sessionIds?: string[] };
+
+const SESSION_PAGE_SIZE = 50;
 
 export default function VotingIntegrityDashboardPage() {
   const toast = useToast();
@@ -25,6 +28,8 @@ export default function VotingIntegrityDashboardPage() {
   const [event, setEvent] = useState<EventDetails>(null);
   const [alerts, setAlerts] = useState<IntegrityAlert[]>([]);
   const [sessions, setSessions] = useState<VoteSession[]>([]);
+  const [sessionMeta, setSessionMeta] = useState<{ total: number; hasMore: boolean; page: number; statusCounts: Record<string, number> }>({ total: 0, hasMore: false, page: 1, statusCounts: {} });
+  const [loadingMoreSessions, setLoadingMoreSessions] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -49,10 +54,11 @@ export default function VotingIntegrityDashboardPage() {
     try {
       const eventDetails = await getEventDetailsAction(eventId);
       const alertList = await getIntegrityAlertsAction(eventId);
-      const sessionList = await getEventVoteSessionsAction(eventId);
+      const sessionPage = await getEventVoteSessionsAction(eventId, { page: 1, pageSize: SESSION_PAGE_SIZE });
       setEvent(eventDetails);
       setAlerts(alertList);
-      setSessions(sessionList);
+      setSessions(sessionPage.sessions);
+      setSessionMeta({ total: sessionPage.total, hasMore: sessionPage.hasMore, page: 1, statusCounts: sessionPage.statusCounts });
     } catch (err) {
       console.error("Failed to load integrity page details:", err);
       setLoadError(true);
@@ -60,6 +66,23 @@ export default function VotingIntegrityDashboardPage() {
       if (showLoading) setLoading(false);
     }
   }, [eventId]);
+
+  const loadMoreSessions = async () => {
+    setLoadingMoreSessions(true);
+    try {
+      const next = await getEventVoteSessionsAction(eventId, {
+        page: sessionMeta.page + 1,
+        pageSize: SESSION_PAGE_SIZE,
+      });
+      setSessions((prev) => [...prev, ...next.sessions]);
+      setSessionMeta((prev) => ({ ...prev, total: next.total, hasMore: next.hasMore, page: next.page, statusCounts: next.statusCounts }));
+    } catch (err) {
+      console.error("Failed to load more ballot sessions:", err);
+      toast.error("We could not load more ballot sessions.");
+    } finally {
+      setLoadingMoreSessions(false);
+    }
+  };
 
   useEffect(() => {
     void loadData();
@@ -181,12 +204,12 @@ export default function VotingIntegrityDashboardPage() {
     );
   }
 
-  // Summary counts
-  const submittedBallots = sessions.length;
+  // Summary counts — exact server-side totals, not limited to loaded pages.
+  const submittedBallots = sessionMeta.statusCounts.SUBMITTED ?? 0;
   const activeAlerts = alerts.filter((a) => a.status === "NEW");
   const activeAlertsCount = activeAlerts.length;
-  const disqualifiedCount = sessions.filter((s) => s.status === "INVALIDATED").length;
-  const flaggedCount = sessions.filter((s) => s.status === "FLAGGED").length;
+  const disqualifiedCount = sessionMeta.statusCounts.INVALIDATED ?? 0;
+  const flaggedCount = sessionMeta.statusCounts.FLAGGED ?? 0;
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto font-sans pb-12">
@@ -464,13 +487,20 @@ export default function VotingIntegrityDashboardPage() {
           <Card className="border-slate-800 bg-slate-950/20">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs font-bold">Latest Submissions</CardTitle>
+              {sessions.length > 0 && (
+                <p className="text-[10px] text-slate-500">
+                  Showing {sessions.length} of {sessionMeta.total} ballot sessions
+                  {sessionMeta.hasMore ? " — load more to review older entries" : ""}
+                </p>
+              )}
             </CardHeader>
             <CardContent className="px-3">
               {sessions.length === 0 ? (
                 <div className="text-center text-slate-500 text-[11px] py-8 italic">No vote sessions logged.</div>
               ) : (
+                <>
                 <div className="space-y-3.5 max-h-[500px] overflow-y-auto pr-1">
-                  {sessions.slice(0, 50).map((s) => (
+                  {sessions.map((s) => (
                     <div key={s.id} className="p-2.5 rounded-xl bg-slate-900/40 border border-slate-850 flex flex-col gap-3 text-[11px] lg:flex-row lg:items-start lg:justify-between">
                       <div className="min-w-0 space-y-1">
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -521,7 +551,7 @@ export default function VotingIntegrityDashboardPage() {
                               )}
                             </Button>
                           )}
-                          {s.status === "FLAGGED" && (
+                          {(s.status === "FLAGGED" || s.status === "INVALIDATED") && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -541,6 +571,22 @@ export default function VotingIntegrityDashboardPage() {
                     </div>
                   ))}
                 </div>
+                {sessionMeta.hasMore && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => void loadMoreSessions()}
+                    disabled={loadingMoreSessions}
+                    className="mt-2 w-full h-8 text-[11px] text-slate-300 hover:bg-slate-800/60"
+                  >
+                    {loadingMoreSessions ? (
+                      <Loader2 className="animate-spin w-3.5 h-3.5" />
+                    ) : (
+                      `Load more (${sessionMeta.total - sessions.length} remaining)`
+                    )}
+                  </Button>
+                )}
+                </>
               )}
             </CardContent>
           </Card>

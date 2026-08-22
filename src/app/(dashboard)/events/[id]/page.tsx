@@ -796,8 +796,12 @@ export default function EventDetailPage() {
                           variant="primary"
                           size="sm"
                           onClick={async () => {
-                            await updateWorkflowStageStatusAction(eventId, s.id, "ACTIVE");
-                            setLoadAttempt((value) => value + 1);
+                            try {
+                              const result = await updateWorkflowStageStatusAction(eventId, s.id, "ACTIVE");
+                              for (const warning of result?.warnings ?? []) toast.warning(warning);
+                            } finally {
+                              setLoadAttempt((value) => value + 1);
+                            }
                           }}
                           className="rounded-xl font-semibold text-xs"
                         >

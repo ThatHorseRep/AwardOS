@@ -862,6 +862,9 @@ export async function updateWorkflowStageStatusAction(
 ) {
   const { user, workspace } = await requireEventAccess(eventId, EVENT_ADMINS, "manage_events");
 
+  // Non-blocking operator advisories returned alongside the transition result.
+  const stageWarnings: string[] = [];
+
   return await db.transaction(async (tx) => {
     // Serialise stage transitions per event. Two admins activating different
     // stages near-simultaneously otherwise interleave under READ COMMITTED:
@@ -979,6 +982,15 @@ export async function updateWorkflowStageStatusAction(
         throw new Error(
           "Choose a valid voter verification method before activation.",
         );
+      if (method === "NONE") {
+        // Frictionless mode deduplicates voters by network-derived device
+        // identity, so a shared Wi-Fi/NAT venue yields exactly one ballot per
+        // public IP and the per-IP rate limits bite quickly. Organizers must
+        // see this trade-off before opening voting, not discover it live.
+        stageWarnings.push(
+          "Frictionless verification is one ballot per network: everyone sharing a venue Wi-Fi or office connection counts as a single voter, and busy shared networks can hit voting rate limits. Use email codes or invitation codes if many voters will share one network."
+        );
+      }
       const rosterHash = getBallotRosterHash(activeCategories, activeNominees);
       const config = targetStage.config as {
         ballotReview?: { rosterHash?: string };
@@ -1039,7 +1051,7 @@ export async function updateWorkflowStageStatusAction(
         .where(eq(events.id, eventId));
     }
 
-    return { success: true };
+    return { success: true, warnings: stageWarnings };
   });
 }
 

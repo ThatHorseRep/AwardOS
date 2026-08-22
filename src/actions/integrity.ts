@@ -267,16 +267,58 @@ export async function getIntegrityAlertsAction(eventId: string) {
     .orderBy(desc(integrityAlerts.createdAt));
 }
 
-// Get event vote sessions with statuses
-export async function getEventVoteSessionsAction(eventId: string) {
+// Get event vote sessions with statuses.
+//
+// Paginated and deterministically ordered: ballots that carry a submission
+// time come first (newest first), IN_PROGRESS rows — whose submitted_at is
+// null, which under Postgres DESC ordering would otherwise sort FIRST and bury
+// every real ballot under abandoned page-load noise — trail them. Reviewers
+// page through the full population instead of a silent first-50 window.
+export async function getEventVoteSessionsAction(
+  eventId: string,
+  options: { page?: number; pageSize?: number } = {}
+) {
   // Session rows carry voter PII (email, IP, fingerprint) — moderators only.
   await requireEventAccess(eventId, CONTENT_MODERATORS, "manage_nominees");
 
-  return await db
+  const page = Math.max(1, Math.floor(options.page ?? 1));
+  const pageSize = Math.min(200, Math.max(1, Math.floor(options.pageSize ?? 50)));
+
+  const [{ total }] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(voteSessions)
+    .where(eq(voteSessions.eventId, eventId));
+
+  // Exact per-status totals independent of pagination, so dashboard counters
+  // stay truthful even when only one page of sessions is loaded.
+  const statusRows = await db
+    .select({ status: voteSessions.status, count: sql<number>`count(*)::int` })
+    .from(voteSessions)
+    .where(eq(voteSessions.eventId, eventId))
+    .groupBy(voteSessions.status);
+  const statusCounts: Record<string, number> = {};
+  for (const row of statusRows) statusCounts[row.status] = row.count;
+
+  const sessions = await db
     .select()
     .from(voteSessions)
     .where(eq(voteSessions.eventId, eventId))
-    .orderBy(desc(voteSessions.submittedAt));
+    .orderBy(
+      sql`${voteSessions.submittedAt} DESC NULLS LAST`,
+      desc(voteSessions.startedAt),
+      desc(voteSessions.id)
+    )
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
+
+  return {
+    sessions,
+    total,
+    page,
+    pageSize,
+    hasMore: page * pageSize < total,
+    statusCounts,
+  };
 }
 
 // Resolve integrity alert & optionally invalidate sessions
@@ -362,16 +404,44 @@ export async function quarantineSessionsAction(sessionIds: string[]) {
   return { success: true };
 }
 
-// Restore invalidated or quarantined vote sessions back to SUBMITTED
+// Restore invalidated or quarantined vote sessions back to SUBMITTED.
+//
+// Only sessions that a review flow can legitimately produce are restorable.
+// An IN_PROGRESS session has no ballot behind it — restoring one would invent
+// turnout out of an abandoned page load — and the guard keeps a malformed
+// batch all-or-nothing rather than partially applied.
 export async function restoreSessionsAction(sessionIds: string[]) {
   if (!sessionIds || sessionIds.length === 0) return { success: true };
   const { user, event, workspace } = await requireSessionAccess(sessionIds, EVENT_ADMINS);
+  const ids = [...new Set(sessionIds)];
 
-  await db
+  const candidates = await db
+    .select({ id: voteSessions.id, status: voteSessions.status })
+    .from(voteSessions)
+    .where(inArray(voteSessions.id, ids));
+
+  if (candidates.length !== ids.length) {
+    throw new Error("Vote session not found");
+  }
+  if (candidates.some((s) => s.status !== "FLAGGED" && s.status !== "INVALIDATED")) {
+    throw new Error("Only flagged or invalidated vote sessions can be restored.");
+  }
+
+  const updated = await db
     .update(voteSessions)
     .set({ status: "SUBMITTED" })
-    .where(inArray(voteSessions.id, sessionIds));
-  await db.insert(auditLogs).values({ workspaceId: workspace.id, eventId: event.id, actorId: user.id, action: "integrity.sessions_restored", targetType: "vote_session", details: { sessionIds: [...new Set(sessionIds)] } });
+    .where(
+      and(
+        inArray(voteSessions.id, ids),
+        inArray(voteSessions.status, ["FLAGGED", "INVALIDATED"])
+      )
+    )
+    .returning({ id: voteSessions.id });
+  if (updated.length !== ids.length) {
+    throw new Error("Vote session could not be restored.");
+  }
+
+  await db.insert(auditLogs).values({ workspaceId: workspace.id, eventId: event.id, actorId: user.id, action: "integrity.sessions_restored", targetType: "vote_session", details: { sessionIds: ids } });
   return { success: true };
 }
 

@@ -43,8 +43,7 @@ async function tabulateEventResults(eventId: string) {
       .where(eq(nominees.categoryId, cat.id))
       .orderBy(nominees.displayOrder);
 
-    let totalCategoryVotes = 0;
-    const candidates = [];
+    const candidates: ResultCandidate[] = [];
 
     for (const nom of nomineeList) {
       // Count votes where session is SUBMITTED and NOT INVALIDATED
@@ -62,7 +61,6 @@ async function tabulateEventResults(eventId: string) {
         );
 
       const votesCount = countResult[0]?.count || 0;
-      totalCategoryVotes += votesCount;
 
       // Fetch judge score if entered
       const officialRes = await db
@@ -86,36 +84,7 @@ async function tabulateEventResults(eventId: string) {
       });
     }
 
-    // Sort active candidates by vote totals descending
-    const activeCandidates = candidates.filter((c) => c.status !== "MERGED" && c.status !== "REMOVED");
-    activeCandidates.sort((a, b) =>
-      (a.overrideRank ?? Number.MAX_SAFE_INTEGER) -
-        (b.overrideRank ?? Number.MAX_SAFE_INTEGER) || b.votes - a.votes,
-    );
-
-    // Compute ranks and percentages from the same displayed vote totals. Raw
-    // selections remain available separately for audit/export purposes.
-    const displayedTotal = activeCandidates.reduce((sum, candidate) => sum + candidate.votes, 0);
-    const rankedWinners = activeCandidates.map((cand, idx) => {
-      const percentageVal = resultPercentage(cand.votes, displayedTotal);
-      const percent = percentageVal.toFixed(1) + "%";
-
-      return {
-        ...cand,
-        rank: idx + 1,
-        percent,
-        percentNum: percentageVal,
-        badgeStatus: idx === 0 ? "WINNER" : idx === 1 ? "RUNNER_UP" : "FINALIST",
-      };
-    });
-
-    categoryResults.push({
-      id: cat.id,
-      categoryName: cat.name,
-      totalVotes: displayedTotal,
-      rawTotalVotes: totalCategoryVotes,
-      winners: rankedWinners,
-    });
+    categoryResults.push(assembleCategoryResult(cat, candidates));
   }
 
   return {
@@ -126,6 +95,192 @@ async function tabulateEventResults(eventId: string) {
     liveResultsMode: event.liveResultsMode,
     categoriesResults: categoryResults,
   };
+}
+
+type ResultCandidate = {
+  id: string;
+  name: string;
+  bio: string | null;
+  votes: number;
+  rawVotes: number;
+  officialResultId: string | null;
+  overrideRank: number | null;
+  overrideReason: string | null;
+  status: string;
+};
+
+/**
+ * Winner determination, shared by the live tabulator and the published-snapshot
+ * reader so both can never disagree. A disqualified nominee is never ranked as
+ * winner: eligible candidates take ranks 1..n (override rank first, then vote
+ * totals), disqualified candidates trail them purely for display, percentages
+ * are computed against eligible votes only, and an all-disqualified category
+ * simply has no winner.
+ */
+function assembleCategoryResult(
+  cat: { id: string; name: string },
+  candidates: ResultCandidate[]
+) {
+  const isEligible = (c: ResultCandidate) =>
+    c.status !== "MERGED" && c.status !== "REMOVED" && c.status !== "DISQUALIFIED";
+
+  const rankComparator = (a: ResultCandidate, b: ResultCandidate) =>
+    (a.overrideRank ?? Number.MAX_SAFE_INTEGER) -
+      (b.overrideRank ?? Number.MAX_SAFE_INTEGER) || b.votes - a.votes;
+
+  const eligible = candidates.filter(isEligible).sort(rankComparator);
+  const disqualified = candidates.filter((c) => c.status === "DISQUALIFIED").sort(rankComparator);
+
+  // Percentages come from the same displayed vote totals that are ranked.
+  const displayedTotal = eligible.reduce((sum, candidate) => sum + candidate.votes, 0);
+  const rawTotal = candidates.reduce((sum, candidate) => sum + candidate.rawVotes, 0);
+
+  const winners = [
+    ...eligible.map((cand, idx) => {
+      const percentageVal = resultPercentage(cand.votes, displayedTotal);
+      return {
+        ...cand,
+        rank: idx + 1,
+        percent: percentageVal.toFixed(1) + "%",
+        percentNum: percentageVal,
+        badgeStatus: idx === 0 ? "WINNER" : idx === 1 ? "RUNNER_UP" : "FINALIST",
+      };
+    }),
+    ...disqualified.map((cand, idx) => ({
+      ...cand,
+      rank: eligible.length + idx + 1,
+      percent: "0.0%",
+      percentNum: 0,
+      badgeStatus: "DISQUALIFIED",
+    })),
+  ];
+
+  return {
+    id: cat.id,
+    categoryName: cat.name,
+    totalVotes: displayedTotal,
+    rawTotalVotes: rawTotal,
+    winners,
+  };
+}
+
+/**
+ * Reconstruct results from the published official record instead of recomputing
+ * from live ballots. Called once an event has a publication snapshot: what the
+ * public sees afterwards is the audited record, not whatever happens to be in
+ * the live vote tables today.
+ */
+async function buildPublishedResults(event: typeof events.$inferSelect) {
+  const eventCategories = await db
+    .select()
+    .from(categories)
+    .where(eq(categories.eventId, event.id))
+    .orderBy(categories.displayOrder);
+
+  const snapshotRows = await db
+    .select({
+      categoryId: officialResults.categoryId,
+      nomineeId: officialResults.nomineeId,
+      adjustedVoteCount: officialResults.adjustedVoteCount,
+      rawVoteCount: officialResults.rawVoteCount,
+      overrideRank: officialResults.overrideRank,
+      overrideReason: officialResults.overrideReason,
+      isDisqualified: officialResults.isDisqualified,
+      id: officialResults.id,
+      name: nominees.name,
+      bio: nominees.bio,
+      nomineeStatus: nominees.status,
+    })
+    .from(officialResults)
+    .innerJoin(nominees, eq(officialResults.nomineeId, nominees.id))
+    .where(eq(officialResults.eventId, event.id));
+
+  const rowsByCategory = new Map<string, typeof snapshotRows>();
+  for (const row of snapshotRows) {
+    const list = rowsByCategory.get(row.categoryId) ?? [];
+    list.push(row);
+    rowsByCategory.set(row.categoryId, list);
+  }
+
+  const categoryResults = eventCategories.map((cat) => {
+    const rows = rowsByCategory.get(cat.id) ?? [];
+    return assembleCategoryResult(
+      cat,
+      rows.map((row) => ({
+        id: row.nomineeId,
+        name: row.name,
+        bio: row.bio,
+        votes: row.adjustedVoteCount,
+        rawVotes: row.rawVoteCount,
+        officialResultId: row.id,
+        overrideRank: row.overrideRank,
+        overrideReason: row.overrideReason,
+        status: row.isDisqualified ? "DISQUALIFIED" : row.nomineeStatus,
+      }))
+    );
+  });
+
+  return {
+    id: event.id,
+    eventId: event.id,
+    name: event.name,
+    slug: event.slug,
+    liveResultsMode: event.liveResultsMode,
+    categoriesResults: categoryResults,
+  };
+}
+
+/**
+ * Recompute finalRank/isWinner across one category's published record using the
+ * shared eligibility rule. Runs inside the caller's transaction whenever an
+ * audited result action (publish, disqualify, restore, rank override) changes
+ * what the official ranking should be — this is what promotes the next
+ * eligible nominee after a disqualification and un-promotes on restore.
+ */
+async function reconcileCategoryFromSnapshot(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  eventId: string,
+  categoryId: string
+) {
+  const rows = await tx
+    .select({
+      id: officialResults.id,
+      adjustedVoteCount: officialResults.adjustedVoteCount,
+      overrideRank: officialResults.overrideRank,
+      isDisqualified: officialResults.isDisqualified,
+    })
+    .from(officialResults)
+    .where(
+      and(eq(officialResults.eventId, eventId), eq(officialResults.categoryId, categoryId))
+    );
+
+  if (rows.length === 0) return;
+
+  const eligible = rows
+    .filter((r) => !r.isDisqualified)
+    .sort(
+      (a, b) =>
+        (a.overrideRank ?? Number.MAX_SAFE_INTEGER) -
+          (b.overrideRank ?? Number.MAX_SAFE_INTEGER) ||
+        b.adjustedVoteCount - a.adjustedVoteCount
+    );
+  const disqualified = rows
+    .filter((r) => r.isDisqualified)
+    .sort((a, b) => b.adjustedVoteCount - a.adjustedVoteCount);
+
+  const now = new Date();
+  for (const [idx, row] of eligible.entries()) {
+    await tx
+      .update(officialResults)
+      .set({ finalRank: idx + 1, isWinner: idx === 0, updatedAt: now })
+      .where(eq(officialResults.id, row.id));
+  }
+  for (const [idx, row] of disqualified.entries()) {
+    await tx
+      .update(officialResults)
+      .set({ finalRank: eligible.length + idx + 1, isWinner: false, updatedAt: now })
+      .where(eq(officialResults.id, row.id));
+  }
 }
 
 async function snapshotOfficialResults(
@@ -150,14 +305,17 @@ async function snapshotOfficialResults(
       .sort((a, b) => (countByNominee.get(b.id) ?? 0) - (countByNominee.get(a.id) ?? 0));
     for (const [index, nominee] of ranked.entries()) {
       const rawVoteCount = countByNominee.get(nominee.id) ?? 0;
+      // Counts and disqualification state are captured here; ranking/winner
+      // flags are owned by reconcile so they follow one rule everywhere.
       await tx
         .insert(officialResults)
-        .values({ eventId, categoryId, nomineeId: nominee.id, rawVoteCount, adjustedVoteCount: rawVoteCount, finalRank: index + 1, isWinner: index === 0 && nominee.status !== "DISQUALIFIED", isDisqualified: nominee.status === "DISQUALIFIED" })
+        .values({ eventId, categoryId, nomineeId: nominee.id, rawVoteCount, adjustedVoteCount: rawVoteCount, finalRank: index + 1, isDisqualified: nominee.status === "DISQUALIFIED" })
         .onConflictDoUpdate({
           target: [officialResults.eventId, officialResults.categoryId, officialResults.nomineeId],
-          set: { rawVoteCount, adjustedVoteCount: rawVoteCount, finalRank: index + 1, isWinner: index === 0 && nominee.status !== "DISQUALIFIED", isDisqualified: nominee.status === "DISQUALIFIED", updatedAt: new Date() },
+          set: { rawVoteCount, adjustedVoteCount: rawVoteCount, isDisqualified: nominee.status === "DISQUALIFIED", updatedAt: new Date() },
         });
     }
+    await reconcileCategoryFromSnapshot(tx, eventId, categoryId);
   }
 }
 
@@ -189,7 +347,7 @@ export async function disqualifyNomineeAction(nomineeId: string, status: "ACTIVE
   // first so the workspace check has something to check against — otherwise any
   // authenticated member could disqualify a nominee in someone else's election.
   const [owner] = await db
-    .select({ eventId: nominees.eventId })
+    .select({ eventId: nominees.eventId, categoryId: nominees.categoryId })
     .from(nominees)
     .where(eq(nominees.id, nomineeId))
     .limit(1);
@@ -201,7 +359,13 @@ export async function disqualifyNomineeAction(nomineeId: string, status: "ACTIVE
   const { workspace, user } = await requireEventAccess(owner.eventId, RESULTS_MANAGERS, "publish_results");
   await db.transaction(async (tx) => {
     await tx.update(nominees).set({ status, updatedAt: new Date() }).where(eq(nominees.id, nomineeId));
-    await tx.update(officialResults).set({ isDisqualified: status === "DISQUALIFIED", isWinner: false, updatedAt: new Date() }).where(and(eq(officialResults.eventId, owner.eventId), eq(officialResults.nomineeId, nomineeId)));
+    // Mirror the disqualification onto the published record (if any) BEFORE
+    // re-ranking: reconcile derives eligibility from this flag.
+    await tx.update(officialResults).set({ isDisqualified: status === "DISQUALIFIED", updatedAt: new Date() }).where(and(eq(officialResults.eventId, owner.eventId), eq(officialResults.nomineeId, nomineeId)));
+    // Re-rank the published record (if one exists): disqualifying the leader
+    // promotes the next eligible nominee, restoring hands the win back. With no
+    // snapshot yet the live tabulation already applies the same eligibility rule.
+    await reconcileCategoryFromSnapshot(tx, owner.eventId, owner.categoryId);
     const [official] = await tx.select({ id: officialResults.id }).from(officialResults).where(and(eq(officialResults.eventId, owner.eventId), eq(officialResults.nomineeId, nomineeId))).limit(1);
     await tx.insert(resultActions).values({ eventId: owner.eventId, officialResultId: official?.id ?? null, actionType: status === "DISQUALIFIED" ? "DISQUALIFY" : "RESTORE", description: status === "DISQUALIFIED" ? "Disqualified nominee" : "Restored nominee", performedBy: user.id, reversible: true });
     await tx.insert(auditLogs).values({ workspaceId: workspace.id, eventId: owner.eventId, actorId: user.id, action: status === "DISQUALIFIED" ? "nominee.disqualified" : "nominee.restored", targetType: "nominee", targetId: nomineeId });
@@ -237,7 +401,21 @@ export async function getPublicEventResultsAction(slug: string) {
 
   // Deliberately the unguarded cores: this path is authorized by the public
   // slug plus the `liveResultsMode` check above, not by workspace membership.
-  const results = await tabulateEventResults(event.id);
+  //
+  // Once an event has a publication snapshot the public page serves THAT record,
+  // not a fresh tabulation — later votes or session invalidations must never
+  // silently move published numbers. Only publishResultsAction refreshes the
+  // snapshot; disqualification/override actions maintain it audited. Events
+  // that were never published keep serving live standings (the live-leaderboard
+  // feature) exactly as before.
+  const [snapshotExists] = await db
+    .select({ id: officialResults.id })
+    .from(officialResults)
+    .where(eq(officialResults.eventId, event.id))
+    .limit(1);
+  const results = snapshotExists
+    ? await buildPublishedResults(event)
+    : await tabulateEventResults(event.id);
   const awards = await listSpecialAwards(event.id);
   const disclosedResults = results.categoriesResults.map((category) => ({
     id: category.id,
@@ -400,7 +578,10 @@ export async function updateOfficialResultOverrideAction(input: {
   if (!result) throw new Error("Official result not found. Publish a snapshot first.");
 
   await db.transaction(async (tx) => {
-    await tx.update(officialResults).set({ overrideRank: input.rank, overrideReason: input.rank === null ? null : reason, finalRank: input.rank ?? result.finalRank, updatedAt: new Date() }).where(eq(officialResults.id, result.id));
+    // The override rank participates in ranking via reconcile; finalRank itself
+    // is recomputed there so the winner flag always follows the override.
+    await tx.update(officialResults).set({ overrideRank: input.rank, overrideReason: input.rank === null ? null : reason, updatedAt: new Date() }).where(eq(officialResults.id, result.id));
+    await reconcileCategoryFromSnapshot(tx, input.eventId, result.categoryId);
     await tx.insert(resultActions).values({ eventId: input.eventId, officialResultId: result.id, actionType: input.rank === null ? "RESTORE" : "OVERRIDE_RANK", description: input.rank === null ? "Removed official rank override" : `Overrode official rank to ${input.rank}`, explanation: input.rank === null ? null : reason, performedBy: user.id, reversible: true });
     await tx.insert(auditLogs).values({ workspaceId: workspace.id, eventId: input.eventId, actorId: user.id, action: input.rank === null ? "official_result.override_removed" : "official_result.rank_overridden", targetType: "official_result", targetId: result.id, details: { rank: input.rank, reason: input.rank === null ? null : reason } });
   });

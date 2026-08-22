@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { TrendingUp, ArrowLeft, Smartphone, Clock, Loader2, ArrowUpRight, BarChart3, Calendar, Zap, Monitor, ShieldAlert, Trophy } from "lucide-react";
+import { TrendingUp, ArrowLeft, Smartphone, Clock, Loader2, ArrowUpRight, BarChart3, Calendar, Monitor, ShieldAlert, Trophy, RefreshCw } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -80,8 +80,12 @@ export default function OrganizerAnalyticsDashboardPage() {
         </div>
 
         <Badge variant="purple" size="md" className="flex items-center gap-1.5 font-bold">
-          <Zap className="w-3.5 h-3.5 text-emerald-600 animate-pulse" /> Live Telemetry Connected
+          <Clock className="w-3.5 h-3.5 text-emerald-600" /> Snapshot as of page load
         </Badge>
+        <Button variant="outline" size="sm" onClick={() => void loadData()} disabled={loading}>
+          {loading ? <Loader2 className="mr-2 size-4 animate-spin" /> : <RefreshCw className="mr-2 size-4" />}
+          Refresh
+        </Button>
       </div>
 
       <nav aria-label="Voting activity destinations" className="flex flex-wrap gap-2">
