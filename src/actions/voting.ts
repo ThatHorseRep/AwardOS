@@ -508,24 +508,51 @@ export async function verifyBallotReceiptAction(slug: string, receiptCode: strin
     return { valid: false, message: "This receipt belongs to a different event." };
   }
 
-  // 2. Query vote session by token or session ID
+  // 2. Query vote session by receipt's session id, whatever its current
+  // status. A receipt proves the ballot was SUBMITTED at cast time; integrity
+  // review may since have flagged it (not currently counted) or invalidated
+  // it (excluded). The holder deserves an accurate answer either way — and
+  // only the holder can ask, because receipts are HMAC-signed bearer tokens.
   const sessionList = await db
     .select()
     .from(voteSessions)
     .where(
       and(
         eq(voteSessions.eventId, event.id),
-        eq(voteSessions.id, receipt.sessionId),
-        eq(voteSessions.status, "SUBMITTED")
+        eq(voteSessions.id, receipt.sessionId)
       )
     )
     .limit(1);
 
   if (sessionList.length === 0) {
-    return { valid: false, message: "No matching ballot receipt recorded." };
+    return { valid: false, message: "No matching ballot recorded for this event." };
   }
 
   const sess = sessionList[0];
+
+  if (sess.status === "FLAGGED") {
+    return {
+      valid: false,
+      state: "UNDER_REVIEW",
+      message:
+        "This receipt matches a ballot that was received but is undergoing an integrity review. It is not included in the current tally.",
+    };
+  }
+
+  if (sess.status === "INVALIDATED") {
+    return {
+      valid: false,
+      state: "INVALIDATED",
+      message:
+        "This receipt matches a ballot that was reviewed and excluded from the tally. It is not being counted.",
+    };
+  }
+
+  if (sess.status !== "SUBMITTED") {
+    // No submitted ballot exists for this receipt (e.g. an initialized but
+    // never-cast session id) — do not imply one is being held anywhere.
+    return { valid: false, message: "No matching ballot recorded for this event." };
+  }
 
   return {
     valid: true,

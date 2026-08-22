@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { archiveConfigs, auditLogs, events, eventBranding, categories, nominees, votes, voteSessions, voterOtps, invitationCodes, specialAwards, officialResults, resultActions } from "@/lib/db/schema";
-import { eq, and, sql, isNull, desc } from "drizzle-orm";
+import { eq, and, sql, isNull, desc, inArray } from "drizzle-orm";
 import { requireEventAccess, requireWorkspaceRole, RESULTS_MANAGERS, EVENT_ADMINS, ALL_MEMBERS } from "./_rbac";
 import { discloseCandidate } from "@/lib/results/disclosure";
 import { resultPercentage } from "@/lib/results/math";
@@ -33,59 +33,78 @@ async function tabulateEventResults(eventId: string) {
     .where(eq(categories.eventId, eventId))
     .orderBy(categories.displayOrder);
 
-  const categoryResults = [];
+  // Nominees, live counts, and official records are loaded in three batched
+  // queries instead of two round trips per nominee — a realistic 10×8 event
+  // previously paid ~170 sequential round trips per tabulation.
+  const categoryIds = eventCategories.map((cat) => cat.id);
 
-  for (const cat of eventCategories) {
-    // 3. Fetch nominees in category
-    const nomineeList = await db
-      .select()
-      .from(nominees)
-      .where(eq(nominees.categoryId, cat.id))
-      .orderBy(nominees.displayOrder);
+  const nomineeRows = categoryIds.length
+    ? await db
+        .select()
+        .from(nominees)
+        .where(inArray(nominees.categoryId, categoryIds))
+        .orderBy(nominees.displayOrder)
+    : [];
 
-    const candidates: ResultCandidate[] = [];
+  const nomineeIds = nomineeRows.map((nom) => nom.id);
 
-    for (const nom of nomineeList) {
-      // Count votes where session is SUBMITTED and NOT INVALIDATED
-      const countResult = await db
+  const countRows = nomineeIds.length
+    ? await db
         .select({
+          nomineeId: votes.nomineeId,
           count: sql<number>`count(${votes.id})::int`,
         })
         .from(votes)
         .innerJoin(voteSessions, eq(votes.voteSessionId, voteSessions.id))
         .where(
           and(
-            eq(votes.nomineeId, nom.id),
+            inArray(votes.nomineeId, nomineeIds),
             eq(voteSessions.status, "SUBMITTED")
           )
-        );
+        )
+        .groupBy(votes.nomineeId)
+    : [];
 
-      const votesCount = countResult[0]?.count || 0;
+  const officialRows = await db
+    .select()
+    .from(officialResults)
+    .where(eq(officialResults.eventId, eventId));
 
-      // Fetch judge score if entered
-      const officialRes = await db
-        .select()
-        .from(officialResults)
-        .where(and(eq(officialResults.eventId, eventId), eq(officialResults.nomineeId, nom.id)))
-        .limit(1);
-
-      const official = officialRes[0] ?? null;
-
-      candidates.push({
-        id: nom.id,
-        name: nom.name,
-        bio: nom.bio,
-        votes: official?.adjustedVoteCount ?? votesCount,
-        rawVotes: votesCount,
-        officialResultId: official?.id ?? null,
-        overrideRank: official?.overrideRank ?? null,
-        overrideReason: official?.overrideReason ?? null,
-        status: official?.isDisqualified ? "DISQUALIFIED" : nom.status,
-      });
-    }
-
-    categoryResults.push(assembleCategoryResult(cat, candidates));
+  const countsByNominee = new Map<string, number>();
+  for (const row of countRows) {
+    if (row.nomineeId) countsByNominee.set(row.nomineeId, row.count);
   }
+  const officialByNominee = new Map(
+    officialRows.map((row) => [row.nomineeId, row])
+  );
+
+  const nomineesByCategory = new Map<string, typeof nomineeRows>();
+  for (const nom of nomineeRows) {
+    const list = nomineesByCategory.get(nom.categoryId) ?? [];
+    list.push(nom);
+    nomineesByCategory.set(nom.categoryId, list);
+  }
+
+  const categoryResults = eventCategories.map((cat) =>
+    assembleCategoryResult(
+      cat,
+      (nomineesByCategory.get(cat.id) ?? []).map((nom) => {
+        const votesCount = countsByNominee.get(nom.id) ?? 0;
+        const official = officialByNominee.get(nom.id) ?? null;
+        return {
+          id: nom.id,
+          name: nom.name,
+          bio: nom.bio,
+          votes: official?.adjustedVoteCount ?? votesCount,
+          rawVotes: votesCount,
+          officialResultId: official?.id ?? null,
+          overrideRank: official?.overrideRank ?? null,
+          overrideReason: official?.overrideReason ?? null,
+          status: official?.isDisqualified ? "DISQUALIFIED" : nom.status,
+        };
+      })
+    )
+  );
 
   return {
     id: event.id,

@@ -20,6 +20,11 @@ export default function VotingThankYouPage() {
   const [copied, setCopied] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
 
+  // Live status of THIS browser's own ballot. The receipt was true at cast
+  // time; integrity review can later flag or invalidate a ballot, so the
+  // badge is checked against the server instead of asserted statically.
+  const [selfStatus, setSelfStatus] = useState<"CHECKING" | "COUNTED" | "UNDER_REVIEW" | "NOT_COUNTED" | "UNKNOWN">("CHECKING");
+
   // Public Verification Tool state
   const [searchCode, setSearchCode] = useState("");
   const [verifying, setVerifying] = useState(false);
@@ -31,7 +36,17 @@ export default function VotingThankYouPage() {
     .join(" ");
 
   useEffect(() => {
-    setReceiptCode(localStorage.getItem(`awardos_receipt_${slug}`));
+    const stored = localStorage.getItem(`awardos_receipt_${slug}`);
+    setReceiptCode(stored);
+    if (!stored) return;
+    verifyBallotReceiptAction(slug, stored)
+      .then((res) => {
+        if (res.valid) setSelfStatus("COUNTED");
+        else if ((res as { state?: string }).state === "UNDER_REVIEW") setSelfStatus("UNDER_REVIEW");
+        else if ((res as { state?: string }).state === "INVALIDATED") setSelfStatus("NOT_COUNTED");
+        else setSelfStatus("UNKNOWN");
+      })
+      .catch(() => setSelfStatus("UNKNOWN"));
   }, [slug]);
 
   const handleCopyReceipt = () => {
@@ -68,7 +83,7 @@ export default function VotingThankYouPage() {
           Vote cast and verified
         </h1>
         <p className="mx-auto max-w-lg text-sm text-content-secondary text-pretty">
-          Your ballot for <strong className="text-content">{eventTitle}</strong> has been recorded and included in the event tally.
+          Your ballot for <strong className="text-content">{eventTitle}</strong> has been received and recorded. Keep your receipt — you can verify its current tally status here at any time.
         </p>
       </div>
 
@@ -80,7 +95,21 @@ export default function VotingThankYouPage() {
               <CardTitle className="flex items-center gap-2 text-sm font-bold text-content">
                 <ShieldCheck className="h-4 w-4 text-accent" /> Ballot receipt
               </CardTitle>
-              <Badge variant="success" size="sm">COUNTED</Badge>
+              {selfStatus === "COUNTED" && (
+                <Badge variant="success" size="sm">COUNTED</Badge>
+              )}
+              {selfStatus === "UNDER_REVIEW" && (
+                <Badge variant="warning" size="sm">UNDER REVIEW</Badge>
+              )}
+              {selfStatus === "NOT_COUNTED" && (
+                <Badge variant="danger" size="sm">NOT COUNTED</Badge>
+              )}
+              {selfStatus === "UNKNOWN" && (
+                <Badge variant="neutral" size="sm">STATUS UNAVAILABLE</Badge>
+              )}
+              {selfStatus === "CHECKING" && (
+                <Loader2 className="h-4 w-4 animate-spin text-content-secondary" />
+              )}
             </div>
             <CardDescription className="text-xs text-content-secondary text-pretty">
               Save this receipt code. It lets you verify that your ballot remains included in the event audit tally.
@@ -151,7 +180,7 @@ export default function VotingThankYouPage() {
                   </div>
                 </div>
               ) : (
-                <div className="text-rose-600 text-xs font-bold">
+                <div className={(verificationResult as { state?: string }).state === "UNDER_REVIEW" ? "text-amber-600 text-xs font-bold" : "text-rose-600 text-xs font-bold"}>
                   ✕ {verificationResult.message || "No matching ballot found."}
                 </div>
               )}

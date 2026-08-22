@@ -22,6 +22,7 @@ import {
 import { evaluateWorkflowWindow, workflowWindowMessage } from "@/lib/workflow/policy";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { issueBallotReceipt } from "@/lib/ballot-receipt";
+import { mapBallotSubmitError } from "@/lib/ballot-submit-errors";
 
 export async function POST(
   request: NextRequest,
@@ -369,12 +370,26 @@ export async function POST(
           status: "SUBMITTED",
           submittedAt: new Date(),
         } as const;
+      // The status predicate is what makes concurrent double-submits safe:
+      // a racer whose promotion UPDATE blocked on the winner's row lock
+      // re-evaluates it against the committed SUBMITTED row under READ
+      // COMMITTED, finds zero rows, and loses the race cleanly instead of
+      // re-promoting on id alone and colliding at vote insertion.
       const newSessionList = existingStarted.length
-        ? await tx.update(voteSessions).set(sessionValues).where(eq(voteSessions.id, existingStarted[0].id)).returning({ id: voteSessions.id })
+        ? await tx
+            .update(voteSessions)
+            .set(sessionValues)
+            .where(
+              and(
+                eq(voteSessions.id, existingStarted[0].id),
+                eq(voteSessions.status, "IN_PROGRESS")
+              )
+            )
+            .returning({ id: voteSessions.id })
         : await tx.insert(voteSessions).values(sessionValues).returning({ id: voteSessions.id });
 
       if (newSessionList.length === 0) {
-        throw new Error("Failed to record vote session.");
+        throw new Error("You have already cast a ballot for this event.");
       }
 
       const voteSessionId = newSessionList[0].id;
@@ -447,34 +462,8 @@ export async function POST(
 
     return successResponse;
   } catch (error: unknown) {
-    // The unique indexes on vote_sessions are what actually stop a double
-    // ballot, including two genuinely concurrent ones. Reaching here with 23505
-    // means the constraint did its job, so this is a conflict, not a fault.
-    const pgCode = (error as { code?: string })?.code;
-    if (pgCode === "23505") {
-      const constraint = (error as { constraint_name?: string })?.constraint_name ?? "";
-      const message = constraint.includes("event_email")
-        ? "A ballot has already been submitted with this email address."
-        : constraint.includes("event_fingerprint")
-        ? "A ballot from this device has already been submitted for this event."
-        : "You have already cast a ballot for this event.";
-      return NextResponse.json({ error: message }, { status: 409 });
-    }
-
-    const message =
-      error instanceof Error ? error.message : "Unable to submit ballot.";
-
-    // Rejections raised inside the transaction are voter-facing rules, not
-    // server faults, and were previously all reported as HTTP 500 — which read
-    // to the voter as "the site is broken" rather than "you already voted".
-    const isConflict = /already/i.test(message);
-    const isRateLimited = /too many/i.test(message);
-    const isRuleViolation =
-      /required|invalid|expired|not eligible|at least one|no longer/i.test(message);
-
-    if (isConflict) return NextResponse.json({ error: message }, { status: 409 });
-    if (isRateLimited) return NextResponse.json({ error: message }, { status: 429 });
-    if (isRuleViolation) return NextResponse.json({ error: message }, { status: 400 });
+    const mapped = mapBallotSubmitError(error);
+    if (mapped) return NextResponse.json(mapped.body, { status: mapped.status });
 
     console.error("Submit Ballot error:", error);
     return NextResponse.json(
