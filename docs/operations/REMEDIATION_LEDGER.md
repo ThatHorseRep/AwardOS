@@ -315,3 +315,166 @@ Two remaining sweep observations investigated to verdict. No broad audit.
 Quality gates at closure: tsc clean · ESLint clean · vitest 110/110 (27
 files) · production build passing. Commit pushed to main; Vercel production
 deployment Ready.
+
+---
+
+# PHASE 4 — RELIABILITY HARDENING (2026-08-22)
+
+Remediation commit `1e57a75`. Method per item: inspect → reproduce (or
+strongest deterministic equivalent) → RED → root cause → minimal fix → GREEN
+→ gates → deploy → production verification. Vitest **182/182 across 38
+files** (+26 tests) · tsc clean · ESLint 0 warnings · production build PASS ·
+`git diff --check` clean.
+
+## P4-1 — Concurrent double-submit vote integrity · CONFIRMED DEFECTS, FIXED
+Domain: public ballot submission. Hypothesis: duplicate vote rows possible;
+unique constraint on votes needed.
+
+Evidence trail:
+- STATIC: promote UPDATE matched on id only; under READ COMMITTED a racer
+  whose SELECTs ran pre-commit re-promotes the same row after the winner's
+  commit and inserts its own vote rows.
+- HTTP-RUNTIME + DATABASE (RED, live): dual-fire probe
+  (`scripts/production-probe-dual-submit.mjs`, disposable labeled fixtures)
+  against the then-deployed site reproduced the interleaving in attempt 3 of
+  3 — loser answered HTTP 500 "Internal server error submitting ballot"
+  while DB stayed clean.
+
+Root causes (two):
+- D2: every query failure through drizzle-orm arrives as DrizzleQueryError
+  with the PG error on `.cause`; the route read `error.code` directly, so the
+  23505 branch was dead code in production and genuine conflicts served 500s.
+  (PGlite raw queries do NOT wrap — which is why SQL-level dedup tests never
+  saw it.)
+- D1: id-only promotion let the loser rewrite a submitted session; only the
+  `unq_vote_session_category` index prevented duplicated ballots.
+
+Fix: shared `mapBallotSubmitError` (src/lib/ballot-submit-errors.ts) unwraps
+`.cause` (accepts both postgres-js `constraint_name` and PGlite `constraint`)
+so conflicts map to accurate 409s; promotion UPDATE now requires
+`status='IN_PROGRESS'` with empty-returning → "You have already cast" 409.
+No schema change required — the hypothesized votes-table constraint already
+exists (`unq_vote_session_category`, migration 0001) and remains as
+defense-in-depth.
+
+Tests added (tests/integration/dual-submit-race.test.ts, 4): route-level
+collision → 409 not 500 (RED first); drizzle wrap-shape documentation pin;
+guarded-promotion SQL semantics (promotes exactly once); clean happy path.
+
+Production GREEN [HTTP-RUNTIME + DATABASE]: post-deploy dual-fire probe 3/3
+attempts = exactly one 200 + one 409, single session row, single vote row,
+zero 500s; production-smoke-vote.mjs 9/9 on the same deployment.
+
+Residual limitations: true parallel interleave is NOT reproducible on
+single-connection PGlite — local evidence is deterministic end-state
+equivalence plus documented EvalPlanQual reasoning, clearly labeled; live
+proof comes from the production probes. The losing racer's 409 message may
+cite device-fingerprint wording depending on which guard wins the race.
+
+## P4-2 — Workflow window TOCTOU · VERIFIED / NO DEFECT, semantics pinned
+Domain: voting window vs concurrent organizer changes. Hypothesis: ballots
+could be accepted/rejected incorrectly around close boundaries.
+
+Findings: window evaluation is server-authoritative at request-processing
+time from pre-transaction reads; a close committed after a request's checks
+cannot revoke that request. This residual gap is accepted by design — the
+mitigation is the 15-minute IN_PROGRESS grace plus two-tier closing (stage
+ends_at soft-closes with grace; event COMPLETED hard-stops instantly,
+revoking grace). All comparisons are inclusive on the allowed side; the init
+route deliberately grants no grace (fresh sessions started after close never
+qualify).
+
+Evidence: UNIT boundary pins + INTEGRATION route-level tests under a faked
+clock. Tests added: tests/workflow-policy.test.ts +3 (inclusive boundaries;
+grace bounded both sides incl. startedAt==endsAt and expiry at +15min+1ms;
+operator hard-stop); tests/integration/voting-window-boundaries.test.ts +5
+(exact ends_at acceptance; fresh rejection at +1ms; grace honored end-to-end;
+grace expiry; COMPLETED revocation).
+
+Residual limitation: check-before-close ordering argued STATICALLY (true
+organizer-close interleave untestable on PGlite) — stated explicitly rather
+than presented as runtime-proven.
+
+## P4-3 — Tabulation N+1 · CONFIRMED, FIXED
+Domain: results tabulation (public live view, organizer view, publication).
+
+Measurement (INTEGRATION, counting logger over real actions): 11 queries at
+4 nominees, growing +2 per nominee (per-nominee count + official lookup) —
+about 170 sequential round trips at a realistic 10x8 event, on every live
+results request.
+
+Fix: three batched loads (nominees by category set; grouped SUBMITTED counts;
+official records by event) → flat ~5 queries. Ranking assembly untouched.
+Semantics preserved exactly: counts still carry no eventId filter (nominee
+PKs are global), officials keyed identically, display-order grouping stable.
+
+Tests added (tests/integration/tabulation-batching.test.ts, 4): bounded
+query count with growth ≤2 when doubling nominees; multi-category ranking;
+empty category renders empty; zero-vote nominee defaults to 0/0/0%. The full
+12-test result-publication suite passes against the batched code (winner
+calculation, DQ exclusion/promotion, snapshot freeze, late votes after
+publication, all-DQ, private-null). Residual: none known; the published path
+was already batched and is unchanged.
+
+## P4-4 — FLAGGED/INVALIDATED receipt messaging · CONFIRMED, FIXED
+Domain: voter-facing receipt verification.
+
+Defect: the verifier filtered status=SUBMITTED, so flagged and invalidated
+ballots answered "No matching ballot receipt recorded." — implying the
+receipt never existed rather than that the ballot left the tally. The
+thank-you page asserted a static client-side COUNTED badge forever.
+
+Fix: verifier resolves any session state for the signed session id —
+SUBMITTED valid; FLAGGED → UNDER_REVIEW ("received but undergoing integrity
+review… not included in the current tally"); INVALIDATED → excluded message;
+unknown/non-submitted → neutral not-found. The thank-you badge is now a live
+server check (COUNTED / UNDER REVIEW / NOT COUNTED / STATUS UNAVAILABLE).
+Only receipt holders can query these states; no reviewer identity or reasons
+are exposed.
+
+Tests added (tests/integration/receipt-status-paths.test.ts, 6): counted;
+flagged; invalidated (the two defect paths were RED first);
+unknown-but-wellformed; tampered; cross-event.
+
+Residual limitation: UI rendering verified via tsc/build/code review only —
+BROWSER: UNVERIFIED.
+
+## P4-5 — Settings last-write-wins · VERIFIED / NO DEFECT, contract pinned
+Domain: ballot settings mutation. Findings: updates are PARTIAL (only
+supplied fields written), so different-field concurrent edits cannot clobber
+each other; same-field LWW is intended for admin-scoped enum settings;
+verificationConfig carries only `method` codebase-wide, so its whole-object
+write drops nothing today.
+
+Accepted residual (documented, not fixed): the method-lock's submitted-ballot
+check runs outside a transaction — a ballot committing inside that
+millisecond window lands under a freshly switched method. Dedup indexes are
+unaffected; closing it would couple the voting hot path to a settings row
+lock for negligible gain.
+
+Tests added (tests/integration/ballot-settings-lww.test.ts, 4): partial
+update preserves verificationConfig; explicit LWW pin; method change allowed
+pre-ballot; method locked after first ballot with rejected-write assertion.
+
+## GLOBAL MUTATION-INTEGRITY SCAN · no new defects
+Focused pass over nomination submission, vote submission, cleanup
+approval/undo, workflow transitions (advisory transaction lock present),
+invitation consumption (FOR UPDATE), member invite acceptance (conditional
+atomic use-claim), publication/DQ/override reconciliation transactions, and
+settings mutations: no floating writes, no browser-only duplicate protection
+on server paths, no misleading success responses beyond the items fixed
+above. Evidence level: STATIC plus existing phase 0–3 regression suites.
+
+## Deployment & production verification
+Deployed via push of `1e57a75`; alias awardos-alpha.vercel.app HTTP 200.
+[HTTP-RUNTIME + DATABASE] dual-fire probe 3/3 clean pairs with zero 500s;
+production-smoke-vote.mjs 9/9; production-smoke-results.mjs 4/4. All
+fixtures disposable, uniquely labeled, cascade-cleaned, cleanup asserted.
+BROWSER: UNVERIFIED throughout (no disposable TEST_DATABASE_URL available);
+UI-facing changes verified via typecheck/build/code review only.
+
+## Phase 4 verdict
+Two confirmed defects fixed with live RED/GREEN production evidence (P4-1),
+one measured performance defect removed (P4-3), one messaging defect fixed
+(P4-4), two areas verified intentional and pinned (P4-2, P4-5). Not claimed
+perfect: all residuals listed above remain open observations.
