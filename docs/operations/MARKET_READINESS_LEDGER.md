@@ -324,3 +324,149 @@ name arriving, since the voter's current intent is on record. Preventing that
 would need a nominations exclusion marker (schema change), out of scope per
 change-control rules. The SUPERSEDED-version revival vector is closed and
 pinned; MANUAL/AI_SUGGESTED nominees are never auto-retired.
+
+---
+
+# PHASE 3 — VOTING, LIVE EVENT OPERATIONS & POST-VOTE INTEGRITY AUDIT (2026-08-22)
+
+Scope: public ballot session + submission, window/grace policy, OTP and invitation
+verification, voting settings and activation guards, tabulation/snapshot/publish,
+disqualification and overrides, integrity scan/flag/quarantine/restore/alerts,
+receipts and voted-cookies, live activity freshness, close/reopen transitions,
+public results disclosure, exports consistency, performance spot-check.
+Rules honored: audit-only; no code/config/schema/test changes; the ONLY repo
+modification is this section. Evidence levels: STATIC = code/schema read;
+HTTP-RUNTIME/DATABASE not exercised this phase (no new production probes were
+required by the mandate and none were performed).
+
+## Coverage matrix
+
+- 3A Voting windows & grace — policy.ts traced (NO ISSUE FOUND).
+- 3B Ballot-session lifecycle — init route traced (observations only).
+- 3C Submission path & dedupe — votes route fully traced (findings P3-F1 context, P3-R2).
+- 3D Email OTP — issuance/verification/consumption (NO ISSUE FOUND; brute force bounded ≤15 codes/10min × 5 attempts).
+- 3E Settings integrity — method locked after first SUBMITTED ballot ✓; other fields last-write-wins (observation).
+- 3F Activation guards — categories/nominees/window/method/roster-hash all server-side (NO ISSUE FOUND).
+- 3G Submission transactional accounting — counters/votes/session in one tx (NO ISSUE FOUND on happy path; race noted as P3-R2-adjacent static risk below under F1/R2).
+- 3H Receipts & voted cookies — HMAC-SHA256 + timingSafeEqual, event+session-bound, SUBMITTED-required, path-scoped cookie, NONE-only enforcement (NO ISSUE FOUND).
+- 3I Live activity & analytics freshness — P3-U1, P3-U2.
+- 3J Integrity tooling — scan detectors, alert resolution, flag/quarantine/restore (P3-F3, P3-F4).
+- 3K Tabulation, publication & disqualification — P3-F1, P3-F2.
+- 3L Close/reopen transitions — forward-only stage lifecycle with per-event advisory lock; completed stages cannot reopen (NO ISSUE FOUND; boundary semantics → P3-R2).
+- 3M Receipt verification — cross-event blocked, invalidation reflected honestly (NO ISSUE FOUND).
+- 3N Voter failure UX — 409 already-cast regex matches actual route messages (verified); timeout/network → error banner (OBSERVATION: acceptable).
+- 3O Authorization spot-checks — every integrity/results action resolves owning event before RBAC; batch sessions enforced single-event with count verification; export download event-scoped with 404-masking (Phase 1 fix holding) (NO ISSUE FOUND).
+- 3P Export consistency — exports are frozen payload snapshots; raw-ballot export includes IP/UA/email gated to EVENT_ADMINS with documented PII tier (NO ISSUE FOUND).
+- 3Q Performance spot-check — per-nominee N+1 in tabulation (P3-R3).
+
+## Confirmed defects
+
+### P3-F1 · Publication does not freeze results · HIGH · STATIC
+`publishResultsAction` writes an `officialResults` snapshot and sets
+`liveResultsMode`, but `getPublicEventResultsAction` recomputes
+`tabulateEventResults` from live vote rows on every public request; the snapshot
+is never served as the published record (it is consumed only as override inputs
+inside tabulation). Any post-publication status change — invalidate, restore,
+quarantine — instantly moves PUBLIC results with no re-publish step or voter/
+organizer-visible diff. Impact: "published" results are mutable after the fact;
+the audited publish action does not actually pin what the public sees.
+Smallest safe fix: serve tabulation of the snapshot (or gate live recompute to
+pre-publication modes); regression test asserting public output is invariant
+across a restore/invalidate after publish.
+
+### P3-F2 · Disqualification neither promotes nor de-badges live winners · MEDIUM-HIGH · STATIC
+Tabulation sorts all nominees except MERGED/REMOVED — DISQUALIFIED stays in the
+ranking — and `badgeStatus: WINNER` is purely positional (`idx === 0`),
+regardless of nominee status. `disqualifyNomineeAction` forces
+`officialResults.isWinner=false` for the disqualified nominee without promoting
+a runner-up. Net effect: disqualify the current leader and the live/public view
+still crowns them WINNER at rank 1 while the official snapshot shows nobody as
+winner. Smallest safe fix: exclude DISQUALIFIED from ranking (or skip when
+assigning badgeStatus) AND promote the next candidate on DQ + snapshot refresh;
+regression test for leader-DQ scenario.
+
+### P3-F3 · Integrity ballot list buries real ballots under in-progress noise · MEDIUM · STATIC
+`getEventVoteSessionsAction` orders by `submittedAt DESC`; Postgres DESC sorts
+NULLs FIRST, and IN_PROGRESS rows (created on every ballot-page load, often
+abandoned, never cleaned up) have null submittedAt. The integrity page renders
+only `slice(0, 50)` with no pagination — once init-only sessions accumulate,
+the 50-slot window fills with noise and submitted ballots become unreviewable.
+Smallest safe fix: order `submittedAt DESC NULLS LAST, createdAt DESC` +
+paginate (or filter to non-IN_PROGRESS by default). Regression: seed mixed
+sessions, assert submitted rows visible.
+
+### P3-F4 · Restore has no status guard · LOW-MEDIUM · STATIC (defense-in-depth)
+`restoreSessionsAction` flips ANY supplied session ids to SUBMITTED — including
+IN_PROGRESS rows with zero vote rows, creating phantom turnout counted by
+accounting. The UI only exposes Restore on FLAGGED rows and offers no path to
+un-invalidate, so the server accepts states the UI never sends. Audited, admin-
+gated, single-event-checked; impact requires deliberate API-level misuse.
+Smallest safe fix: `WHERE status IN ('FLAGGED','INVALIDATED')` + rowCount check;
+regression test restoring an IN_PROGRESS id.
+
+## UX / product issues
+
+- P3-U1 · MEDIUM — Analytics page shows a pulsing "Live Telemetry Connected"
+  badge but loads once per mount with no refresh control; overstates freshness
+  (carried from Phase 1 U1; still open).
+- P3-U2 · LOW — Integrity ballot list caps at 50 rows with no pagination or
+  "showing N of M" disclosure.
+
+## Risks / design concerns
+
+- P3-R1 · HIGH (real-event impact) — NONE-mode identity is hashIP(ip, slug)
+  backed by a partial unique on SUBMITTED rows, plus rate limits of 10 votes /
+  5 min / IP and 20 ballot-sessions / 5 min / IP. Net: exactly one frictionless
+  ballot per public IP per event, and shared-NAT venues (conferences, campuses)
+  are hard-blocked by BOTH dedupe and rate limits. Intent is documented in code
+  comments, but nothing warns the organizer at activation time when method=NONE
+  is selected.
+- P3-R2 · LOW-MED — Window legality is evaluated before the submission
+  transaction: ballots whose pre-tx check passed while the stage was ACTIVE
+  still commit if the organizer closes concurrently. Deterministic accept-at-
+  check-time semantics; undocumented and invisible to organizers.
+- P3-R3 · LOW — Tabulation issues one aggregate query per nominee (N+1);
+  fine at small scale, grows linearly with roster size.
+
+## Observations (no change required)
+
+- FLAGGED ballots are excluded from all result math silently (status='SUBMITTED'
+  filters); a quarantined voter's receipt later verifies as invalid ("No matching
+  ballot recorded"). Coherent, conservative, but disclosed nowhere voter-facing.
+- sendEmailOtpAction does not check event status/window/visibility (harmless:
+  an OTP is unusable unless the event is ACTIVE at submit time).
+- Event settings other than the locked method are last-write-wins; a stale UI
+  can silently clobber newer whitelist edits.
+- publishResultsAction has no requirement that voting be closed first (moot
+  until P3-F1 makes publication actually freezing).
+- Client 409 detection regex matches the route's actual duplicate messages
+  (verified line-by-line); invitation-status messages fall through to the error
+  banner, which is acceptable.
+- Receipts, cookies, OTP caps, activation guards, forward-only stage lifecycle,
+  RBAC ownership resolution, export snapshots/download auth: all revalidated
+  through the writer graph — NO ISSUE FOUND.
+
+## Verification limitations
+
+- No true-concurrency reproduction (PGlite single connection): the double-submit
+  race surface (second UPDATE lacks a status guard; votes table has no unique on
+  (vote_session_id, category_id)) remains STATIC analysis, folded into P3-F2/R2
+  context rather than claimed as reproduced.
+- No browser E2E (no disposable TEST_DATABASE_URL): UX findings are from code
+  reading only.
+- No new production probes this phase (audit-only mandate; none required).
+
+## Risk ranking & recommended remediation order
+
+P3-F1 (publication freeze) → P3-F2 (DQ promotion/badge) → P3-F3 (integrity list
+ordering/pagination) → P3-R1 (NONE-mode operator warning at activation) →
+P3-F4 (restore guard) → P3-U1/U2 (freshness honesty, pagination disclosure).
+
+## Phase 3 verdict
+
+PASS WITH DOCUMENTED LIMITATIONS. The voting pipeline's security posture is
+strong (authorization, dedupe indexes, receipts, OTP, audit trails), but result
+AUTHENTICITY has two material gaps: published results are not frozen (P3-F1)
+and disqualification does not produce a coherent winner (P3-F2). Neither blocks
+small-event pilot use with honest disclosure; both should precede any paid,
+prize-backed, or contested event.
