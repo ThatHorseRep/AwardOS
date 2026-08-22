@@ -470,3 +470,106 @@ AUTHENTICITY has two material gaps: published results are not frozen (P3-F1)
 and disqualification does not produce a coherent winner (P3-F2). Neither blocks
 small-event pilot use with honest disclosure; both should precede any paid,
 prize-backed, or contested event.
+
+---
+
+# PHASE 3 REMEDIATION — VOTING & RESULTS INTEGRITY FIXES (2026-08-22)
+
+Remediation commit `0894157` (code+tests), probe script `c51f3c1`. RED phase
+reproduced every confirmed defect through the real server actions before any
+fix; GREEN after. Vitest **156/156** across 33 files (147 existing + 9 new
+regression tests) · tsc clean · ESLint 0/0 · production build success ·
+`git diff --check` clean.
+
+## Findings → reproduction → fix → verification
+
+### P3-F1 Publication did not freeze public results · HIGH
+RED: after publishing, new submitted ballots moved the public payload.
+Root cause: `getPublicEventResultsAction` always recomputed live tabulation;
+the audited snapshot was never served.
+Fix: once `official_results` rows exist for an event, the public getter serves
+a reconstruction from that published record (`buildPublishedResults`) through
+the same ranking assembler as the live path; pre-publication disclosure keeps
+serving live standings; HIDDEN unchanged. Re-publication refreshes counts.
+Tests (5): live-before-publish pin, freeze against late ballots + organizer
+divergence contract (official column frozen, raw column drifts) + re-publish
+refreshes, invalidate-after-publish stability, unpublish/republish cycle,
+private-events-null.
+
+### P3-F2 Disqualified nominees kept ranks and WINNER badges · MEDIUM-HIGH
+RED: leader DQ left the positional WINNER badge on the disqualified nominee;
+official record promoted nobody; restore lost the winner entirely; rank
+overrides never moved `isWinner`.
+Root cause: ranking/badging was purely positional over all non-merged
+nominees; snapshot and DQ action used divergent rules.
+Fix: one shared eligibility rule — DISQUALIFIED excluded from ranking, badges
+and percentage denominators in live tabulation AND snapshot reconstruction;
+new `reconcileCategoryFromSnapshot` re-ranks a category's official record
+(overrideRank first, then adjusted counts; DQ trail after eligibles) inside
+publish, disqualify/restore, and override transactions, promoting the next
+eligible nominee. All-disqualified ⇒ no winner anywhere.
+Tests (7): normal snapshot winner, leader-DQ promotion (+certificate roster +
+audited resultActions), restore returns original winner, no live DQ badge,
+all-DQ leaves no winner, organizer/public consistency post-DQ, override
+promotion.
+
+### P3-F3 Integrity ballot list buried real ballots · MEDIUM
+RED: IN_PROGRESS sessions (null submitted_at sorts FIRST under Postgres DESC)
+filled the only 50 rendered rows.
+Fix: deterministic ordering — submitted ballots first (`submittedAt DESC NULLS
+LAST`, then `startedAt`, then id), bounded pagination with exact totals and
+per-status counters independent of page size.
+Tests (4): ordering pin, 8-row/three-page walk without dup/skip + metadata +
+statusCounts, authorization retained.
+
+### P3-F4 Restore could mint phantom SUBMITTED ballots · LOW-MED
+Fix: `restoreSessionsAction` accepts only FLAGGED/INVALIDATED ids with
+all-or-nothing validation and a rowCount check on the guarded UPDATE.
+Tests (5): flagged+invalidated restore, IN_PROGRESS rejection, mixed-batch
+atomicity, unknown id rejection (+pre-existing authz pin).
+
+### P3-R1 Shared-network lockout under NONE mode · HIGH operational risk
+Investigated per mandate: IP-derived identity is intentional anti-abuse for
+frictionless voting; removing it would reopen ballot-stuffing. Chose the
+smallest safe fix: `updateWorkflowStageStatusAction` now returns an operator
+warning when activating VOTING with method NONE ("one ballot per network…"),
+surfaced as a toast at activation time. Voting semantics unchanged.
+Tests (2): warning present for NONE, silent for EMAIL_OTP (full activation
+fixture incl. roster-hash gating).
+
+### P3-U1/P3-U2 UX honesty
+Analytics badge "Live Telemetry Connected" replaced by "Snapshot as of page
+load" plus a manual Refresh control. Integrity registry now shows "Showing X
+of Y" with Load-more, and offers Restore on INVALIDATED rows (server guard
+always documented them restorable).
+
+## Deployment & production verification
+Push of `0894157` triggered production deployment holding alias
+`awardos-alpha.vercel.app` (HTTP 200). Sha metadata remains unverifiable (no
+API token); deployment identity proven BEHAVIORALLY:
+- `scripts/production-smoke-vote.mjs`: 9/9 PASS on the new deployment.
+- New `scripts/production-smoke-results.mjs` (committed `c51f3c1`): disposable
+  labeled fixture seeded to the exact post-publish state, deployed public-
+  results server action invoked over HTTPS — snapshot order served (Alpha 2
+  votes ranked above Bravo), and after adding five live Bravo votes the
+  payload DID NOT MOVE. Decisive: pre-fix code recomputes live and would have
+  flipped the leader. 4/4 PASS; fixture removed. [HTTP-RUNTIME + DATABASE]
+No browser-based verification performed (no disposable TEST_DATABASE_URL);
+UI-facing changes (toast wiring, badges, load-more) verified via tsc/build/
+code review only — stated explicitly.
+
+## Intentionally deferred / remaining limitations
+- Concurrent double-submit race (STATIC, Phase 3 audit): second UPDATE still
+  lacks a status guard; votes table still has no unique (vote_session_id,
+  category_id). Not part of authorized scope this phase; needs schema change.
+- P3-R2 window TOCTOU semantics and P3-R3 tabulation N+1 unchanged.
+- FLAGGED-ballot receipt messaging and settings last-write-wins observations
+  unchanged (documented, accepted).
+- Organizer results table intentionally keeps serving frozen official counts
+  in its "Official Votes" column post-publication (raw column shows live
+  drift); republishing is the documented refresh path.
+
+## Phase 3 remediation verdict
+All six authorized items fixed, regression-pinned, gates green, deployed and
+behaviorally verified where the runtime allows. Published results are now
+actually frozen; disqualification produces a coherent, consistent winner.
